@@ -1,1 +1,16 @@
+name: CI Hello
 
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  hello:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: 인사하기
+        run: echo "Hello FlowCheck! 첫 파이프라인 동작 확인 완료"
