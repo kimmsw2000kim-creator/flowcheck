@@ -1,4 +1,4 @@
-package com.board.security;
+package com.flowcheck.security;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

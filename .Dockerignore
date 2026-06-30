@@ -1,0 +1,21 @@
+# General exclusions
+.git
+.gitignore
+.env
+.env.*
+.vscode/
+*.log
+
+# Frontend (Next.js) exclusions
+frontend/node_modules
+frontend/.next/
+frontend/npm-debug.log
+frontend/yarn-debug.log
+frontend/yarn-error.log
+
+# Backend (Gradle/Java) exclusions
+backend/build/
+backend/.gradle/
+backend/.idea/
+backend/*.iml
+backend/logs/

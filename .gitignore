@@ -1,48 +1,39 @@
-# Python Cache & compiled files
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
+# ==========================================
+# FlowCheck Root GitIgnore Consolidation
+# ==========================================
 
-# Virtual Environment
-venv/
-.venv/
-ENV/
-env.bak/
-venv.bak/
+# Gradle / Java Build Outputs
+.gradle/
+**/build/
+**/out/
+**/bin/
+*.class
 
-# Node.js
+# Node.js / Frontend Outputs
 node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-.eslintcache
+**/node_modules/
+dist/
+dist-ssr/
 .next/
 out/
 .nuxt/
 .cache/
-dist-ssr/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
 
-# IDEs and Editors
+# Python Cache (Legacy & Helpers)
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDEs & Editors
 .vscode/
 .idea/
 *.suo
@@ -51,27 +42,25 @@ dist-ssr/
 *.sln
 *.sw?
 
-# Operating System Files
+# OS Files
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# Environment variables & secrets
+# Environment Variables & Secrets
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+!.env.example
 *.pem
 *.key
 *.cert
 
-# Database & local sqlite
+# Databases
 *.db
 *.sqlite3
 *.log
 
-# Locust logs & csv outputs
+# Locust / Load Test Outputs
 *stats.csv
 *stats_history.csv
 *failures.csv

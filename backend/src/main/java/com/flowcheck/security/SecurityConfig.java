@@ -1,4 +1,4 @@
-package com.board.security;
+package com.flowcheck.security;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;

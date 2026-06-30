@@ -1,4 +1,4 @@
-package com.board.config;
+package com.flowcheck.config;
 
 import org.springframework.context.annotation.Configuration;
 

@@ -1,4 +1,4 @@
-package com.board.security;
+package com.flowcheck.security;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
