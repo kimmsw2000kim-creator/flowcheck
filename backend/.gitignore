@@ -1,3 +1,13 @@
-venv/
+# Python specific gitignore
 __pycache__/
 *.pyc
+venv/
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
+*.db
+*.sqlite3
+.env
+.env.*
+! .env.example
