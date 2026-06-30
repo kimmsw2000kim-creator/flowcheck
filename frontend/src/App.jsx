@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { 
   Activity, Shield, CreditCard, Users, PlusCircle, CheckCircle, 
   AlertCircle, Play, Send, ThumbsUp, Share2, MessageSquare, 
@@ -259,15 +260,15 @@ function App() {
         if (index === simulatedSteps.length - 1) {
           setQaStatus('success');
           setQaReportMarkdown(`# QA Audit Report for ${targetUrl}
-## Summary of Findings
-- **Crawl steps executed**: 5
-- **Errors found**: 0
-- **Page Load Speed**: Fast (Avg 240ms)
+          ## Summary of Findings
+          - **Crawl steps executed**: 5
+          - **Errors found**: 0
+          - **Page Load Speed**: Fast (Avg 240ms)
 
-## Gemini Recommendations
-1. **Accessibility**: The checkout button (\`button.checkout\`) lacks a descriptive \`aria-label\`.
-2. **SEO**: Meta viewport tags are properly optimized.
-3. **UX Improvement**: Add micro-interactions when clicking the "Add to Cart" button.`);
+          ## Gemini Recommendations
+          1. **Accessibility**: The checkout button (\`button.checkout\`) lacks a descriptive \`aria-label\`.
+          2. **SEO**: Meta viewport tags are properly optimized.
+          3. **UX Improvement**: Add micro-interactions when clicking the "Add to Cart" button.`);
           showAlert('Autonomous AI QA Crawl Completed!', 'success');
         }
       }, delay += 1000);
@@ -275,53 +276,36 @@ function App() {
   };
 
   // Run Load Test
-  const handleRunLoadTest = () => {
-    if (currentUser.coupons <= 0 && currentUser.balance < 10000) {
-      showAlert('Insufficient coupons or balance.', 'error');
-      return;
-    }
-
-    if (currentUser.coupons > 0) {
-      setCurrentUser(prev => ({ ...prev, coupons: prev.coupons - 1 }));
-    } else {
-      setCurrentUser(prev => ({ ...prev, balance: prev.balance - 10000 }));
-      setLedger([
-        { id: ledger.length + 1, amount: -10000, type: 'TEST_CONSUME', description: 'Locust Load Test Execution', createdAt: new Date().toISOString().substring(0, 16) },
-        ...ledger
-      ]);
-    }
-
+  const handleRunLoadTest = async () => {
     setLoadStatus('running');
     setLoadMetrics(null);
 
-    // Simulate duration countdown
-    setTimeout(() => {
-      const targetUrl = domains.find(d => d.id === selectedLoadDomain)?.domainUrl || 'https://myshop.com';
-      setLoadStatus('success');
-      setLoadMetrics({
-        maxTps: vusers * 1.8,
-        avgResponse: 120 + (vusers * 0.4),
-        errorRate: vusers > 200 ? 4.8 : 0.0,
-        bottleneckDiagnosis: `# Bottleneck Analysis for ${targetUrl}
-- **High Concurrency Behavior**: Under ${vusers} VUsers, API server shows CPU utilization spike (92%).
-- **Database Recommendation**: Add query optimization indexes on \`orders\` tables.
-- **Auto-scaling Recommendation**: Configure container scale-out triggering when CPU exceeds 75%.`
-      });
+    try {
+      const payload = {
+        targetUrl: domains.find(d => d.id === selectedLoadDomain).domainUrl,
+        vusers,
+        duration,
+        loadPrompt,
+      };
 
-      // Generate timeseries data
-      const points = [];
-      const now = Math.floor(Date.now() / 1000);
-      for (let i = 0; i <= duration; i += 3) {
-        points.push({
-          time: `${i}s`,
-          users: Math.min(vusers, Math.floor((i / duration) * vusers * 1.5)),
-          tps: Math.floor((vusers * 1.5) * 0.7 + (Math.random() * vusers * 0.5)),
-          avg_response: Math.floor((120 + (vusers * 0.3)) * 0.9 + (Math.random() * 40))
-        });
+      const response = await axios.post('/test/traffic', payload);
+      const { results, timeseries, updatedUser } = response.data;
+
+      setLoadStatus('success');
+      setLoadMetrics(results.metrics);
+      setLoadChartData(timeseries);
+      
+      setCurrentUser(updatedUser); 
+      showAlert('부하 테스트가 완료되었습니다!', 'success');
+
+    } catch (error) {
+      setLoadStatus('error');
+      if (error.response?.status === 402) {
+        showAlert('쿠폰이나 잔액이 부족합니다.', 'error');
+      } else {
+        showAlert('테스트 실행 중 오류가 발생했습니다.', 'error');
       }
-      setLoadChartData(points);
-      showAlert('Locust load testing completed!', 'success');
-    }, 3000);
+    }
   };
 
   // Create Community Post
