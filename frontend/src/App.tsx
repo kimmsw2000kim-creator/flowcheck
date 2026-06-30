@@ -329,44 +329,74 @@ function App() {
     });
   };
 
-  const handleRunLoadTest = () => {
+  const handleRunLoadTest = async () => {
     if (currentUser.coupons <= 0 && currentUser.balance < 10000) {
       showAlert('Insufficient coupons or balance.', 'error');
       return;
     }
-    if (currentUser.coupons > 0) {
-      setCurrentUser(prev => ({ ...prev, coupons: prev.coupons - 1 }));
-    } else {
-      setCurrentUser(prev => ({ ...prev, balance: prev.balance - 10000 }));
-      setLedger([
-        { id: ledger.length + 1, amount: -10000, type: 'TEST_CONSUME', description: 'Locust Load Test Execution', createdAt: new Date().toISOString().substring(0, 16) },
-        ...ledger
-      ]);
-    }
+  
+    const targetUrl = domains.find(d => d.id === selectedLoadDomain)?.domainUrl || 'https://myshop.com';
+
+    const payload = {
+      targetUrl,
+      vusers,
+      duration,
+      loadPrompt,
+    };
+    
     setLoadStatus('running');
-    setTimeout(() => {
-      const targetUrl = domains.find(d => d.id === selectedLoadDomain)?.domainUrl || 'https://myshop.com';
+
+    try {
+      const response = await axios.post("/api/test/loadtest/run", payload);
+
+      const {
+        testResults,
+        updatedUser,
+        deductionDetail
+      } = response.data;
+
+      setCurrentUser(prev => ({
+        ...prev,
+        coupons: updatedUser.coupons,
+        balance: updatedUser.balance
+      }));
+
+      // TODO: 장부 처리 로직을 서버에서 받아서 처리하도록 수정 필요
+      if (deductionDetail?.type === 'BALANCE') {
+        setLedger(prev => [
+          { 
+            id: deductionDetail.ledgerId || prev.length + 1, 
+            amount: -10000, 
+            type: 'TEST_CONSUME', 
+            description: 'Locust Load Test Execution', 
+            createdAt: new Date().toISOString().substring(0, 16) 
+          },
+          ...prev
+        ]);
+      }
+
       setLoadStatus('success');
       setLoadMetrics({
-        maxTps: vusers * 1.8,
-        avgResponse: 120 + (vusers * 0.4),
-        errorRate: vusers > 200 ? 4.8 : 0.0,
-        bottleneckDiagnosis: `# Bottleneck Analysis for ${targetUrl}\n- Max TPS: ${vusers * 1.8} req/s\n- Suggest database queries scaling.`
+        maxTps: testResults.maxTps,
+        avgResponse: testResults.avgResponse,
+        errorRate: testResults.errorRate,
+        bottleneckDiagnosis: testResults.bottleneckDiagnosis
       });
-
-      const points = [];
-      const now = Math.floor(Date.now() / 1000);
-      for (let i = 0; i <= duration; i += 3) {
-        points.push({
-          time: `${i}s`,
-          users: Math.min(vusers, Math.floor((i / duration) * vusers * 1.5)),
-          tps: Math.floor((vusers * 1.5) * 0.7 + (Math.random() * vusers * 0.5)),
-          avg_response: Math.floor((120 + (vusers * 0.3)) * 0.9 + (Math.random() * 40))
-        });
-      }
-      setLoadChartData(points);
+      setLoadChartData(testResults.points);
+      
       showAlert('Locust load testing completed!', 'success');
-    }, 3000);
+
+    } catch (error) {
+      console.error('Failed to run load test:', error);
+      setLoadStatus('error'); // 에러 시 상태를 error나 idle로 변경
+      
+      // 백엔드에서 보내준 에러 메시지가 있다면 출력, 없으면 기본 메시지
+      if (axios.isAxiosError(error) && error.response) {
+        showAlert(error.response.data.message || '서버 요청 중 오류가 발생했습니다.', 'error');
+      } else {
+        showAlert('알 수 없는 네트워크 오류가 발생했습니다.', 'error');
+      }
+    }
   };
 
   const handleCreatePost = (e: React.FormEvent) => {
