@@ -1,6 +1,9 @@
 package com.flowcheck.controller;
 
 import com.flowcheck.dto.TrafficTestRequestDTO;
+import com.flowcheck.dto.TrafficTestResponseDTO;
+import com.flowcheck.dto.TrafficTestStatusDTO;
+import com.flowcheck.dto.TrafficTestMetrics;
 import com.flowcheck.service.TrafficTestService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Async;
@@ -19,7 +22,7 @@ public class TrafficTestController {
     private final Map<String, TrafficTestStatusDTO> testStore = new ConcurrentHashMap<>();
 
     // service
-    private TrafficTestService trafficTestService;
+    private final TrafficTestService trafficTestService;
 
     @PostMapping("/run")
     public TrafficTestResponseDTO runTest(@RequestBody TrafficTestRequestDTO request) {
