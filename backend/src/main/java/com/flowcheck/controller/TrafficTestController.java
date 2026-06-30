@@ -18,6 +18,7 @@ public class TrafficTestController {
     // 인메모리 상태 저장 (추후 DB나 Redis로 변경 가능)
     private final Map<String, TrafficTestStatusDTO> testStore = new ConcurrentHashMap<>();
 
+    // service
     private TrafficTestService trafficTestService;
 
     @PostMapping("/run")
