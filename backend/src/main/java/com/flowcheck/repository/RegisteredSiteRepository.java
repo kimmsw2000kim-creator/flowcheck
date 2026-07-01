@@ -8,7 +8,7 @@ import java.util.List;
 
 public interface RegisteredSiteRepository extends JpaRepository<RegisteredSite, Long> {
 
-    List<RegisteredSite> findbyUserOrderByCreatedAtDesc(User user);
+    List<RegisteredSite> findByUserOrderByCreatedAtDesc(User user);
 
     long countByUser(User user);
 }
