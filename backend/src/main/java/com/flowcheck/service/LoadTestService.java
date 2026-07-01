@@ -1,17 +1,20 @@
 package com.flowcheck.service;
 
 import com.flowcheck.domain.CreditsLedger;
+import com.flowcheck.domain.TestRequest;
 import com.flowcheck.domain.User;
 import com.flowcheck.domain.UserCoupon;
 import com.flowcheck.dto.LoadTest.LoadTestRequest;
 import com.flowcheck.dto.LoadTest.LoadTestResponse;
 import com.flowcheck.repository.CreditsLedgerRepository;
+import com.flowcheck.repository.TestRequestRepository;
 import com.flowcheck.repository.UserCouponRepository;
 import com.flowcheck.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -22,6 +25,7 @@ public class LoadTestService {
     private final UserRepository userRepository;
     private final UserCouponRepository userCouponRepository;
     private final CreditsLedgerRepository creditsLedgerRepository;
+    private final TestRequestRepository testRequestRepository;
 
     // TODO: 하드 코딩이라서 바꿔야 함
     private static final int TEST_COST = 10_000;
@@ -30,6 +34,16 @@ public class LoadTestService {
     public LoadTestResponse runLoadTest(UUID userId, LoadTestRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        String safePrompt = request.getLoadPrompt() != null ? request.getLoadPrompt() : "";
+        TestRequest testHistory = TestRequest.builder()
+                .user(user)
+                .targetUrl(request.getTargetUrl())
+                .promptInput(safePrompt)
+                .testStatus("PENDING").createdAt(OffsetDateTime.now())
+                .updatedAt(OffsetDateTime.now())
+                .build();
+        testRequestRepository.save(testHistory);
 
         String deductionType;
         Long ledgerId = null;
@@ -58,18 +72,17 @@ public class LoadTestService {
             deductionType = "BALANCE";
 
         } else {
+            testHistory.setTestStatus("FAILED");
             throw new IllegalStateException("Insufficient coupons or balance.");
         }
 
         LoadTestResponse.TestResults testResults = executeK6LoadTest(request);
 
-        // 4. 남은 쿠폰 갯수 계산 (프론트엔드 업데이트용)
-        int remainingCouponsCount = userCouponRepository.findByUserAndRemainingChancesGreaterThan(user, 0)
-                .stream()
-                .mapToInt(UserCoupon::getRemainingChances)
-                .sum();
+        testHistory.setTestStatus("COMPLETED");
+        testHistory.setUpdatedAt(OffsetDateTime.now());
 
-        // 5. 프론트엔드 규격에 맞춰 Response DTO 조립 후 반환
+        int remainingCouponsCount = userCouponRepository.sumRemainingChancesByUserId(userId);
+
         return LoadTestResponse.builder()
                 .testResults(testResults)
                 .updatedUser(LoadTestResponse.UpdatedUser.builder()
