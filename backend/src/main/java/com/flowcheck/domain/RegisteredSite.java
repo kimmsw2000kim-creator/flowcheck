@@ -41,9 +41,10 @@ public class RegisteredSite {
     private OffsetDateTime verifiedAt;
 
     @NotNull
+    @Builder.Default
     @ColumnDefault("false")
     @Column(name = "is_verified", nullable = false)
-    private Boolean isVerified;
+    private Boolean isVerified = false;
 
     @Size(max = 100)
     @NotNull
@@ -51,7 +52,8 @@ public class RegisteredSite {
     private String verificationToken;
 
     @NotNull
+    @Builder.Default
     @ColumnDefault("now()")
     @Column(name = "created_at", nullable = false)
-    private OffsetDateTime createdAt;
+    private OffsetDateTime createdAt = OffsetDateTime.now();
 }
