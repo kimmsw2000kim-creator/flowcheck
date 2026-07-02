@@ -12,19 +12,18 @@ import java.util.UUID;
 @Entity
 @Table(name = "coupons", schema = "public")
 @Getter
-@Setter
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 @Builder
 public class Coupon {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "coupon_id", nullable = false)
+    @Column(name = "coupon_id", updatable = false, nullable = false)
     private UUID id;
 
     @Size(max = 50)
     @NotNull
-    @Column(name = "coupon_code", nullable = false, length = 50)
+    @Column(name = "coupon_code", nullable = false, length = 50, unique = true)
     private String couponCode;
 
     @NotNull
