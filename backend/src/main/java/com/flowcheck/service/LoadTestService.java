@@ -40,7 +40,7 @@ public class LoadTestService {
                 .user(user)
                 .targetUrl(request.getTargetUrl())
                 .promptInput(safePrompt)
-                .testStatus("PENDING").createdAt(OffsetDateTime.now())
+                .testStatus("PENDING")
                 .updatedAt(OffsetDateTime.now())
                 .build();
         testRequestRepository.save(testHistory);
@@ -54,12 +54,12 @@ public class LoadTestService {
         if (!availableCoupons.isEmpty()) {
             // 쿠폰 사용
             UserCoupon couponToUse = availableCoupons.getFirst();
-            couponToUse.setRemainingChances(couponToUse.getRemainingChances() - 1);
+            couponToUse.useChance();
             deductionType = "COUPON";
 
         } else if (user.getBalance() >= TEST_COST) {
             // 잔액 사용
-            user.setBalance(user.getBalance() - TEST_COST);
+            user.deductBalance(TEST_COST);
 
             CreditsLedger ledger = CreditsLedger.builder()
                     .user(user)
@@ -68,18 +68,17 @@ public class LoadTestService {
                     .description("k6 Load Test Execution on AWS")
                     .build();
             CreditsLedger savedLedger = creditsLedgerRepository.save(ledger);
-            ledgerId = savedLedger.getLedgerId();
+            ledgerId = savedLedger.getId();
             deductionType = "BALANCE";
 
         } else {
-            testHistory.setTestStatus("FAILED");
+            testHistory.changeStatus("FAILED");
             throw new IllegalStateException("Insufficient coupons or balance.");
         }
 
         LoadTestResponse.TestResults testResults = executeK6LoadTest(request);
 
-        testHistory.setTestStatus("COMPLETED");
-        testHistory.setUpdatedAt(OffsetDateTime.now());
+        testHistory.changeStatus("COMPLETED");
 
         int remainingCouponsCount = userCouponRepository.sumRemainingChancesByUserId(userId);
 

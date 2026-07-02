@@ -1,8 +1,6 @@
 package com.flowcheck.service;
 
-import com.flowcheck.domain.Coupon;
-import com.flowcheck.domain.User;
-import com.flowcheck.domain.UserCoupon;
+import com.flowcheck.domain.*;
 import com.flowcheck.dto.LoadTest.LoadTestRequest;
 import com.flowcheck.dto.LoadTest.LoadTestResponse;
 import com.flowcheck.repository.CouponRepository;
@@ -26,10 +24,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class LoadTestServiceTest {
     @Autowired
     private LoadTestService loadTestService;
-    @Autowired private UserRepository userRepository;
-    @Autowired private CouponRepository couponRepository;
-    @Autowired private UserCouponRepository userCouponRepository;
-    @Autowired private TestRequestRepository testRequestRepository;
+    @Autowired
+    private UserRepository userRepository;
+    @Autowired
+    private CouponRepository couponRepository;
+    @Autowired
+    private UserCouponRepository userCouponRepository;
+    @Autowired
+    private TestRequestRepository testRequestRepository;
 
     private User testUser;
 
@@ -40,26 +42,19 @@ public class LoadTestServiceTest {
                 .userId(UUID.randomUUID())
                 .email("test-user@flowcheck.com")
                 .balance(5000) // 잔액은 10000보다 작게 설정 (쿠폰이 먼저 쓰이는지 확인하기 위해)
-                .role("USER")
-                .status("ACTIVE")
-                .createdAt(OffsetDateTime.now())
                 .build();
         testUser = userRepository.saveAndFlush(testUser);
 
-        Coupon coupon = new Coupon();
-        coupon.setId(UUID.randomUUID());
-        coupon.setCouponCode("TEST-COUPON-123");
-        coupon.setTestCount(1);
-        coupon.setCreditPrice(0);
-        coupon.setIsActive(true);
+        Coupon coupon = Coupon.builder()
+                .couponCode("TEST-COUPON-123")
+                .build();
         Coupon savedCoupon = couponRepository.saveAndFlush(coupon);
 
-        UserCoupon userCoupon = new UserCoupon();
-        userCoupon.setId(UUID.randomUUID());
-        userCoupon.setUser(testUser);
-        userCoupon.setCoupon(savedCoupon);
-        userCoupon.setRemainingChances(1); // 쿠폰 1회 사용 가능
-        userCoupon.setCreatedAt(OffsetDateTime.now());
+        UserCoupon userCoupon = UserCoupon.builder()
+                .user(testUser)
+                .coupon(savedCoupon)
+                .remainingChances(1) // 쿠폰 1회 사용 가능
+                .build();
         userCouponRepository.saveAndFlush(userCoupon);
     }
 
