@@ -11,8 +11,11 @@ import com.flowcheck.repository.TestRequestRepository;
 import com.flowcheck.repository.UserCouponRepository;
 import com.flowcheck.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClient;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -26,6 +29,11 @@ public class LoadTestService {
     private final UserCouponRepository userCouponRepository;
     private final CreditsLedgerRepository creditsLedgerRepository;
     private final TestRequestRepository testRequestRepository;
+
+    private final RestClient restClient;
+
+    @Value("${fastapi.url}")
+    private String fastApiUrl;
 
     // TODO: 하드 코딩이라서 바꿔야 함
     private static final int TEST_COST = 10_000;
@@ -98,15 +106,30 @@ public class LoadTestService {
     // TODO: Test Mock Method
     private LoadTestResponse.TestResults executeK6LoadTest(LoadTestRequest request) {
         // TODO: 실제 AWS 환경의 k6 실행 로직 및 결과 파싱 로직 구현 필요
-        return LoadTestResponse.TestResults.builder()
-                .maxTps(1200)
-                .avgResponse(0.45)
-                .errorRate(0.01)
-                .bottleneckDiagnosis("No major bottlenecks detected.")
-                .points(List.of(
-                        LoadTestResponse.ChartPoint.builder().time("10:00").tps(500).build(),
-                        LoadTestResponse.ChartPoint.builder().time("10:01").tps(1200).build()
-                ))
-                .build();
+        try {
+            return restClient.post()
+                    .uri(fastApiUrl+"/api/load-tests")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(request)
+                    .retrieve()
+                    .onStatus(status -> status.is4xxClientError() || status.is5xxServerError(), (req, res) -> {
+                        // 에러 상태 코드에 대한 커스텀 처리 로직
+                        throw new RuntimeException("FastAPI 서버 오류: 상태 코드 " + res.getStatusCode());
+                    })
+                    .body(LoadTestResponse.TestResults.class); // 응답 Body를 TestResults 클래스로 매핑
+
+        } catch (Exception e) {
+            throw new RuntimeException("FastAPI 서버와 통신하는 중 예기치 않은 오류가 발생했습니다.", e);
+        }
+//        return LoadTestResponse.TestResults.builder()
+//                .maxTps(1200)
+//                .avgResponse(0.45)
+//                .errorRate(0.01)
+//                .bottleneckDiagnosis("No major bottlenecks detected.")
+//                .points(List.of(
+//                        LoadTestResponse.ChartPoint.builder().time("10:00").tps(500).build(),
+//                        LoadTestResponse.ChartPoint.builder().time("10:01").tps(1200).build()
+//                ))
+//                .build();
     }
 }

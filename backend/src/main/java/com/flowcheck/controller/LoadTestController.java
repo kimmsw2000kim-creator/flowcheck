@@ -11,13 +11,13 @@ import org.springframework.web.bind.annotation.*;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/test/loadtest")
+@RequestMapping("/api/load-tests")
 @RequiredArgsConstructor
 public class LoadTestController {
 
     private final LoadTestService loadTestService;
 
-    @PostMapping("/run")
+    @PostMapping()
     public ResponseEntity<LoadTestResponse> runTest(
             @RequestHeader(value = "X-User-Id", defaultValue = "00000000-0000-0000-0000-000000000000") UUID userId,
             @Valid @RequestBody LoadTestRequest request) {

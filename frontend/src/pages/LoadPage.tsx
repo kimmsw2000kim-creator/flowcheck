@@ -71,7 +71,7 @@ export default function LoadPage({
     setLoadStatus('running');
 
     try {
-      const response = await axios.post("/api/test/loadtest/run", payload, {
+      const response = await axios.post("/api/load-tests", payload, {
         headers: {
           'X-User-Id': currentUser.id,
         }
@@ -93,7 +93,7 @@ export default function LoadPage({
           id: deductionDetail.ledgerId || Date.now(),
           amount: -10000,
           type: 'TEST_CONSUME',
-          description: 'Locust 부하 테스트 실행',
+          description: 'k6 부하 테스트 실행',
           createdAt: new Date().toISOString().substring(0, 16)
         });
       }
@@ -107,7 +107,7 @@ export default function LoadPage({
       });
       setLoadChartData(testResults.points);
 
-      showAlert('Locust 부하 테스트가 완료되었습니다!', 'success');
+      showAlert('k6 부하 테스트가 완료되었습니다!', 'success');
 
     } catch (error) {
       console.error('Failed to run load test:', error);
@@ -122,7 +122,7 @@ export default function LoadPage({
   };
   return (
     <div style={{ textAlign: 'left' }}>
-      <h2 style={{ fontSize: '1.75rem', marginBottom: '1.5rem' }}>Locust 지능형 부하 테스트 엔진</h2>
+      <h2 style={{ fontSize: '1.75rem', marginBottom: '1.5rem' }}>k6 지능형 부하 테스트 엔진</h2>
       
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 2.5fr', gap: '2rem' }}>
         <div>
@@ -196,14 +196,14 @@ export default function LoadPage({
             {loadStatus === 'idle' && (
               <div style={{ color: 'var(--text-muted)', textAlign: 'center', paddingTop: '6rem' }}>
                 <TrendingUp size={48} style={{ margin: '0 auto 1rem', opacity: 0.3 }} />
-                <p>Gemini AI가 Locust 테스트 스크립트를 동적으로 설계하고 헤드리스로 구동합니다.</p>
+                <p>Gemini AI가 k6 테스트 스크립트를 동적으로 설계하고 헤드리스로 구동합니다.</p>
               </div>
             )}
  
             {loadStatus === 'running' && (
               <div style={{ textAlign: 'center', paddingTop: '5rem' }}>
                 <RefreshCw className="animate-spin" size={40} style={{ margin: '0 auto 1.5rem', color: 'var(--accent)' }} />
-                <p>Gemini AI가 locustfile.py를 자동 작성하고 트래픽 시뮬레이션을 생성하는 중입니다...</p>
+                <p>Gemini AI가 k6 테스트 스크립트를 자동 작성하고 트래픽 시뮬레이션을 생성하는 중입니다...</p>
               </div>
             )}
  
