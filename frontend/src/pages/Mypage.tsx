@@ -1,5 +1,6 @@
 import { CreditCard, Globe, Ticket, Activity } from 'lucide-react';
 
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { useState } from 'react';
 import type { MypageData } from '../types/mypage';
 
@@ -48,42 +49,39 @@ function Mypage() {
         <div className="mypage-layout">
             <MypageSidebar />
 
-            <main className="mypage-main">
-                <section className="mypage-header">
-                    <div>
-                        <h1>마이페이지</h1>
-                        <p>{data.email}</p>
-                    </div>
-                </section>
+           <main className="mypage-main">
+  <Routes>
+    <Route path="/" element={<Navigate to="profile" replace />} />
 
-                <section className="mypage-stats">
-                    <MypageStatCard
-                        icon={CreditCard}
-                        label="포인트"
-                        value={`${data.balance.toLocaleString()}P`}
-                    />
+    <Route
+      path="profile"
+      element={
+        <>
+          <section className="mypage-header">
+            <div>
+              <h1>마이페이지</h1>
+              <p>{data.email}</p>
+            </div>
+          </section>
 
-                    <MypageStatCard
-                        icon={Ticket}
-                        label="이용권"
-                        value={`${data.couponCount}회`}
-                    />
+          <section className="mypage-stats">
+            {/* 기존 StatCard들 */}
+          </section>
+        </>
+      }
+    />
 
-                    <MypageStatCard
-                        icon={Globe}
-                        label="인증 사이트"
-                        value={`${data.registeredSiteCount}개`}
-                    />
-
-                    <MypageStatCard
-                        icon={Activity}
-                        label="총 테스트"
-                        value={`${data.testRunCount}회`}
-                    />
-                </section>
-
-                <MypageSiteList sites={data.sites} />
-            </main>
+    <Route path="sites" element={<MypageSiteList sites={data.sites} />} />
+    <Route path="tests" element={<div>테스트 이력</div>} />
+    <Route path="points" element={<div>이용권 · 포인트</div>} />
+    <Route path="point-history" element={<div>포인트 내역</div>} />
+    <Route path="payments" element={<div>결제 내역</div>} />
+    <Route path="posts" element={<div>내 글 · 리뷰</div>} />
+    <Route path="notifications" element={<div>알림 설정</div>} />
+    <Route path="theme" element={<div>테마 설정</div>} />
+    <Route path="security" element={<div>계정 · 보안</div>} />
+  </Routes>
+</main>
 
 
         </div>
