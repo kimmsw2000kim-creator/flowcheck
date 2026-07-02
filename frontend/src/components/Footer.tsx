@@ -11,7 +11,7 @@ export default function Footer() {
       fontSize: '0.9rem',
       marginTop: 'auto'
     }}>
-      <p>&copy; 2026 FlowCheck Platform. All rights reserved.</p>
+      <p>&copy; 2026 FlowCheck 플랫폼. All rights reserved.</p>
     </footer>
   );
 }
