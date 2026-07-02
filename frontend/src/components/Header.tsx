@@ -45,9 +45,13 @@ export default function Header({
         <button className={`nav-item ${activeTab === 'billing' ? 'active' : ''}`} onClick={() => handleNavClick('billing')}>Billing</button>
         <button className={`nav-item ${activeTab === 'community' ? 'active' : ''}`} onClick={() => setActiveTab('community')}>Community</button>
         <button className={`nav-item ${activeTab === 'admin' ? 'active' : ''}`} onClick={() => handleNavClick('admin')}>Admin & CS</button>
+<<<<<<< Updated upstream
 
         <button className={`nav-item ${activeTab === 'login' ? 'active' : ''}`} onClick={() => handleNavClick('login')}>Login</button>
         <button className={`nav-item ${activeTab === 'signup' ? 'active' : ''}`} onClick={() => handleNavClick('signup')}>Sign Up</button>
+=======
+        
+>>>>>>> Stashed changes
       </div>
       <div className="user-profile">
         <span style={{ color: 'var(--text-secondary)' }}>{currentUser.email}</span>

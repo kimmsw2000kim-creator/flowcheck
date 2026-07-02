@@ -13,7 +13,11 @@ import LoadPage from './pages/LoadPage';
 import BillingPage from './pages/BillingPage';
 import CommunityPage from './pages/CommunityPage';
 import AdminPage from './pages/AdminPage';
+<<<<<<< Updated upstream
 import LoginPage from './pages/LoginPage';
+=======
+import Loginpage from './pages/LoginPage';
+>>>>>>> Stashed changes
 import SignupPage from './pages/SignupPage';
 
 // Utils
@@ -218,6 +222,38 @@ function App() {
     }
   };
 
+<<<<<<< Updated upstream
+=======
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    try {
+      const data = await login({
+        email,
+        password,
+      });
+
+      localStorage.setItem("accessToken", data.accessToken);
+      localStorage.setItem("refreshToken", data.refreshToken);
+      localStorage.setItem("email", data.email);
+
+      setCurrentUser((prev) => ({
+        ...prev,
+        email: data.email,
+      }));
+
+      showAlert("로그인 성공");
+
+      setActiveTab("dashboard");
+    } catch (error) {
+      showAlert("로그인 실패", "error");
+    }
+  };
+
+>>>>>>> Stashed changes
   const handleGoogleLogin = async () => {
     try {
       await supabase.auth.signInWithOAuth({
@@ -231,6 +267,7 @@ function App() {
     }
   };
 
+<<<<<<< Updated upstream
   const [signupEmail, setSignupEmail] = useState("");
   const [signupPassword, setSignupPassword] = useState("");
   const [nickname, setNickname] = useState("");
@@ -297,6 +334,8 @@ function App() {
   showAlert(`Switched simulation role to: ${nextRole}`, "info");
 };
 
+=======
+>>>>>>> Stashed changes
   const handleAddDomain = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newDomainUrl) return;
@@ -800,7 +839,11 @@ function App() {
         )}
 
         {activeTab === "login" && (
+<<<<<<< Updated upstream
           <LoginPage
+=======
+          <Loginpage
+>>>>>>> Stashed changes
             email={email}
             setEmail={setEmail}
             password={password}
@@ -821,6 +864,11 @@ function App() {
             handleSignup={handleSignup}
           />
         )}
+<<<<<<< Updated upstream
+=======
+
+
+>>>>>>> Stashed changes
       </main>
 
       <Footer />
