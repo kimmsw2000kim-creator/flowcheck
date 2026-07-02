@@ -1,22 +1,62 @@
-import axios from "axios";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5173";
 
-const API_URL = import.meta.env.VITE_API_URL;
-
-export const signup = async ({ email, password, nickname }) => {
-    const response = await axios.post(`${API_URL}/api/auth/signup`, {
-        email,
-        password,
-        nickname,
+export async function signup({ email, password, nickname }) {
+    const response = await fetch(`${API_BASE_URL}/api/auth/signup`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            email,
+            password,
+            nickname,
+        }),
     });
 
-    return response.data;
-};
+    if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        throw new Error(error?.message || "회원가입에 실패했습니다.");
+    }
 
-export const login = async ({ email, password }) => {
-    const response = await axios.post(`${API_URL}/api/auth/login`, {
-        email,
-        password,
+    return response.json();
+}
+
+export async function login({ email, password }) {
+    const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            email,
+            password,
+        }),
     });
 
-    return response.data;
-};
+    if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        throw new Error(error?.message || "로그인에 실패했습니다.");
+    }
+
+    const data = await response.json();
+
+    localStorage.setItem("accessToken", data.accessToken);
+    localStorage.setItem("refreshToken", data.refreshToken);
+    localStorage.setItem("email", data.email);
+
+    return data;
+}
+
+export function logout() {
+    localStorage.removeItem("accessToken");
+    localStorage.removeItem("refreshToken");
+    localStorage.removeItem("email");
+}
+
+export function getAccessToken() {
+    return localStorage.getItem("accessToken");
+}
+
+export function getCurrentEmail() {
+    return localStorage.getItem("email");
+}
