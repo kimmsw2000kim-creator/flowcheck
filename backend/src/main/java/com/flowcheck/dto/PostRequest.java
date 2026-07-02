@@ -8,5 +8,6 @@ import lombok.Setter;
 public class PostRequest {
     private String title;
     private String content;
-    private String writer;
+    private String userId;
+    private String email;
 }
