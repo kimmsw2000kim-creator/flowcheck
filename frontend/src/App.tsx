@@ -678,12 +678,9 @@ function App() {
         setActivePost={setActivePost}
         currentUser={currentUser}
         toggleRole={toggleRole}
-<<<<<<< HEAD
         isLoggedIn={isLoggedIn}
         onLogin={handleLoginClick}
         onLogout={handleLogoutClick}
-=======
->>>>>>> dev
       />
 
       <main className="main-content">
@@ -799,7 +796,6 @@ function App() {
             handleAnswerInquiry={handleAnswerInquiry}
             handleCreateInquiry={handleCreateInquiry}
             showAlert={showAlert}
-<<<<<<< HEAD
           />
         )}
 
@@ -823,8 +819,6 @@ function App() {
             nickname={nickname}
             setNickname={setNickname}
             handleSignup={handleSignup}
-=======
->>>>>>> dev
           />
         )}
       </main>
@@ -832,6 +826,6 @@ function App() {
       <Footer />
     </div>
   );
-}
+  }
 
 export default App;
