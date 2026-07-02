@@ -1,40 +1,57 @@
 package com.flowcheck.domain;
 
 import jakarta.persistence.*;
+import jakarta.persistence.Index;
+import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.*;
-import org.hibernate.annotations.ColumnDefault;
-import org.hibernate.annotations.OnDelete;
-import org.hibernate.annotations.OnDeleteAction;
+import org.hibernate.annotations.*;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "test_requests", schema = "public")
+@Table(
+        name = "test_requests",
+        schema = "public",
+        indexes = {
+                @Index(name = "idx_test_requests_user", columnList = "user_id")
+        }
+)
 @Getter
-@Setter
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 @Builder
 public class TestRequest {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(name = "request_id", nullable = false, updatable = false)
+    private UUID id;
+
+    @NotNull
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "user_id", nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
+    private User user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "post_id")
+    private Post post;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @OnDelete(action = OnDeleteAction.SET_NULL)
     @JoinColumn(name = "site_id")
     private RegisteredSite site;
 
     @NotNull
-    @Builder.Default
-    @ColumnDefault("now()")
-    @Column(name = "updated_at", nullable = false)
-    private OffsetDateTime updatedAt = OffsetDateTime.now();
+    @Column(name = "target_url", nullable = false, columnDefinition = "TEXT", length = Integer.MAX_VALUE)
+    private String targetUrl;
 
     @NotNull
-    @Builder.Default
-    @ColumnDefault("now()")
-    @Column(name = "created_at", nullable = false)
-    private OffsetDateTime createdAt = OffsetDateTime.now();
+    @Column(name = "prompt_input", nullable = false, columnDefinition = "TEXT", length = Integer.MAX_VALUE)
+    private String promptInput;
 
     @Size(max = 20)
     @NotNull
@@ -43,22 +60,21 @@ public class TestRequest {
     @Column(name = "test_status", nullable = false, length = 20)
     private String testStatus = "PENDING";
 
-    @NotNull
-    @Column(name = "prompt_input", nullable = false, length = Integer.MAX_VALUE)
-    private String promptInput;
+//    @NotNull
+//    @Builder.Default
+//    @Enumerated(EnumType.STRING) // 💡 문자열 상태값은 Enum으로 관리하는 것이 가장 안전합니다.
+//    @Column(name = "test_status", nullable = false, length = 20)
+//    private TestStatus testStatus = TestStatus.PENDING;
 
-    @NotNull
-    @Column(name = "target_url", nullable = false, length = Integer.MAX_VALUE)
-    private String targetUrl;
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private OffsetDateTime createdAt;
 
-    @NotNull
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @OnDelete(action = OnDeleteAction.CASCADE)
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
+    private OffsetDateTime updatedAt;
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    @Column(name = "request_id", nullable = false)
-    private UUID id;
+    public void changeStatus(String newStatus) {
+        this.testStatus = newStatus;
+    }
 }
