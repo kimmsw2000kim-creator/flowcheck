@@ -54,7 +54,6 @@ export default function AuthPage({ setActiveTab, onLoginSuccess, showAlert, init
       try {
         const data = await signup({ email, password, nickname });
         showAlert(data.message || "회원가입에 성공했습니다! 로그인해 주세요.", "success");
-        // Switch to login tab on success
         setMode("login");
         setPassword("");
       } catch (error) {

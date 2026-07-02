@@ -65,6 +65,8 @@ function App() {
     billing: '/billing',
     community: '/community',
     admin: '/admin',
+    login: '/login',
+    signup: '/signup',
   };
 
   const activeTab =
@@ -202,7 +204,7 @@ function App() {
 
       <main className="main-content">
         <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route
             path="/dashboard"
             element={
@@ -220,82 +222,111 @@ function App() {
           <Route
             path="/domains"
             element={
-            <DomainsPage
-              domains={domains}
-              newDomainUrl={newDomainUrl}
-              setNewDomainUrl={setNewDomainUrl}
-              handleAddDomain={handleAddDomain}
-              handleVerifyDomain={handleVerifyDomain}
-              verificationLoading={verificationLoading}
-            />
-          }
+              <DomainsPage
+                domains={domains}
+                newDomainUrl={newDomainUrl}
+                setNewDomainUrl={setNewDomainUrl}
+                handleAddDomain={handleAddDomain}
+                handleVerifyDomain={handleVerifyDomain}
+                verificationLoading={verificationLoading}
+              />
+            }
           />
 
-        {activeTab === 'qa' && (
-          <QaPage
-            domains={domains}
-            selectedQaDomain={selectedQaDomain}
-            setSelectedQaDomain={setSelectedQaDomain}
-            currentUser={currentUser}
-            onUserUpdate={handleUserUpdate}
-            onAddLedger={handleAddLedger}
-            showAlert={showAlert}
+          <Route
+            path="/qa"
+            element={
+              <QaPage
+                domains={domains}
+                selectedQaDomain={selectedQaDomain}
+                setSelectedQaDomain={setSelectedQaDomain}
+                currentUser={currentUser}
+                onUserUpdate={handleUserUpdate}
+                onAddLedger={handleAddLedger}
+                showAlert={showAlert}
+              />
+            }
           />
-        )}
 
-        {activeTab === 'load' && (
-          <LoadPage
-            domains={domains}
-            currentUser={currentUser}
-            onUserUpdate={handleUserUpdate}
-            onAddLedger={handleAddLedger}
-            showAlert={showAlert}
+          <Route
+            path="/load"
+            element={
+              <LoadPage
+                domains={domains}
+                currentUser={currentUser}
+                onUserUpdate={handleUserUpdate}
+                onAddLedger={handleAddLedger}
+                showAlert={showAlert}
+              />
+            }
           />
-        )}
 
-        {activeTab === 'billing' && (
-          <BillingPage
-            currentUser={currentUser}
-            onUserUpdate={handleUserUpdate}
-            ledger={ledger}
-            onAddLedger={handleAddLedger}
-            showAlert={showAlert}
+          <Route
+            path="/billing"
+            element={
+              <BillingPage
+                currentUser={currentUser}
+                onUserUpdate={handleUserUpdate}
+                ledger={ledger}
+                onAddLedger={handleAddLedger}
+                showAlert={showAlert}
+              />
+            }
           />
-        )}
 
-        {activeTab === 'community' && (
-          <CommunityPage
-            currentUser={currentUser}
-            onUserUpdate={handleUserUpdate}
-            ledger={ledger}
-            onAddLedger={handleAddLedger}
-            showAlert={showAlert}
-            handleSubmitReport={handleSubmitReport}
+          <Route
+            path="/community"
+            element={
+              <CommunityPage
+                currentUser={currentUser}
+                onUserUpdate={handleUserUpdate}
+                ledger={ledger}
+                onAddLedger={handleAddLedger}
+                showAlert={showAlert}
+                handleSubmitReport={handleSubmitReport}
+              />
+            }
           />
-        )}
 
-        {activeTab === 'admin' && (
-          <AdminPage
-            currentUser={currentUser}
-            reports={reports}
-            setReports={setReports}
-            handleSuspendUser={handleSuspendUser}
-            showAlert={showAlert}
+          <Route
+            path="/admin"
+            element={
+              <AdminPage
+                currentUser={currentUser}
+                reports={reports}
+                setReports={setReports}
+                handleSuspendUser={handleSuspendUser}
+                showAlert={showAlert}
+              />
+            }
           />
-        )}
 
-        {activeTab === 'mypage' && (
-          <Mypage />
-        )}
-
-        {(activeTab === 'login' || activeTab === 'signup') && (
-          <AuthPage 
-            setActiveTab={setActiveTab} 
-            onLoginSuccess={(email) => setCurrentUser(prev => ({ ...prev, email }))}
-            showAlert={showAlert}
-            initialMode={activeTab === 'signup' ? 'signup' : 'login'}
+          <Route
+            path="/login"
+            element={
+              <AuthPage 
+                setActiveTab={setActiveTab} 
+                onLoginSuccess={(email) => setCurrentUser(prev => ({ ...prev, email }))}
+                showAlert={showAlert}
+                initialMode="login"
+              />
+            }
           />
-        )}
+
+          <Route
+            path="/signup"
+            element={
+              <AuthPage 
+                setActiveTab={setActiveTab} 
+                onLoginSuccess={(email) => setCurrentUser(prev => ({ ...prev, email }))}
+                showAlert={showAlert}
+                initialMode="signup"
+              />
+            }
+          />
+
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
       </main>
 
       <Footer />
