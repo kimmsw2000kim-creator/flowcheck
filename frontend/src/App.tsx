@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { CheckCircle, AlertCircle } from 'lucide-react';
 import Header from './components/Header';
 import Footer from './components/Footer';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 
 // Pages
 import DashboardPage from './pages/DashboardPage';
@@ -52,7 +53,26 @@ interface AlertMsg {
 }
 
 function App() {
-  const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const tabRoutes: Record<string, string> = {
+    dashboard: '/dashboard',
+    mypage: '/mypage',
+    domains: '/domains',
+    qa: '/qa',
+    load: '/load',
+    billing: '/billing',
+    community: '/community',
+    admin: '/admin',
+  };
+
+  const activeTab =
+    Object.entries(tabRoutes).find(([, path]) => path === location.pathname)?.[0] ?? 'dashboard';
+
+  const setActiveTab = (tab: string) => {
+    navigate(tabRoutes[tab] ?? '/dashboard');
+  };
   const [currentUser, setCurrentUser] = useState({
     id: 'f87a32d1-921c-4b9b-90f3-cb2071850123',
     email: 'corp-user@flowcheck.com',
@@ -181,25 +201,35 @@ function App() {
       />
 
       <main className="main-content">
-        {activeTab === 'dashboard' && (
-          <DashboardPage
-            currentUser={currentUser}
-            domains={domains}
-            setActiveTab={setActiveTab}
-            setSelectedQaDomain={setSelectedQaDomain}
+        <Routes>
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route
+            path="/dashboard"
+            element={
+              <DashboardPage
+                currentUser={currentUser}
+                domains={domains}
+                setActiveTab={setActiveTab}
+                setSelectedQaDomain={setSelectedQaDomain}
+              />
+            }
           />
-        )}
 
-        {activeTab === 'domains' && (
-          <DomainsPage
-            domains={domains}
-            newDomainUrl={newDomainUrl}
-            setNewDomainUrl={setNewDomainUrl}
-            handleAddDomain={handleAddDomain}
-            handleVerifyDomain={handleVerifyDomain}
-            verificationLoading={verificationLoading}
+          <Route path="/mypage" element={<Mypage />} />
+
+          <Route
+            path="/domains"
+            element={
+            <DomainsPage
+              domains={domains}
+              newDomainUrl={newDomainUrl}
+              setNewDomainUrl={setNewDomainUrl}
+              handleAddDomain={handleAddDomain}
+              handleVerifyDomain={handleVerifyDomain}
+              verificationLoading={verificationLoading}
+            />
+          }
           />
-        )}
 
         {activeTab === 'qa' && (
           <QaPage

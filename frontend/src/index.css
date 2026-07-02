@@ -1,28 +1,40 @@
 /* Custom CSS Design System for OverLoad Platform */
 :root {
-  --bg-primary: #f0f4f8; /* Light slate/sky grey */
-  --bg-secondary: #ffffff; /* Pure white card background */
-  --bg-tertiary: #f1f5f9; /* Slate 100 */
-  
-  --text-primary: #0f172a; /* Slate 900 */
-  --text-secondary: #334155; /* Slate 700 */
-  --text-muted: #64748b; /* Slate 500 */
-  
-  --accent: #0284c7; /* Sky 600 */
+  --bg-primary: #f0f4f8;
+  /* Light slate/sky grey */
+  --bg-secondary: #ffffff;
+  /* Pure white card background */
+  --bg-tertiary: #f1f5f9;
+  /* Slate 100 */
+
+  --text-primary: #0f172a;
+  /* Slate 900 */
+  --text-secondary: #334155;
+  /* Slate 700 */
+  --text-muted: #64748b;
+  /* Slate 500 */
+
+  --accent: #0284c7;
+  /* Sky 600 */
   --accent-glow: rgba(2, 132, 199, 0.08);
   --accent-border: rgba(2, 132, 199, 0.25);
-  --accent-hover: #0ea5e9; /* Sky 500 */
-  
-  --success: #0d9488; /* Teal 600 */
+  --accent-hover: #0ea5e9;
+  /* Sky 500 */
+
+  --success: #0d9488;
+  /* Teal 600 */
   --success-bg: rgba(13, 148, 136, 0.08);
-  --warning: #d97706; /* Amber 600 */
+  --warning: #d97706;
+  /* Amber 600 */
   --warning-bg: rgba(217, 119, 6, 0.08);
-  --error: #dc2626; /* Red 600 */
+  --error: #dc2626;
+  /* Red 600 */
   --error-bg: rgba(220, 38, 38, 0.08);
-  
-  --border: #e2e8f0; /* Slate 200 */
+
+  --border: #e2e8f0;
+  /* Slate 200 */
   --card-shadow: rgba(15, 23, 42, 0.05) 0px 10px 25px -5px, rgba(15, 23, 42, 0.02) 0px 8px 10px -6px;
-  
+
   --sans: 'Outfit', system-ui, -apple-system, sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
@@ -36,7 +48,7 @@
 body {
   background-color: var(--bg-primary);
   background-image: radial-gradient(circle at 10% 20%, rgba(14, 165, 233, 0.06) 0%, transparent 40%),
-                    radial-gradient(circle at 90% 80%, rgba(13, 148, 136, 0.04) 0%, transparent 45%);
+    radial-gradient(circle at 90% 80%, rgba(13, 148, 136, 0.04) 0%, transparent 45%);
   color: var(--text-primary);
   font-family: var(--sans);
   min-height: 100vh;
@@ -49,13 +61,16 @@ body {
   width: 8px;
   height: 8px;
 }
+
 ::-webkit-scrollbar-track {
   background: var(--bg-primary);
 }
+
 ::-webkit-scrollbar-thumb {
   background: var(--bg-tertiary);
   border-radius: 4px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: var(--accent);
 }
@@ -283,10 +298,25 @@ body {
   text-transform: uppercase;
 }
 
-.badge-pending { background-color: var(--warning-bg); color: var(--warning); }
-.badge-running { background-color: var(--accent-glow); color: var(--accent-hover); }
-.badge-success { background-color: var(--success-bg); color: var(--success); }
-.badge-failed { background-color: var(--error-bg); color: var(--error); }
+.badge-pending {
+  background-color: var(--warning-bg);
+  color: var(--warning);
+}
+
+.badge-running {
+  background-color: var(--accent-glow);
+  color: var(--accent-hover);
+}
+
+.badge-success {
+  background-color: var(--success-bg);
+  color: var(--success);
+}
+
+.badge-failed {
+  background-color: var(--error-bg);
+  color: var(--error);
+}
 
 /* Table Styles */
 .table-wrapper {
@@ -492,17 +522,24 @@ body {
   color: var(--text-primary);
   text-align: left;
 }
-.markdown-body h1, .markdown-body h2, .markdown-body h3 {
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3 {
   margin: 1.2rem 0 0.5rem;
   color: var(--text-primary);
 }
-.markdown-body ul, .markdown-body ol {
+
+.markdown-body ul,
+.markdown-body ol {
   margin-left: 1.5rem;
   margin-bottom: 1rem;
 }
+
 .markdown-body li {
   margin-bottom: 0.25rem;
 }
+
 .markdown-body p {
   margin-bottom: 1rem;
 }
