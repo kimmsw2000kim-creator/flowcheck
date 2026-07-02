@@ -23,30 +23,40 @@ public class TestRequest {
     @OnDelete(action = OnDeleteAction.SET_NULL)
     @JoinColumn(name = "site_id")
     private RegisteredSite site;
+
     @NotNull
+    @Builder.Default
     @ColumnDefault("now()")
     @Column(name = "updated_at", nullable = false)
-    private OffsetDateTime updatedAt;
+    private OffsetDateTime updatedAt = OffsetDateTime.now();
+
     @NotNull
+    @Builder.Default
     @ColumnDefault("now()")
     @Column(name = "created_at", nullable = false)
-    private OffsetDateTime createdAt;
+    private OffsetDateTime createdAt = OffsetDateTime.now();
+
     @Size(max = 20)
     @NotNull
+    @Builder.Default
     @ColumnDefault("'PENDING'")
     @Column(name = "test_status", nullable = false, length = 20)
-    private String testStatus;
+    private String testStatus = "PENDING";
+
     @NotNull
     @Column(name = "prompt_input", nullable = false, length = Integer.MAX_VALUE)
     private String promptInput;
+
     @NotNull
     @Column(name = "target_url", nullable = false, length = Integer.MAX_VALUE)
     private String targetUrl;
+
     @NotNull
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @OnDelete(action = OnDeleteAction.CASCADE)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
     @Column(name = "request_id", nullable = false)

@@ -12,6 +12,12 @@ import BillingPage from './pages/BillingPage';
 import CommunityPage from './pages/CommunityPage';
 import AdminPage from './pages/AdminPage';
 
+// Utils
+import axios from 'axios';
+import ApiURL from './api/ApiURL';
+
+axios.defaults.baseURL = ApiURL;
+
 interface Domain {
   id: number;
   domainUrl: string;
@@ -246,8 +252,8 @@ function App() {
       showAlert('Insufficient credits.', 'error');
       return;
     }
-    setCurrentUser(prev => ({ 
-      ...prev, 
+    setCurrentUser(prev => ({
+      ...prev,
       balance: prev.balance - cost,
       coupons: prev.coupons + count
     }));
@@ -329,44 +335,77 @@ function App() {
     });
   };
 
-  const handleRunLoadTest = () => {
+  const handleRunLoadTest = async () => {
     if (currentUser.coupons <= 0 && currentUser.balance < 10000) {
       showAlert('Insufficient coupons or balance.', 'error');
       return;
     }
-    if (currentUser.coupons > 0) {
-      setCurrentUser(prev => ({ ...prev, coupons: prev.coupons - 1 }));
-    } else {
-      setCurrentUser(prev => ({ ...prev, balance: prev.balance - 10000 }));
-      setLedger([
-        { id: ledger.length + 1, amount: -10000, type: 'TEST_CONSUME', description: 'Locust Load Test Execution', createdAt: new Date().toISOString().substring(0, 16) },
-        ...ledger
-      ]);
-    }
+
+    const targetUrl = domains.find(d => d.id === selectedLoadDomain)?.domainUrl || 'https://myshop.com';
+
+    const payload = {
+      targetUrl,
+      vusers,
+      duration,
+      loadPrompt,
+    };
+
     setLoadStatus('running');
-    setTimeout(() => {
-      const targetUrl = domains.find(d => d.id === selectedLoadDomain)?.domainUrl || 'https://myshop.com';
-      setLoadStatus('success');
-      setLoadMetrics({
-        maxTps: vusers * 1.8,
-        avgResponse: 120 + (vusers * 0.4),
-        errorRate: vusers > 200 ? 4.8 : 0.0,
-        bottleneckDiagnosis: `# Bottleneck Analysis for ${targetUrl}\n- Max TPS: ${vusers * 1.8} req/s\n- Suggest database queries scaling.`
+
+    try {
+      const response = await axios.post("/api/test/loadtest/run", payload, {
+        headers: {
+          'X-User-Id': currentUser.id,
+        }
       });
 
-      const points = [];
-      const now = Math.floor(Date.now() / 1000);
-      for (let i = 0; i <= duration; i += 3) {
-        points.push({
-          time: `${i}s`,
-          users: Math.min(vusers, Math.floor((i / duration) * vusers * 1.5)),
-          tps: Math.floor((vusers * 1.5) * 0.7 + (Math.random() * vusers * 0.5)),
-          avg_response: Math.floor((120 + (vusers * 0.3)) * 0.9 + (Math.random() * 40))
-        });
+      const {
+        testResults,
+        updatedUser,
+        deductionDetail
+      } = response.data;
+
+      setCurrentUser(prev => ({
+        ...prev,
+        coupons: updatedUser.coupons,
+        balance: updatedUser.balance
+      }));
+
+      if (deductionDetail?.type === 'BALANCE') {
+        setLedger(prev => [
+          {
+            id: deductionDetail.ledgerId || prev.length + 1,
+            amount: -10000,
+            type: 'TEST_CONSUME',
+            description: 'Locust Load Test Execution',
+            createdAt: new Date().toISOString().substring(0, 16)
+          },
+          ...prev
+        ]);
       }
-      setLoadChartData(points);
+
+      setLoadStatus('success');
+      setLoadMetrics({
+        maxTps: testResults.maxTps,
+        avgResponse: testResults.avgResponse,
+        errorRate: testResults.errorRate,
+        bottleneckDiagnosis: testResults.bottleneckDiagnosis
+      });
+      setLoadChartData(testResults.points);
+
       showAlert('Locust load testing completed!', 'success');
-    }, 3000);
+
+    } catch (error) {
+      console.error('Failed to run load test:', error);
+      setLoadStatus('error'); // 에러 시 상태를 error나 idle로 변경
+
+      // 백엔드에서 보내준 에러 메시지가 있다면 출력, 없으면 기본 메시지
+      if (axios.isAxiosError(error) && error.response) {
+        showAlert(error.response.data.message || '서버 요청 중 오류가 발생했습니다.', 'error');
+      } else {
+        showAlert('알 수 없는 네트워크 오류가 발생했습니다.', 'error');
+      }
+    }
   };
 
   const handleCreatePost = (e: React.FormEvent) => {
@@ -508,10 +547,10 @@ function App() {
           position: 'fixed',
           top: '20px',
           right: '20px',
-          backgroundColor: alertMsg.type === 'error' ? 'var(--error-bg)' : 
-                           alertMsg.type === 'warning' ? 'var(--warning-bg)' : 'var(--bg-secondary)',
+          backgroundColor: alertMsg.type === 'error' ? 'var(--error-bg)' :
+            alertMsg.type === 'warning' ? 'var(--warning-bg)' : 'var(--bg-secondary)',
           color: alertMsg.type === 'error' ? 'var(--error)' :
-                 alertMsg.type === 'warning' ? 'var(--warning)' : 'var(--success)',
+            alertMsg.type === 'warning' ? 'var(--warning)' : 'var(--success)',
           padding: '1rem 1.5rem',
           borderRadius: '0.5rem',
           border: `1px solid ${alertMsg.type === 'error' ? 'var(--error)' : 'var(--success)'}`,
@@ -527,127 +566,127 @@ function App() {
         </div>
       )}
 
-      <Header 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
-        setActivePost={setActivePost} 
-        currentUser={currentUser} 
-        toggleRole={toggleRole} 
+      <Header
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        setActivePost={setActivePost}
+        currentUser={currentUser}
+        toggleRole={toggleRole}
       />
 
       <main className="main-content">
         {activeTab === 'dashboard' && (
-          <DashboardPage 
-            currentUser={currentUser} 
-            domains={domains} 
-            setActiveTab={setActiveTab} 
-            setSelectedQaDomain={setSelectedQaDomain} 
+          <DashboardPage
+            currentUser={currentUser}
+            domains={domains}
+            setActiveTab={setActiveTab}
+            setSelectedQaDomain={setSelectedQaDomain}
           />
         )}
 
         {activeTab === 'domains' && (
-          <DomainsPage 
-            domains={domains} 
-            newDomainUrl={newDomainUrl} 
-            setNewDomainUrl={setNewDomainUrl} 
-            handleAddDomain={handleAddDomain} 
-            handleVerifyDomain={handleVerifyDomain} 
-            verificationLoading={verificationLoading} 
+          <DomainsPage
+            domains={domains}
+            newDomainUrl={newDomainUrl}
+            setNewDomainUrl={setNewDomainUrl}
+            handleAddDomain={handleAddDomain}
+            handleVerifyDomain={handleVerifyDomain}
+            verificationLoading={verificationLoading}
           />
         )}
 
         {activeTab === 'qa' && (
-          <QaPage 
-            domains={domains} 
-            selectedQaDomain={selectedQaDomain} 
-            setSelectedQaDomain={setSelectedQaDomain} 
-            qaStatus={qaStatus} 
-            qaSteps={qaSteps} 
-            qaReportMarkdown={qaReportMarkdown} 
-            handleRunQa={handleRunQa} 
+          <QaPage
+            domains={domains}
+            selectedQaDomain={selectedQaDomain}
+            setSelectedQaDomain={setSelectedQaDomain}
+            qaStatus={qaStatus}
+            qaSteps={qaSteps}
+            qaReportMarkdown={qaReportMarkdown}
+            handleRunQa={handleRunQa}
           />
         )}
 
         {activeTab === 'load' && (
-          <LoadPage 
-            domains={domains} 
-            selectedLoadDomain={selectedLoadDomain} 
-            setSelectedLoadDomain={setSelectedLoadDomain} 
-            vusers={vusers} 
-            setVusers={setVusers} 
-            duration={duration} 
-            setDuration={setDuration} 
-            loadPrompt={loadPrompt} 
-            setLoadPrompt={setLoadPrompt} 
-            loadStatus={loadStatus} 
-            loadMetrics={loadMetrics} 
-            loadChartData={loadChartData} 
-            handleRunLoadTest={handleRunLoadTest} 
+          <LoadPage
+            domains={domains}
+            selectedLoadDomain={selectedLoadDomain}
+            setSelectedLoadDomain={setSelectedLoadDomain}
+            vusers={vusers}
+            setVusers={setVusers}
+            duration={duration}
+            setDuration={setDuration}
+            loadPrompt={loadPrompt}
+            setLoadPrompt={setLoadPrompt}
+            loadStatus={loadStatus}
+            loadMetrics={loadMetrics}
+            loadChartData={loadChartData}
+            handleRunLoadTest={handleRunLoadTest}
           />
         )}
 
         {activeTab === 'billing' && (
-          <BillingPage 
-            billingAmount={billingAmount} 
-            setBillingAmount={setBillingAmount} 
-            billingBank={billingBank} 
-            setBillingBank={setBillingBank} 
-            billingName={billingName} 
-            setBillingName={setBillingName} 
-            activeOrder={activeOrder} 
-            handleCreateOrder={handleCreateOrder} 
-            handleSimulateWebhook={handleSimulateWebhook} 
-            handleBuyCoupons={handleBuyCoupons} 
-            promoCode={promoCode} 
-            setPromoCode={setPromoCode} 
-            handleRedeemPromo={handleRedeemPromo} 
-            ledger={ledger} 
+          <BillingPage
+            billingAmount={billingAmount}
+            setBillingAmount={setBillingAmount}
+            billingBank={billingBank}
+            setBillingBank={setBillingBank}
+            billingName={billingName}
+            setBillingName={setBillingName}
+            activeOrder={activeOrder}
+            handleCreateOrder={handleCreateOrder}
+            handleSimulateWebhook={handleSimulateWebhook}
+            handleBuyCoupons={handleBuyCoupons}
+            promoCode={promoCode}
+            setPromoCode={setPromoCode}
+            handleRedeemPromo={handleRedeemPromo}
+            ledger={ledger}
           />
         )}
 
         {activeTab === 'community' && (
-          <CommunityPage 
-            currentUser={currentUser} 
-            posts={posts} 
-            activePost={activePost} 
-            setActivePost={setActivePost} 
-            newPostTitle={newPostTitle} 
-            setNewPostTitle={setNewPostTitle} 
-            newPostContent={newPostContent} 
-            setNewPostContent={setNewPostContent} 
-            newPostPromoUrl={newPostPromoUrl} 
-            setNewPostPromoUrl={setNewPostPromoUrl} 
-            handleCreatePost={handleCreatePost} 
-            handleLikePost={handleLikePost} 
-            handleSharePost={handleSharePost} 
-            comments={comments} 
-            newCommentContent={newCommentContent} 
-            setNewCommentContent={setNewCommentContent} 
-            replyParentId={replyParentId} 
-            setReplyParentId={setReplyParentId} 
-            handleCreateComment={handleCreateComment} 
-            handleSubmitReport={handleSubmitReport} 
+          <CommunityPage
+            currentUser={currentUser}
+            posts={posts}
+            activePost={activePost}
+            setActivePost={setActivePost}
+            newPostTitle={newPostTitle}
+            setNewPostTitle={setNewPostTitle}
+            newPostContent={newPostContent}
+            setNewPostContent={setNewPostContent}
+            newPostPromoUrl={newPostPromoUrl}
+            setNewPostPromoUrl={setNewPostPromoUrl}
+            handleCreatePost={handleCreatePost}
+            handleLikePost={handleLikePost}
+            handleSharePost={handleSharePost}
+            comments={comments}
+            newCommentContent={newCommentContent}
+            setNewCommentContent={setNewCommentContent}
+            replyParentId={replyParentId}
+            setReplyParentId={setReplyParentId}
+            handleCreateComment={handleCreateComment}
+            handleSubmitReport={handleSubmitReport}
           />
         )}
 
         {activeTab === 'admin' && (
-          <AdminPage 
-            currentUser={currentUser} 
-            reports={reports} 
-            setReports={setReports} 
-            inquiries={inquiries} 
-            setInquiries={setInquiries} 
-            newInquiryTitle={newInquiryTitle} 
-            setNewInquiryTitle={setNewInquiryTitle} 
-            newInquiryContent={newInquiryContent} 
-            setNewInquiryContent={setNewInquiryContent} 
-            newAdminAnswer={newAdminAnswer} 
-            setNewAdminAnswer={setNewAdminAnswer} 
-            dailyStats={dailyStats} 
-            handleSuspendUser={handleSuspendUser} 
-            handleAnswerInquiry={handleAnswerInquiry} 
-            handleCreateInquiry={handleCreateInquiry} 
-            showAlert={showAlert} 
+          <AdminPage
+            currentUser={currentUser}
+            reports={reports}
+            setReports={setReports}
+            inquiries={inquiries}
+            setInquiries={setInquiries}
+            newInquiryTitle={newInquiryTitle}
+            setNewInquiryTitle={setNewInquiryTitle}
+            newInquiryContent={newInquiryContent}
+            setNewInquiryContent={setNewInquiryContent}
+            newAdminAnswer={newAdminAnswer}
+            setNewAdminAnswer={setNewAdminAnswer}
+            dailyStats={dailyStats}
+            handleSuspendUser={handleSuspendUser}
+            handleAnswerInquiry={handleAnswerInquiry}
+            handleCreateInquiry={handleCreateInquiry}
+            showAlert={showAlert}
           />
         )}
       </main>
