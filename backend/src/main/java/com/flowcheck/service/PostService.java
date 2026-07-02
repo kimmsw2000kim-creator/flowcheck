@@ -33,7 +33,8 @@ public class PostService {
         Post post = Post.builder()
                 .title(request.getTitle())
                 .content(request.getContent())
-                .writer(request.getWriter())
+                .userId(request.getUserId())
+                .email(request.getEmail())
                 .build();
 
         Post savedPost = postRepository.save(post);

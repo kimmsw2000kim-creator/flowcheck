@@ -1,6 +1,12 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5173";
 
-export async function signup({ email, password, nickname }) {
+export interface AuthParams {
+  email: string;
+  password?: string;
+  nickname?: string;
+}
+
+export async function signup({ email, password, nickname }: AuthParams): Promise<any> {
     const response = await fetch(`${API_BASE_URL}/api/auth/signup`, {
         method: "POST",
         headers: {
@@ -21,7 +27,7 @@ export async function signup({ email, password, nickname }) {
     return response.json();
 }
 
-export async function login({ email, password }) {
+export async function login({ email, password }: AuthParams): Promise<any> {
     const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: "POST",
         headers: {
@@ -47,16 +53,16 @@ export async function login({ email, password }) {
     return data;
 }
 
-export function logout() {
+export function logout(): void {
     localStorage.removeItem("accessToken");
     localStorage.removeItem("refreshToken");
     localStorage.removeItem("email");
 }
 
-export function getAccessToken() {
+export function getAccessToken(): string | null {
     return localStorage.getItem("accessToken");
 }
 
-export function getCurrentEmail() {
+export function getCurrentEmail(): string | null {
     return localStorage.getItem("email");
 }
