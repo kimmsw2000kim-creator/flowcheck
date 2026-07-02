@@ -28,19 +28,22 @@ public class Coupon {
     private String couponCode;
 
     @NotNull
+    @Builder.Default
     @ColumnDefault("1")
     @Column(name = "test_count", nullable = false)
-    private Integer testCount;
+    private Integer testCount = 1;
 
     @NotNull
+    @Builder.Default
     @ColumnDefault("0")
     @Column(name = "credit_price", nullable = false)
-    private Integer creditPrice;
+    private Integer creditPrice = 0;
 
     @NotNull
+    @Builder.Default
     @ColumnDefault("true")
     @Column(name = "is_active", nullable = false)
-    private Boolean isActive;
+    private Boolean isActive = true;
 
 
 }
