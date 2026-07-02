@@ -9,7 +9,12 @@ interface HeaderProps {
     role: string;
   };
   toggleRole: () => void;
+
+  isLoggedIn: boolean;
+  onLogin: () => void;
+  onLogout: () => void;
 }
+
 
 export default function Header({ activeTab, setActiveTab, currentUser, toggleRole }: HeaderProps) {
   const handleNavClick = (tab: string) => {
