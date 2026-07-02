@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { CheckCircle, AlertCircle } from 'lucide-react';
 import Header from './components/Header';
 import Footer from './components/Footer';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 
 // Pages
 import DashboardPage from './pages/DashboardPage';
@@ -11,6 +12,7 @@ import LoadPage from './pages/LoadPage';
 import BillingPage from './pages/BillingPage';
 import CommunityPage from './pages/CommunityPage';
 import AdminPage from './pages/AdminPage';
+import Mypage from './pages/Mypage';
 
 // Utils
 import axios from 'axios';
@@ -101,7 +103,26 @@ interface AlertMsg {
 }
 
 function App() {
-  const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const tabRoutes: Record<string, string> = {
+    dashboard: '/dashboard',
+    mypage: '/mypage',
+    domains: '/domains',
+    qa: '/qa',
+    load: '/load',
+    billing: '/billing',
+    community: '/community',
+    admin: '/admin',
+  };
+
+  const activeTab =
+    Object.entries(tabRoutes).find(([, path]) => path === location.pathname)?.[0] ?? 'dashboard';
+
+  const setActiveTab = (tab: string) => {
+    navigate(tabRoutes[tab] ?? '/dashboard');
+  };
   const [currentUser, setCurrentUser] = useState({
     id: 'f87a32d1-921c-4b9b-90f3-cb2071850123',
     email: 'corp-user@flowcheck.com',
@@ -575,120 +596,147 @@ function App() {
       />
 
       <main className="main-content">
-        {activeTab === 'dashboard' && (
-          <DashboardPage
-            currentUser={currentUser}
-            domains={domains}
-            setActiveTab={setActiveTab}
-            setSelectedQaDomain={setSelectedQaDomain}
+        <Routes>
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route
+            path="/dashboard"
+            element={
+              <DashboardPage
+                currentUser={currentUser}
+                domains={domains}
+                setActiveTab={setActiveTab}
+                setSelectedQaDomain={setSelectedQaDomain}
+              />
+            }
           />
-        )}
 
-        {activeTab === 'domains' && (
-          <DomainsPage
-            domains={domains}
-            newDomainUrl={newDomainUrl}
-            setNewDomainUrl={setNewDomainUrl}
-            handleAddDomain={handleAddDomain}
-            handleVerifyDomain={handleVerifyDomain}
-            verificationLoading={verificationLoading}
-          />
-        )}
+          <Route path="/mypage" element={<Mypage />} />
 
-        {activeTab === 'qa' && (
-          <QaPage
-            domains={domains}
-            selectedQaDomain={selectedQaDomain}
-            setSelectedQaDomain={setSelectedQaDomain}
-            qaStatus={qaStatus}
-            qaSteps={qaSteps}
-            qaReportMarkdown={qaReportMarkdown}
-            handleRunQa={handleRunQa}
+          <Route
+            path="/domains"
+            element={
+            <DomainsPage
+              domains={domains}
+              newDomainUrl={newDomainUrl}
+              setNewDomainUrl={setNewDomainUrl}
+              handleAddDomain={handleAddDomain}
+              handleVerifyDomain={handleVerifyDomain}
+              verificationLoading={verificationLoading}
+            />
+          }
           />
-        )}
 
-        {activeTab === 'load' && (
-          <LoadPage
-            domains={domains}
-            selectedLoadDomain={selectedLoadDomain}
-            setSelectedLoadDomain={setSelectedLoadDomain}
-            vusers={vusers}
-            setVusers={setVusers}
-            duration={duration}
-            setDuration={setDuration}
-            loadPrompt={loadPrompt}
-            setLoadPrompt={setLoadPrompt}
-            loadStatus={loadStatus}
-            loadMetrics={loadMetrics}
-            loadChartData={loadChartData}
-            handleRunLoadTest={handleRunLoadTest}
+          <Route
+            path="/qa"
+            element={
+            <QaPage
+              domains={domains}
+              selectedQaDomain={selectedQaDomain}
+              setSelectedQaDomain={setSelectedQaDomain}
+              qaStatus={qaStatus}
+              qaSteps={qaSteps}
+              qaReportMarkdown={qaReportMarkdown}
+              handleRunQa={handleRunQa}
+            />
+          }
           />
-        )}
 
-        {activeTab === 'billing' && (
-          <BillingPage
-            billingAmount={billingAmount}
-            setBillingAmount={setBillingAmount}
-            billingBank={billingBank}
-            setBillingBank={setBillingBank}
-            billingName={billingName}
-            setBillingName={setBillingName}
-            activeOrder={activeOrder}
-            handleCreateOrder={handleCreateOrder}
-            handleSimulateWebhook={handleSimulateWebhook}
-            handleBuyCoupons={handleBuyCoupons}
-            promoCode={promoCode}
-            setPromoCode={setPromoCode}
-            handleRedeemPromo={handleRedeemPromo}
-            ledger={ledger}
+          <Route
+            path="/load"
+            element={
+            <LoadPage
+              domains={domains}
+              selectedLoadDomain={selectedLoadDomain}
+              setSelectedLoadDomain={setSelectedLoadDomain}
+              vusers={vusers}
+              setVusers={setVusers}
+              duration={duration}
+              setDuration={setDuration}
+              loadPrompt={loadPrompt}
+              setLoadPrompt={setLoadPrompt}
+              loadStatus={loadStatus}
+              loadMetrics={loadMetrics}
+              loadChartData={loadChartData}
+              handleRunLoadTest={handleRunLoadTest}
+            />
+          }
           />
-        )}
 
-        {activeTab === 'community' && (
-          <CommunityPage
-            currentUser={currentUser}
-            posts={posts}
-            activePost={activePost}
-            setActivePost={setActivePost}
-            newPostTitle={newPostTitle}
-            setNewPostTitle={setNewPostTitle}
-            newPostContent={newPostContent}
-            setNewPostContent={setNewPostContent}
-            newPostPromoUrl={newPostPromoUrl}
-            setNewPostPromoUrl={setNewPostPromoUrl}
-            handleCreatePost={handleCreatePost}
-            handleLikePost={handleLikePost}
-            handleSharePost={handleSharePost}
-            comments={comments}
-            newCommentContent={newCommentContent}
-            setNewCommentContent={setNewCommentContent}
-            replyParentId={replyParentId}
-            setReplyParentId={setReplyParentId}
-            handleCreateComment={handleCreateComment}
-            handleSubmitReport={handleSubmitReport}
+          <Route
+            path="/billing"
+            element={
+            <BillingPage
+              billingAmount={billingAmount}
+              setBillingAmount={setBillingAmount}
+              billingBank={billingBank}
+              setBillingBank={setBillingBank}
+              billingName={billingName}
+              setBillingName={setBillingName}
+              activeOrder={activeOrder}
+              handleCreateOrder={handleCreateOrder}
+              handleSimulateWebhook={handleSimulateWebhook}
+              handleBuyCoupons={handleBuyCoupons}
+              promoCode={promoCode}
+              setPromoCode={setPromoCode}
+              handleRedeemPromo={handleRedeemPromo}
+              ledger={ledger}
+            />
+          }
           />
-        )}
 
-        {activeTab === 'admin' && (
-          <AdminPage
-            currentUser={currentUser}
-            reports={reports}
-            setReports={setReports}
-            inquiries={inquiries}
-            setInquiries={setInquiries}
-            newInquiryTitle={newInquiryTitle}
-            setNewInquiryTitle={setNewInquiryTitle}
-            newInquiryContent={newInquiryContent}
-            setNewInquiryContent={setNewInquiryContent}
-            newAdminAnswer={newAdminAnswer}
-            setNewAdminAnswer={setNewAdminAnswer}
-            dailyStats={dailyStats}
-            handleSuspendUser={handleSuspendUser}
-            handleAnswerInquiry={handleAnswerInquiry}
-            handleCreateInquiry={handleCreateInquiry}
-            showAlert={showAlert}
+          <Route
+            path="/community"
+            element={
+            <CommunityPage
+              currentUser={currentUser}
+              posts={posts}
+              activePost={activePost}
+              setActivePost={setActivePost}
+              newPostTitle={newPostTitle}
+              setNewPostTitle={setNewPostTitle}
+              newPostContent={newPostContent}
+              setNewPostContent={setNewPostContent}
+              newPostPromoUrl={newPostPromoUrl}
+              setNewPostPromoUrl={setNewPostPromoUrl}
+              handleCreatePost={handleCreatePost}
+              handleLikePost={handleLikePost}
+              handleSharePost={handleSharePost}
+              comments={comments}
+              newCommentContent={newCommentContent}
+              setNewCommentContent={setNewCommentContent}
+              replyParentId={replyParentId}
+              setReplyParentId={setReplyParentId}
+              handleCreateComment={handleCreateComment}
+              handleSubmitReport={handleSubmitReport}
+            />
+          }
           />
-        )}
+
+          <Route
+            path="/admin"
+            element={
+            <AdminPage
+              currentUser={currentUser}
+              reports={reports}
+              setReports={setReports}
+              inquiries={inquiries}
+              setInquiries={setInquiries}
+              newInquiryTitle={newInquiryTitle}
+              setNewInquiryTitle={setNewInquiryTitle}
+              newInquiryContent={newInquiryContent}
+              setNewInquiryContent={setNewInquiryContent}
+              newAdminAnswer={newAdminAnswer}
+              setNewAdminAnswer={setNewAdminAnswer}
+              dailyStats={dailyStats}
+              handleSuspendUser={handleSuspendUser}
+              handleAnswerInquiry={handleAnswerInquiry}
+              handleCreateInquiry={handleCreateInquiry}
+              showAlert={showAlert}
+            />
+          }
+          />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
       </main>
 
       <Footer />

@@ -26,6 +26,7 @@ export default function Header({ activeTab, setActiveTab, setActivePost, current
       </div>
       <div className="nav-links">
         <button className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => handleNavClick('dashboard')}>Dashboard</button>
+                <button className={`nav-item ${activeTab === 'mypage' ? 'active' : ''}`} onClick={() => handleNavClick('mypage')}>My Page</button>
         <button className={`nav-item ${activeTab === 'domains' ? 'active' : ''}`} onClick={() => handleNavClick('domains')}>Domains</button>
         <button className={`nav-item ${activeTab === 'qa' ? 'active' : ''}`} onClick={() => handleNavClick('qa')}>AI QA</button>
         <button className={`nav-item ${activeTab === 'load' ? 'active' : ''}`} onClick={() => handleNavClick('load')}>Load Testing</button>
