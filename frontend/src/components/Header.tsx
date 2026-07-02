@@ -10,9 +10,22 @@ interface HeaderProps {
     role: string;
   };
   toggleRole: () => void;
+
+  isLoggedIn: boolean;
+  onLogin: () => void;
+  onLogout: () => void;
 }
 
-export default function Header({ activeTab, setActiveTab, setActivePost, currentUser, toggleRole }: HeaderProps) {
+export default function Header({
+  activeTab,
+  setActiveTab,
+  setActivePost,
+  currentUser,
+  toggleRole,
+  isLoggedIn,
+  onLogin,
+  onLogout,
+}: HeaderProps) {
   const handleNavClick = (tab: string) => {
     setActiveTab(tab);
     setActivePost(null);
@@ -32,6 +45,9 @@ export default function Header({ activeTab, setActiveTab, setActivePost, current
         <button className={`nav-item ${activeTab === 'billing' ? 'active' : ''}`} onClick={() => handleNavClick('billing')}>Billing</button>
         <button className={`nav-item ${activeTab === 'community' ? 'active' : ''}`} onClick={() => setActiveTab('community')}>Community</button>
         <button className={`nav-item ${activeTab === 'admin' ? 'active' : ''}`} onClick={() => handleNavClick('admin')}>Admin & CS</button>
+
+        <button className={`nav-item ${activeTab === 'login' ? 'active' : ''}`} onClick={() => handleNavClick('login')}>Login</button>
+        <button className={`nav-item ${activeTab === 'signup' ? 'active' : ''}`} onClick={() => handleNavClick('signup')}>Sign Up</button>
       </div>
       <div className="user-profile">
         <span style={{ color: 'var(--text-secondary)' }}>{currentUser.email}</span>

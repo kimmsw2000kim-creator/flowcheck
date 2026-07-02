@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api")
-public class SideInController {
+public class SignInController {
 
     @GetMapping("/public/hello")
     public String publicHello() {
