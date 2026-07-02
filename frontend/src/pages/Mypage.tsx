@@ -1,10 +1,8 @@
 import { CreditCard, Globe, Ticket, Activity } from 'lucide-react';
 
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { MypageData } from '../types/mypage';
-import { getAccessToken } from '../api/sessionApi';
-import { fetchMypage } from '../api/mypageApi';
 
 import MypageStatCard from '../components/MypageStatCard';
 import MypageSidebar from '../components/MypageSidebar';

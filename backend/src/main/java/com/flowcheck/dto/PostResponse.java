@@ -1,4 +1,4 @@
-package com.flowcheck.repository;
+package com.flowcheck.dto;
 
 import com.flowcheck.domain.Post;
 import lombok.Builder;
@@ -11,18 +11,20 @@ import java.time.LocalDateTime;
 public class PostResponse {
 
     private Long id;
+    private String userId;
+    private String email;
     private String title;
     private String content;
-    private String writer;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
     public static PostResponse from(Post post) {
         return PostResponse.builder()
                 .id(post.getId())
+                .userId(post.getUserId())
+                .email(post.getEmail())
                 .title(post.getTitle())
                 .content(post.getContent())
-                .writer(post.getWriter())
                 .createdAt(post.getCreatedAt())
                 .updatedAt(post.getUpdatedAt())
                 .build();

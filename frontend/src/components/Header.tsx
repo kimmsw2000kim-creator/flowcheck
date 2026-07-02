@@ -9,10 +9,6 @@ interface HeaderProps {
     role: string;
   };
   toggleRole: () => void;
-
-  isLoggedIn: boolean;
-  onLogin: () => void;
-  onLogout: () => void;
 }
 
 
