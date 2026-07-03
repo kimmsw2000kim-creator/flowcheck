@@ -49,22 +49,25 @@ public class SecurityConfig {
     @Bean CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        final String REACT_URL = "http://localhost:5173";
-
         configuration.setAllowedOriginPatterns(
-                List.of(REACT_URL)
-        );
+        List.of(
+                "http://localhost:5173",
+                "https://flow-check.duckdns.org"
+        )
+);
+
 
         configuration.setAllowedMethods(
-                Arrays.asList(
-                        "HEAD",
-                        "GET",
-                        "POST",
-                        "PUT",
-                        "DELETE",
-                        "PATCH"
-                )
-        );
+        Arrays.asList(
+                "HEAD",
+                "GET",
+                "POST",
+                "PUT",
+                "DELETE",
+                "PATCH",
+                "OPTIONS"
+        )
+);
 
         configuration.setAllowedHeaders(
                 Arrays.asList(
