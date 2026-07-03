@@ -7,7 +7,7 @@ import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-
 // Pages
 import DashboardPage from './pages/DashboardPage';
 import DomainsPage from './pages/DomainsPage';
-import QaPage from './pages/QaPage';
+import QaPage from './pages/UitestPage';
 import LoadPage from './pages/LoadPage';
 import BillingPage from './pages/BillingPage';
 import CommunityPage from './pages/CommunityPage';

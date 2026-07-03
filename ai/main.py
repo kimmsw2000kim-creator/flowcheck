@@ -1,6 +1,11 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, BackgroundTasks
 from pydantic import BaseModel
 from typing import List, Optional
+from ui_agent import run_ui_agent
+
+class UiTestRequest(BaseModel):
+    requestId: str
+    targetUrl: str
 
 app = FastAPI()
 
@@ -39,3 +44,9 @@ async def run_load_test_mock(request: LoadTestRequest):
             ChartPoint(time="10:01", tps=1200)
         ]
     )
+
+@app.post("/api/ui-tests")
+async def run_ui_test(request: UiTestRequest, background_tasks: BackgroundTasks):
+    print(f"Received UI test request: {request}")
+    background_tasks.add_task(run_ui_agent, request.requestId, request.targetUrl)
+    return {"status": "started"}
