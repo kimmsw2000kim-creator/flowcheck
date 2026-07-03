@@ -1,0 +1,64 @@
+services:
+  nginx:
+    container_name: flowcheck-nginx
+    image: nginx:1.27-alpine
+    restart: on-failure:3
+    env_file:
+      - ./.env
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/templates/default.conf.template:ro
+      - ./certbot-data/conf:/etc/letsencrypt
+      - ./certbot-data/www:/var/www/certbot
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - flowcheck-network
+
+  frontend:
+    container_name: flowcheck-frontend
+    image: ${DOCKER_USERNAME}/${FRONTEND_IMAGE:-flowcheck-frontend}:latest
+    restart: on-failure:3
+    networks:
+      - flowcheck-network
+
+  backend:
+    container_name: flowcheck-backend
+    image: ${DOCKER_USERNAME}/${BACKEND_IMAGE:-flowcheck-backend}:latest
+    restart: on-failure:3
+    env_file:
+      - ./.env
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_HOST: postgres-db
+      DB_PORT: 5432
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+    networks:
+      - flowcheck-network
+
+  postgres-db:
+    container_name: flowcheck-postgres
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: ${DB_NAME:-flowcheck}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - flowcheck-network
+
+networks:
+  flowcheck-network:
+    driver: bridge
