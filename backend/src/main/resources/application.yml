@@ -10,6 +10,8 @@ spring:
     username: ${DB_USER:postgres}
     password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 3 # 개발환경에서는 3개면 충분하답니다.
   jpa:
     hibernate:
       ddl-auto: update
