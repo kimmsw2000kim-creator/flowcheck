@@ -68,3 +68,6 @@ desktop.ini
 locust.log
 temp_locust*.py
 report.html
+
+# Test Folder
+backend/src/test/

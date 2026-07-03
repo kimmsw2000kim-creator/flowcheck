@@ -26,7 +26,7 @@ export default function Header({ activeTab, setActiveTab, currentUser, toggleRol
       <div className="nav-links">
         <button className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => handleNavClick('dashboard')}>대시보드</button>
         <button className={`nav-item ${activeTab === 'domains' ? 'active' : ''}`} onClick={() => handleNavClick('domains')}>도메인 관리</button>
-        <button className={`nav-item ${activeTab === 'qa' ? 'active' : ''}`} onClick={() => handleNavClick('qa')}>AI QA 분석</button>
+        <button className={`nav-item ${activeTab === 'qa' ? 'active' : ''}`} onClick={() => handleNavClick('qa')}>ui/ux테스트</button>
         <button className={`nav-item ${activeTab === 'load' ? 'active' : ''}`} onClick={() => handleNavClick('load')}>부하 테스트</button>
         <button className={`nav-item ${activeTab === 'billing' ? 'active' : ''}`} onClick={() => handleNavClick('billing')}>요금 및 충전</button>
         <button className={`nav-item ${activeTab === 'community' ? 'active' : ''}`} onClick={() => setActiveTab('community')}>커뮤니티</button>
