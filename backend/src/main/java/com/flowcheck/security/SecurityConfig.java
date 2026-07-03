@@ -37,6 +37,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/health").permitAll()
                 .requestMatchers("/api/billing/webhook").permitAll() // Toss payments webhook does not require token
+                .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                 .anyRequest().permitAll() // TODO: 개발용 임시이므로 오른쪽 으로 변경 필요 -> .authenticated()
             );
 
