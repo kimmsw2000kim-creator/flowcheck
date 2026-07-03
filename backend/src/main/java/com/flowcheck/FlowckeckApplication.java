@@ -6,9 +6,9 @@ import org.springframework.scheduling.annotation.EnableAsync;
 
 @EnableAsync
 @SpringBootApplication
-public class BoardApplication {
+public class FlowckeckApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(BoardApplication.class, args);
+        SpringApplication.run(FlowckeckApplication.class, args);
     }
 }
