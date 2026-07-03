@@ -5,53 +5,57 @@ import MypageSiteList from '../../components/MypageSiteList';
 import type { MypageData } from '../../types/mypage';
 
 interface MypageProfileSectionProps {
-    data: MypageData;
+  data: MypageData;
 }
 
 function MypageProfileSection({ data }: MypageProfileSectionProps) {
-    return (
-        <>
-            <section className="mypage-header">
-                <div className="mypage-profile">
-                    <div className="profile-avatar">
-                        {data.email.charAt(0).toUpperCase()}
-                    </div>
-                <div>
-                    <h1>마이페이지</h1>
-                    <p>{data.email}</p>
-                </div>
-                </div>
-            </section>
+  const profileName = data.email ? data.email.split('@')[0] : '사용자';
+  const avatarText = profileName.charAt(0).toUpperCase();
 
-            <section className="mypage-stats">
-                <MypageStatCard
-                    icon={CreditCard}
-                    label="포인트"
-                    value={`${data.balance.toLocaleString()}P`}
-                />
+  return (
+    <>
+      <section className="mypage-header">
+        <div className="mypage-profile">
+          <div className="profile-avatar">
+            {avatarText}
+          </div>
 
-                <MypageStatCard
-                    icon={Ticket}
-                    label="이용권"
-                    value={`${data.couponCount}회`}
-                />
+          <div>
+            <h1>{profileName}</h1>
+            <p>{data.email || '로그인 정보 없음'} · 이메일 로그인</p>
+          </div>
+        </div>
+      </section>
 
-                <MypageStatCard
-                    icon={Globe}
-                    label="인증 사이트"
-                    value={`${data.registeredSiteCount}개`}
-                />
+      <section className="mypage-stats">
+        <MypageStatCard
+          icon={CreditCard}
+          label="포인트"
+          value={`${data.balance.toLocaleString()}P`}
+        />
 
-                <MypageStatCard
-                    icon={Activity}
-                    label="총 테스트"
-                    value={`${data.testRunCount}회`}
-                />
-            </section>
+        <MypageStatCard
+          icon={Ticket}
+          label="이용권"
+          value={`${data.couponCount}회`}
+        />
 
-            <MypageSiteList sites={data.sites} />
-        </>
-    );
+        <MypageStatCard
+          icon={Globe}
+          label="인증 사이트"
+          value={`${data.registeredSiteCount}개`}
+        />
+
+        <MypageStatCard
+          icon={Activity}
+          label="총 테스트"
+          value={`${data.testRunCount}회`}
+        />
+      </section>
+
+      <MypageSiteList sites={data.sites} />
+    </>
+  );
 }
 
 export default MypageProfileSection;

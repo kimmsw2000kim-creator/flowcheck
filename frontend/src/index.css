@@ -721,3 +721,49 @@ body {
   padding: 0.25rem 0.5rem;
   border-radius: 0.25rem;
 }
+
+.mypage-section {
+  max-width: 720px;
+}
+
+.mypage-section h1 {
+  font-size: 28px;
+  font-weight: 800;
+  margin: 0 0 8px;
+  color: #0f172a;
+}
+
+.mypage-section > p {
+  margin: 0 0 24px;
+  color: #64748b;
+}
+
+.account-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.account-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  padding: 16px 18px;
+  background: #ffffff;
+}
+
+.account-row strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  color: #334155;
+}
+
+.account-row p {
+  margin: 0;
+  font-size: 15px;
+  color: #0f172a;
+}
