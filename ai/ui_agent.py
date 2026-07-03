@@ -9,7 +9,7 @@ from google.genai import types
 from dotenv import load_dotenv
 
 # root 폴더의 .env 파일 로드
-load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"), override=True)
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8080")
 
@@ -61,6 +61,8 @@ def report_failure(request_id: str, reason: str):
 def run_ui_agent(request_id: str, target_url: str):
     print(f"Starting UI Agent for requestId: {request_id}, targetUrl: {target_url}")
     
+    # 실행 시점에 .env 파일을 강제로 다시 읽어 캐싱 문제를 완전히 예방합니다.
+    load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"), override=True)
     api_key = os.getenv("GEMINI_API_KEY")
     # API key check
     has_api_key = True
@@ -136,7 +138,7 @@ def run_ui_agent(request_id: str, target_url: str):
                     try:
                         print(f"Calling Gemini for step {step_idx}...")
                         response = client.models.generate_content(
-                            model='gemini-2.5-flash',
+                            model='gemini-3.5-flash',
                             contents=[
                                 types.Part.from_bytes(
                                     data=screenshot_bytes,
@@ -318,7 +320,7 @@ def run_ui_agent(request_id: str, target_url: str):
                 
                 try:
                     report_resp = client.models.generate_content(
-                        model='gemini-2.5-flash',
+                        model='gemini-3.5-flash',
                         contents=report_prompt
                     )
                     report_md = report_resp.text
