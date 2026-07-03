@@ -49,30 +49,9 @@ public class UiTestService {
                     return userRepository.save(newUser);
                 });
 
-        // 2. 비용 차감 (쿠폰 우선 사용, 없으면 크레딧 차감)
-        List<UserCoupon> availableCoupons = userCouponRepository
-                .findByUserAndRemainingChancesGreaterThan(user, 0);
+        // 2. 비용 차감 (쿠폰 및 크레딧 차감 로직 제거 - 무료 작동)
+        // 기존의 쿠폰 및 크레딧 차감 로직이 이곳에 위치하였으나 삭제되었습니다.
 
-        if (!availableCoupons.isEmpty()) {
-            UserCoupon couponToUse = availableCoupons.getFirst();
-            couponToUse.useChance();
-            userCouponRepository.save(couponToUse);
-            log.info("Deducted 1 coupon from user {}", userId);
-        } else if (user.getBalance() >= TEST_COST) {
-            user.deductBalance(TEST_COST);
-            userRepository.save(user);
-
-            CreditsLedger ledger = CreditsLedger.builder()
-                    .user(user)
-                    .amount(-TEST_COST)
-                    .transactionType("TEST_CONSUME")
-                    .description("AI UI Test Execution")
-                    .build();
-            creditsLedgerRepository.save(ledger);
-            log.info("Deducted {} credits from user {}", TEST_COST, userId);
-        } else {
-            throw new IllegalStateException("Insufficient coupons or balance.");
-        }
 
         // 3. 테스트 이력 생성 (PENDING)
         UiTest uiTest = UiTest.builder()

@@ -73,7 +73,7 @@ export default function DashboardPage({ currentUser, domains, setActiveTab, setS
                       style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
                       onClick={() => { setActiveTab('qa'); setSelectedQaDomain(d.id); }}
                     >
-                      QA 분석 실행
+                      UI/UX 테스트 실행
                     </button>
                   </td>
                 </tr>

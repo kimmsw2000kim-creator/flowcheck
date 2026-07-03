@@ -35,7 +35,7 @@ export default function QaPage({
   const [qaStatus, setQaStatus] = useState<string>('idle'); // idle, running, success, error
   const [qaSteps, setQaSteps] = useState<UiTestStepData[]>([]);
   const [qaReportMarkdown, setQaReportMarkdown] = useState<string>('');
-  const [pollingId, setPollingId] = useState<NodeJS.Timeout | null>(null);
+  const [pollingId, setPollingId] = useState<any>(null);
 
   // 도메인 선택 변경 시 URL 입력창 자동 반영
   useEffect(() => {
@@ -66,30 +66,7 @@ export default function QaPage({
       return;
     }
 
-    if (currentUser.coupons <= 0 && currentUser.balance < 10000) {
-      showAlert('쿠폰 또는 크레딧 잔액이 부족합니다.', 'error');
-      return;
-    }
-
-    // 1. 프론트엔드 크레딧/쿠폰 로컬 차감 시뮬레이션 (상단 바 즉각 반응)
-    if (currentUser.coupons > 0) {
-      onUserUpdate({
-        coupons: currentUser.coupons - 1,
-        balance: currentUser.balance
-      });
-    } else {
-      onUserUpdate({
-        coupons: currentUser.coupons,
-        balance: currentUser.balance - 10000
-      });
-      onAddLedger({
-        id: Date.now(),
-        amount: -10000,
-        type: 'TEST_CONSUME',
-        description: 'AI QA 테스트 수행 (자율형 탐색)',
-        createdAt: new Date().toISOString().substring(0, 16)
-      });
-    }
+    // 쿠폰/크레딧 체크 및 차감 로직 우회 (무료 테스트 모드)
 
     setQaStatus('running');
     setQaSteps([]);
@@ -189,7 +166,7 @@ export default function QaPage({
             </div>
 
             <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1.5rem', lineHeight: '1.4' }}>
-              <p>⚡ <strong>소모 비용</strong>: 1회 테스트 쿠폰 또는 10,000 크레딧.</p>
+              <p>⚡ <strong>소모 비용</strong>: 없음 (무료 무제한 테스트 모드)</p>
               <p>🤖 Playwright 봇이 실제 브라우저를 열고 최대 10단계 동안 Gemini 2.5 Flash를 이용해 화면을 탐색합니다.</p>
             </div>
 
@@ -224,7 +201,7 @@ export default function QaPage({
             {qaStatus === 'idle' && (
               <div style={{ color: 'var(--text-muted)', textAlign: 'center', margin: 'auto' }}>
                 <Play size={48} style={{ margin: '0 auto 1rem', opacity: 0.3 }} />
-                <p>AI QA 분석을 시작하면 실시간 DOM 탐색 진행 상황이 표시됩니다.</p>
+                <p>UI/UX 테스트를 시작하면 실시간 DOM 탐색 진행 상황이 표시됩니다.</p>
               </div>
             )}
 
@@ -244,7 +221,7 @@ export default function QaPage({
                   </div>
                 )}
                 
-                <div className="timeline" style={{ flex: 1, overflowY: 'auto', maxH: '400px' }}>
+                <div className="timeline" style={{ flex: 1, overflowY: 'auto', maxHeight: '400px' }}>
                   {qaSteps.map((step, idx) => (
                     <div className="timeline-step" key={idx} style={{ marginBottom: '1.5rem', paddingLeft: '1.5rem', position: 'relative' }}>
                       <div className="timeline-dot" style={{
