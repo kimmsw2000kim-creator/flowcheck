@@ -71,69 +71,127 @@ export default function LoadPage({
     setLoadStatus('running');
 
     try {
-      const response = await axios.post("/api/test/loadtest/run", payload, {
+      const response = await axios.post("/api/load-tests", payload, {
         headers: {
           'X-User-Id': currentUser.id,
         }
       });
 
-      const {
-        testResults,
-        updatedUser,
-        deductionDetail
-      } = response.data;
+      const { requestId } = response.data;
 
-      onUserUpdate({
-        coupons: updatedUser.coupons,
-        balance: updatedUser.balance
-      });
-
-      if (deductionDetail?.type === 'BALANCE') {
-        onAddLedger({
-          id: deductionDetail.ledgerId || Date.now(),
-          amount: -10000,
-          type: 'TEST_CONSUME',
-          description: 'Locust 부하 테스트 실행',
-          createdAt: new Date().toISOString().substring(0, 16)
-        });
-      }
-
-      setLoadStatus('success');
-      setLoadMetrics({
-        maxTps: testResults.maxTps,
-        avgResponse: testResults.avgResponse,
-        errorRate: testResults.errorRate,
-        bottleneckDiagnosis: testResults.bottleneckDiagnosis
-      });
-      setLoadChartData(testResults.points);
-
-      showAlert('Locust 부하 테스트가 완료되었습니다!', 'success');
+      // 폴링을 통해 테스트 결과를 가져오는 함수
+      pollForResult(requestId);
 
     } catch (error) {
       console.error('Failed to run load test:', error);
       setLoadStatus('error');
-
-      if (axios.isAxiosError(error) && error.response) {
-        showAlert(error.response.data.message || '서버 요청 중 오류가 발생했습니다.', 'error');
-      } else {
-        showAlert('알 수 없는 네트워크 오류가 발생했습니다.', 'error');
-      }
+      handleErrorResponse(error);
     }
   };
+
+  const pollForResult = async (requestId: string) => {
+    if (!requestId) {
+      console.error("유효하지 않은 requestId입니다.");
+      return;
+    }
+
+    try {
+      const response = await axios.get(`/api/load-tests/${requestId}`);
+      const data = response.data;
+      console.log('Polling result:', data);
+
+      if (data.testResults && data.testResults.maxTps !== undefined) {
+        const { testResults, updatedUser, deductionDetail } = data;
+
+        if (updatedUser) {
+          onUserUpdate({
+            coupons: updatedUser.coupons,
+            balance: updatedUser.balance
+          });
+        }
+
+        if (deductionDetail?.type === 'BALANCE') {
+          onAddLedger({
+            id: deductionDetail.ledgerId || Date.now(),
+            amount: -10000,
+            type: 'TEST_CONSUME',
+            description: 'k6 부하 테스트 실행',
+            createdAt: new Date().toISOString().substring(0, 16)
+          });
+        }
+
+        setLoadStatus('success');
+        setLoadMetrics({
+          maxTps: testResults.maxTps,
+          avgResponse: testResults.avgResponse,
+          errorRate: testResults.errorRate,
+          bottleneckDiagnosis: testResults.bottleneckDiagnosis
+        });
+        setLoadChartData(testResults.points);
+
+        showAlert('k6 부하 테스트가 완료되었습니다!', 'success');
+      } else {
+        // 아직 PENDING 상태라면 3초 뒤에 다시 스스로를 호출
+        setTimeout(() => pollForResult(requestId), 3000);
+      }
+    } catch (error) {
+      console.error('Failed to poll result:', error);
+      setLoadStatus('error');
+      showAlert('테스트 결과 조회 중 오류가 발생했습니다.', 'error');
+    }
+  };
+
+  const handleErrorResponse = (error: any) => {
+    if (axios.isAxiosError(error) && error.response) {
+      const status = error.response.status;
+      const data = error.response.data;
+
+      // 백엔드 컨트롤러가 단순 문자열(body(e.getMessage()))을 보냈는지, 
+      // JSON 객체({message: '...'}) 형태로 보냈는지 안전하게 파싱
+      const errorMessage = typeof data === 'string' ? data : data?.message;
+
+      switch (status) {
+        case 400: // Bad Request (IllegalArgumentException)
+          showAlert(errorMessage || '잘못된 요청입니다. 입력값을 다시 확인해주세요.', 'error');
+          break;
+
+        case 402: // Payment Required (IllegalStateException)
+          showAlert(errorMessage || '크레딧 잔액 또는 쿠폰이 부족합니다. 충전 후 다시 시도해주세요.', 'error');
+          break;
+
+        case 404: // Not Found
+          showAlert('요청한 테스트 내역이나 리소스를 찾을 수 없습니다.', 'error');
+          break;
+
+        case 500: // Internal Server Error
+          showAlert('서버 내부에서 예상치 못한 오류가 발생했습니다. 잠시 후 다시 시도해주세요.', 'error');
+          break;
+
+        default: // 기타 상태 코드
+          showAlert(errorMessage || `서버 통신 오류가 발생했습니다. (코드: ${status})`, 'error');
+          break;
+      }
+    }
+    // 서버에 도달하지 못했거나(CORS, 타임아웃 등) 프론트 단의 에러인 경우
+    else {
+      showAlert('서버에 연결할 수 없습니다. 네트워크 상태를 확인해주세요.', 'error');
+    }
+  };
+
   return (
     <div style={{ textAlign: 'left' }}>
-      <h2 style={{ fontSize: '1.75rem', marginBottom: '1.5rem' }}>Locust 지능형 부하 테스트 엔진</h2>
-      
+      <h2 style={{ fontSize: '1.75rem', marginBottom: '1.5rem' }}>k6 지능형 부하 테스트 엔진</h2>
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 2.5fr', gap: '2rem' }}>
         <div>
           <div className="card">
             <h3 style={{ marginBottom: '1.25rem' }}>부하 테스트 구성</h3>
- 
+
             <div className="form-group">
               <label className="form-label">대상 웹사이트</label>
-              <select 
-                className="form-input" 
-                value={selectedLoadDomain} 
+              <select
+                className="form-input"
+                value={selectedLoadDomain}
                 onChange={(e) => setSelectedLoadDomain(parseInt(e.target.value))}
               >
                 {domains.filter(d => d.verified).map(d => (
@@ -141,45 +199,45 @@ export default function LoadPage({
                 ))}
               </select>
             </div>
- 
+
             <div className="form-group">
               <label className="form-label">가상 동시 사용자 (VUsers): {vusers}명</label>
-              <input 
-                type="range" 
-                min="10" 
-                max="500" 
+              <input
+                type="range"
+                min="10"
+                max="500"
                 step="10"
-                value={vusers} 
+                value={vusers}
                 onChange={(e) => setVusers(parseInt(e.target.value))}
                 style={{ accentColor: 'var(--accent)' }}
               />
             </div>
- 
+
             <div className="form-group">
               <label className="form-label">테스트 실행 시간: {duration}초</label>
-              <input 
-                type="range" 
-                min="10" 
-                max="120" 
+              <input
+                type="range"
+                min="10"
+                max="120"
                 step="10"
-                value={duration} 
+                value={duration}
                 onChange={(e) => setDuration(parseInt(e.target.value))}
                 style={{ accentColor: 'var(--accent)' }}
               />
             </div>
- 
+
             <div className="form-group">
               <label className="form-label">시나리오 요구사항 (프롬프트 입력)</label>
-              <textarea 
-                className="form-input" 
-                rows={3} 
+              <textarea
+                className="form-input"
+                rows={3}
                 value={loadPrompt.toString()}
                 onChange={(e) => setLoadPrompt(e.target.value)}
               ></textarea>
             </div>
- 
-            <button 
-              className="btn btn-primary" 
+
+            <button
+              className="btn btn-primary"
               style={{ width: '100%', marginTop: '1rem' }}
               onClick={handleRunLoadTest}
               disabled={loadStatus === 'running'}
@@ -188,25 +246,25 @@ export default function LoadPage({
             </button>
           </div>
         </div>
- 
+
         <div>
           <div className="card" style={{ minHeight: '400px' }}>
             <h3 style={{ marginBottom: '1.25rem' }}>테스트 분석 지표 및 실시간 차트</h3>
- 
+
             {loadStatus === 'idle' && (
               <div style={{ color: 'var(--text-muted)', textAlign: 'center', paddingTop: '6rem' }}>
                 <TrendingUp size={48} style={{ margin: '0 auto 1rem', opacity: 0.3 }} />
-                <p>Gemini AI가 Locust 테스트 스크립트를 동적으로 설계하고 헤드리스로 구동합니다.</p>
+                <p>Gemini AI가 k6 테스트 스크립트를 동적으로 설계하고 헤드리스로 구동합니다.</p>
               </div>
             )}
- 
+
             {loadStatus === 'running' && (
               <div style={{ textAlign: 'center', paddingTop: '5rem' }}>
                 <RefreshCw className="animate-spin" size={40} style={{ margin: '0 auto 1.5rem', color: 'var(--accent)' }} />
-                <p>Gemini AI가 locustfile.py를 자동 작성하고 트래픽 시뮬레이션을 생성하는 중입니다...</p>
+                <p>Gemini AI가 k6 테스트 스크립트를 자동 작성하고 트래픽 시뮬레이션을 생성하는 중입니다...</p>
               </div>
             )}
- 
+
             {loadStatus === 'success' && loadMetrics && (
               <div>
                 <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
@@ -225,7 +283,7 @@ export default function LoadPage({
                     </div>
                   </div>
                 </div>
- 
+
                 {/* Line Chart */}
                 <div style={{ height: '300px', width: '100%', marginBottom: '2rem' }}>
                   <ResponsiveContainer width="100%" height="100%">
@@ -241,7 +299,7 @@ export default function LoadPage({
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
- 
+
                 <div className="markdown-body" style={{ background: 'var(--bg-tertiary)', padding: '1.5rem', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
                   <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{loadMetrics.bottleneckDiagnosis}</pre>
                 </div>

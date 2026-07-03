@@ -30,3 +30,7 @@ gemini:
 toss:
   secret-key: ${TOSS_SECRET_KEY:}
   client-key: ${TOSS_CLIENT_KEY:}
+
+external:
+  fastapi:
+    base-url: ${FASTAPI_URL}
