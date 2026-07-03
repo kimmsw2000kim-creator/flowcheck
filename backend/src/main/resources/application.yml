@@ -34,3 +34,6 @@ toss:
 external:
   fastapi:
     base-url: ${FASTAPI_URL}
+
+fastapi:
+  url: ${FASTAPI_URL:http://localhost:8000}
