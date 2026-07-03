@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "Authentication", description = "인증/인가 관련 API")
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = {"http://localhost:5173","https://flow-check.duckdns.org"})
 public class AuthController {
 
     private final AuthService authService;
