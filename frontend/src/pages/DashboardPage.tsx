@@ -15,15 +15,15 @@ interface DashboardPageProps {
   };
   domains: Domain[];
   setActiveTab: (tab: string) => void;
-  setSelectedQaDomain: (id: number) => void;
+  setSelectedUiTestDomain: (id: number) => void;
 }
 
-export default function DashboardPage({ currentUser, domains, setActiveTab, setSelectedQaDomain }: DashboardPageProps) {
+export default function DashboardPage({ currentUser, domains, setActiveTab, setSelectedUiTestDomain }: DashboardPageProps) {
   return (
     <div>
       <div style={{ textAlign: 'left', marginBottom: '2rem' }}>
         <h2 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>FlowCheck 대시보드</h2>
-        <p style={{ color: 'var(--text-secondary)' }}>크레딧 모니터링, AI QA 수행, 그리고 부하 테스트 평가를 한눈에 관리하세요.</p>
+        <p style={{ color: 'var(--text-secondary)' }}>크레딧 모니터링, AI UI 테스트 수행, 그리고 부하 테스트 평가를 한눈에 관리하세요.</p>
       </div>
       
       <div className="dashboard-grid">
@@ -54,7 +54,7 @@ export default function DashboardPage({ currentUser, domains, setActiveTab, setS
                 <th>도메인 호스트 URL</th>
                 <th>등록일</th>
                 <th>상태</th>
-                <th>QA 테스트</th>
+                <th>UI 테스트</th>
               </tr>
             </thead>
             <tbody>
@@ -71,7 +71,7 @@ export default function DashboardPage({ currentUser, domains, setActiveTab, setS
                     <button 
                       className="btn btn-secondary" 
                       style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
-                      onClick={() => { setActiveTab('qa'); setSelectedQaDomain(d.id); }}
+                      onClick={() => { setActiveTab('uitest'); setSelectedUiTestDomain(d.id); }}
                     >
                       UI/UX 테스트 실행
                     </button>

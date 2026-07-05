@@ -8,7 +8,7 @@ function MypageNotificationSettingsSection() {
                 <label className="setting-row">
                     <div>
                         <strong>테스트 완료 알림</strong>
-                        <p>AI QA 또는 부하 테스트가 끝나면 알림을 받습니다.</p>
+                        <p>AI UI 테스트 또는 부하 테스트가 끝나면 알림을 받습니다.</p>
                     </div>
                     <input type="checkbox" defaultChecked />
                 </label>

@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
-@Tag(name = "UI Test Explorer", description = "자율형 UI 탐색/QA 분석 API")
+@Tag(name = "UI Test Explorer", description = "자율형 UI 탐색 API")
 @RestController
 @RequestMapping("/api/ui-tests")
 @RequiredArgsConstructor
@@ -23,7 +23,7 @@ public class UiTestController {
 
     private final UiTestService uiTestService;
 
-    @Operation(summary = "UI QA 탐색 테스트 시작", description = "자율형 AI 크롤링 및 UX 분석 테스트를 생성하고 시작 요청을 보냅니다.")
+    @Operation(summary = "UI 탐색 테스트 시작", description = "자율형 AI 크롤링 및 UX 분석 테스트를 생성하고 시작 요청을 보냅니다.")
     @PostMapping
     public ResponseEntity<?> startUiTest(
             @RequestHeader(value = "X-User-Id", defaultValue = "f87a32d1-921c-4b9b-90f3-cb2071850123") UUID userId,
@@ -49,7 +49,7 @@ public class UiTestController {
         }
     }
 
-    @Operation(summary = "UI QA 탐색 실시간 상태 및 결과 조회", description = "특정 요청 ID에 대응하는 실시간 탐색 단계(Telemetry) 및 종합 보고서를 조회합니다.")
+    @Operation(summary = "UI 탐색 실시간 상태 및 결과 조회", description = "특정 요청 ID에 대응하는 실시간 탐색 단계(Telemetry) 및 종합 보고서를 조회합니다.")
     @GetMapping("/{requestId}/status")
     public ResponseEntity<UiTestStatusResponse> getTestStatus(@PathVariable UUID requestId) {
         UiTestStatusResponse response = uiTestService.getTestStatus(requestId);

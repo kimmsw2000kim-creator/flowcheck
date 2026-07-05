@@ -270,7 +270,7 @@ export default function CommunityPage({
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
             <div>
               <h2 style={{ fontSize: '1.75rem' }}>프로모션 피드백 게시판</h2>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>내 서비스를 홍보하고 QA용 크레딧을 획득하세요. 첫 홍보글 작성 시 20,000 크레딧이 지급됩니다.</p>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>내 서비스를 홍보하고 UI 테스트용 크레딧을 획득하세요. 첫 홍보글 작성 시 20,000 크레딧이 지급됩니다.</p>
             </div>
             <button className="btn btn-primary" onClick={() => setActivePost({ id: 'new' })}>
               홍보 게시글 작성
@@ -292,7 +292,7 @@ export default function CommunityPage({
                 </div>
                 <div className="form-group">
                   <label className="form-label">상세 내용</label>
-                  <textarea className="form-input" rows={6} placeholder="사이트를 소개하고 중점적으로 검증받고 싶은 QA/UX 피드백 내용을 적어주세요..." value={newPostContent} onChange={(e) => setNewPostContent(e.target.value)} required></textarea>
+                  <textarea className="form-input" rows={6} placeholder="사이트를 소개하고 중점적으로 검증받고 싶은 UI테스트/UX 피드백 내용을 적어주세요..." value={newPostContent} onChange={(e) => setNewPostContent(e.target.value)} required></textarea>
                 </div>
                 <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
                   <button type="submit" className="btn btn-primary">게시글 발행</button>

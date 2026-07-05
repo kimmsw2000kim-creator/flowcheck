@@ -6,7 +6,7 @@ function MypageTestHistorySection() {
 
             <div className="empty-state">
                 <strong>실행한 테스트가 없습니다.</strong>
-                <p>AI QA 테스트나 부하 테스트를 실행하면 이곳에 기록됩니다.</p>
+                <p>AI UI 테스트나 부하 테스트를 실행하면 이곳에 기록됩니다.</p>
             </div>
         </section>
     );
