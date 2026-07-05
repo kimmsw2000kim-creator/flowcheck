@@ -8,10 +8,10 @@ interface Domain {
   verified: boolean;
 }
 
-interface QaPageProps {
+interface UiTestPageProps {
   domains: Domain[];
-  selectedQaDomain: number;
-  setSelectedQaDomain: (id: number) => void;
+  selectedUiTestDomain: number;
+  setSelectedUiTestDomain: (id: number) => void;
   currentUser: {
     id: string;
     coupons: number;
@@ -22,28 +22,28 @@ interface QaPageProps {
   showAlert: (message: string, type?: string) => void;
 }
 
-export default function QaPage({
+export default function UiTestPage({
   domains,
-  selectedQaDomain,
-  setSelectedQaDomain,
+  selectedUiTestDomain,
+  setSelectedUiTestDomain,
   currentUser,
   onUserUpdate,
   onAddLedger,
   showAlert
-}: QaPageProps) {
+}: UiTestPageProps) {
   const [targetUrl, setTargetUrl] = useState<string>('');
-  const [qaStatus, setQaStatus] = useState<string>('idle'); // idle, running, success, error
-  const [qaSteps, setQaSteps] = useState<UiTestStepData[]>([]);
-  const [qaReportMarkdown, setQaReportMarkdown] = useState<string>('');
+  const [uiTestStatus, setUiTestStatus] = useState<string>('idle'); // idle, running, success, error
+  const [uiTestSteps, setUiTestSteps] = useState<UiTestStepData[]>([]);
+  const [uiTestReportMarkdown, setUiTestReportMarkdown] = useState<string>('');
   const [pollingId, setPollingId] = useState<any>(null);
 
   // 도메인 선택 변경 시 URL 입력창 자동 반영
   useEffect(() => {
-    const selected = domains.find(d => d.id === selectedQaDomain);
+    const selected = domains.find(d => d.id === selectedUiTestDomain);
     if (selected) {
       setTargetUrl(selected.domainUrl);
     }
-  }, [selectedQaDomain, domains]);
+  }, [selectedUiTestDomain, domains]);
 
   // 언마운트 시 폴링 리소스 정리
   useEffect(() => {
@@ -54,7 +54,7 @@ export default function QaPage({
     };
   }, [pollingId]);
 
-  const handleRunQa = async () => {
+  const handleRunUiTest = async () => {
     if (!targetUrl.trim()) {
       showAlert('테스트할 웹사이트 URL을 입력해 주세요.', 'error');
       return;
@@ -68,35 +68,35 @@ export default function QaPage({
 
     // 쿠폰/크레딧 체크 및 차감 로직 우회 (무료 테스트 모드)
 
-    setQaStatus('running');
-    setQaSteps([]);
-    setQaReportMarkdown('');
+    setUiTestStatus('running');
+    setUiTestSteps([]);
+    setUiTestReportMarkdown('');
 
     try {
       // 2. 백엔드 호출
       const startRes = await startUiTest(targetUrl, currentUser.id);
       const requestId = startRes.requestId;
       
-      showAlert('자율형 AI QA 탐색 에이전트가 가동되었습니다!', 'success');
+      showAlert('자율형 AI UI 테스트 탐색 에이전트가 가동되었습니다!', 'success');
 
       // 3. 폴링 시작 (1.5초 주기)
       const interval = setInterval(async () => {
         try {
           const statusRes = await getUiTestStatus(requestId);
-          setQaSteps(statusRes.steps);
+          setUiTestSteps(statusRes.steps);
 
           if (statusRes.status === 'COMPLETED') {
-            setQaStatus('success');
-            setQaReportMarkdown(statusRes.report || '');
+            setUiTestStatus('success');
+            setUiTestReportMarkdown(statusRes.report || '');
             clearInterval(interval);
             setPollingId(null);
-            showAlert('자율형 AI QA 탐색이 완료되었습니다!', 'success');
+            showAlert('자율형 AI UI 테스트가 완료되었습니다!', 'success');
           } else if (statusRes.status === 'FAILED') {
-            setQaStatus('error');
-            setQaReportMarkdown(statusRes.report || '# 테스트 실패\n\nAI 에이전트 탐색 중 비정상 종료되거나 에러가 발생했습니다.');
+            setUiTestStatus('error');
+            setUiTestReportMarkdown(statusRes.report || '# 테스트 실패\n\nAI 에이전트 탐색 중 비정상 종료되거나 에러가 발생했습니다.');
             clearInterval(interval);
             setPollingId(null);
-            showAlert('AI QA 탐색 도중 에러가 발생하였습니다.', 'error');
+            showAlert('AI UI 테스트 도중 에러가 발생하였습니다.', 'error');
           }
         } catch (pollErr) {
           console.error('Status polling error:', pollErr);
@@ -107,7 +107,7 @@ export default function QaPage({
 
     } catch (err: any) {
       console.error('Failed to start UI Test:', err);
-      setQaStatus('error');
+      setUiTestStatus('error');
       showAlert(err.message || 'AI 서버를 호출하지 못했습니다.', 'error');
     }
   };
@@ -115,7 +115,7 @@ export default function QaPage({
   return (
     <div style={{ textAlign: 'left' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-        <h2 style={{ fontSize: '1.75rem', margin: 0 }}>AI 자율형 QA 익스플로러 (Playwright + Gemini)</h2>
+        <h2 style={{ fontSize: '1.75rem', margin: 0 }}>AI 자율형 UI 테스트 익스플로러 (Playwright + Gemini)</h2>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', fontSize: '0.85rem', backgroundColor: 'var(--bg-secondary)', padding: '0.5rem 0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
           <Monitor size={14} style={{ color: 'var(--accent-hover)' }} />
           <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>💻 로컬 브라우저 구동 모드 (headless=False)</span>
@@ -125,15 +125,15 @@ export default function QaPage({
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '2rem' }}>
         <div>
           <div className="card">
-            <h3 style={{ marginBottom: '1.25rem' }}>AI QA 탐색 시작</h3>
+            <h3 style={{ marginBottom: '1.25rem' }}>AI UI 테스트 시작</h3>
             
             <div className="form-group">
               <label className="form-label">인증 도메인 불러오기</label>
               <select 
                 className="form-input" 
-                value={selectedQaDomain} 
-                onChange={(e) => setSelectedQaDomain(parseInt(e.target.value))}
-                disabled={qaStatus === 'running'}
+                value={selectedUiTestDomain} 
+                onChange={(e) => setSelectedUiTestDomain(parseInt(e.target.value))}
+                disabled={uiTestStatus === 'running'}
               >
                 <option value="">-- 주소 선택하기 --</option>
                 {domains.filter(d => d.verified).map(d => (
@@ -160,7 +160,7 @@ export default function QaPage({
                   placeholder="https://example.com"
                   value={targetUrl}
                   onChange={(e) => setTargetUrl(e.target.value)}
-                  disabled={qaStatus === 'running'}
+                  disabled={uiTestStatus === 'running'}
                 />
               </div>
             </div>
@@ -173,10 +173,10 @@ export default function QaPage({
             <button 
               className="btn btn-primary" 
               style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
-              onClick={handleRunQa}
-              disabled={qaStatus === 'running'}
+              onClick={handleRunUiTest}
+              disabled={uiTestStatus === 'running'}
             >
-              {qaStatus === 'running' ? (
+              {uiTestStatus === 'running' ? (
                 <>
                   <RefreshCw className="animate-spin" size={16} />
                   <span>탐색 에이전트 구동 중...</span>
@@ -184,7 +184,7 @@ export default function QaPage({
               ) : (
                 <>
                   <Play size={16} fill="currentColor" />
-                  <span>QA 테스트 시작</span>
+                  <span>UI 테스트 시작</span>
                 </>
               )}
             </button>
@@ -198,23 +198,23 @@ export default function QaPage({
               <span>실시간 탐색 상황 (Telemetry)</span>
             </h3>
             
-            {qaStatus === 'idle' && (
+            {uiTestStatus === 'idle' && (
               <div style={{ color: 'var(--text-muted)', textAlign: 'center', margin: 'auto' }}>
                 <Play size={48} style={{ margin: '0 auto 1rem', opacity: 0.3 }} />
                 <p>UI/UX 테스트를 시작하면 실시간 DOM 탐색 진행 상황이 표시됩니다.</p>
               </div>
             )}
 
-            {qaStatus === 'running' && qaSteps.length === 0 && (
+            {uiTestStatus === 'running' && uiTestSteps.length === 0 && (
               <div style={{ color: 'var(--text-muted)', textAlign: 'center', margin: 'auto' }}>
                 <RefreshCw className="animate-spin" size={48} style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
                 <p>브라우저를 초기화하고 대상 주소로 이동하는 중입니다...</p>
               </div>
             )}
 
-            {(qaStatus === 'running' || qaSteps.length > 0) && (
+            {(uiTestStatus === 'running' || uiTestSteps.length > 0) && (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                {qaStatus === 'running' && (
+                {uiTestStatus === 'running' && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--accent-hover)', marginBottom: '1.5rem', fontSize: '0.9rem', fontWeight: 500 }}>
                     <RefreshCw className="animate-spin" size={16} />
                     <span>Gemini AI와 Playwright가 화면 구조를 파악하고 이벤트를 유도하고 있습니다.</span>
@@ -222,7 +222,7 @@ export default function QaPage({
                 )}
                 
                 <div className="timeline" style={{ flex: 1, overflowY: 'auto', maxHeight: '400px' }}>
-                  {qaSteps.map((step, idx) => (
+                  {uiTestSteps.map((step, idx) => (
                     <div className="timeline-step" key={idx} style={{ marginBottom: '1.5rem', paddingLeft: '1.5rem', position: 'relative' }}>
                       <div className="timeline-dot" style={{
                         position: 'absolute',
@@ -263,11 +263,11 @@ export default function QaPage({
                   ))}
                 </div>
 
-                {qaStatus === 'success' && (
+                {uiTestStatus === 'success' && (
                   <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--border)', paddingTop: '1.5rem' }}>
                     <div style={{ color: 'var(--success)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
                       <CheckCircle size={18} />
-                      <span>자율형 AI QA 탐색이 완료되었습니다! 아래 종합 리포트를 확인해 주세요.</span>
+                      <span>자율형 AI UI 테스트가 완료되었습니다! 아래 종합 리포트를 확인해 주세요.</span>
                     </div>
                     <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.5rem', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', color: 'var(--text-primary)' }}>
@@ -275,13 +275,13 @@ export default function QaPage({
                         <h4 style={{ margin: 0 }}>Gemini UI/UX 종합 감사 보고서</h4>
                       </div>
                       <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
-                        {qaReportMarkdown}
+                        {uiTestReportMarkdown}
                       </pre>
                     </div>
                   </div>
                 )}
 
-                {qaStatus === 'error' && (
+                {uiTestStatus === 'error' && (
                   <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--border)', paddingTop: '1.5rem' }}>
                     <div style={{ color: 'var(--error)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
                       <AlertCircle size={18} />
@@ -289,7 +289,7 @@ export default function QaPage({
                     </div>
                     <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.5rem', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
                       <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
-                        {qaReportMarkdown}
+                        {uiTestReportMarkdown}
                       </pre>
                     </div>
                   </div>
