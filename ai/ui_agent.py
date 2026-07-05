@@ -122,7 +122,7 @@ def run_ui_agent(request_id: str, target_url: str):
                 action_data = None
                 if not is_simulated_mode and client:
                     prompt_text = f"""
-                    You are an AI QA explorer. You are currently on page: {current_url}.
+                    You are an AI UI test explorer. You are currently on page: {current_url}.
                     Analyze the screenshot and choose the next action to perform.
                     
                     Goal: Explore this website's pages and menus, click on interactive buttons or links, and try features.
@@ -302,7 +302,7 @@ def run_ui_agent(request_id: str, target_url: str):
             if not is_simulated_mode and client:
                 history_str = json.dumps(steps_history, ensure_ascii=False, indent=2)
                 report_prompt = f"""
-                You are an expert QA and UX designer.
+                You are an expert UI testing and UX designer.
                 Analyze the following execution path of an AI autonomous exploration robot on target URL: {target_url}.
                 
                 Exploration Path Steps:

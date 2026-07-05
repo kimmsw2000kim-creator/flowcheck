@@ -7,7 +7,7 @@ import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-
 // Pages
 import DashboardPage from './pages/DashboardPage';
 import DomainsPage from './pages/DomainsPage';
-import QaPage from './pages/UitestPage';
+import UiTestPage from './pages/UitestPage';
 import LoadPage from './pages/LoadPage';
 import BillingPage from './pages/BillingPage';
 import CommunityPage from './pages/CommunityPage';
@@ -60,7 +60,7 @@ function App() {
     dashboard: '/dashboard',
     mypage: '/mypage',
     domains: '/domains',
-    qa: '/qa',
+    uitest: '/uitest',
     load: '/load',
     billing: '/billing',
     community: '/community',
@@ -90,7 +90,7 @@ function App() {
   ]);
   const [newDomainUrl, setNewDomainUrl] = useState<string>('');
   const [verificationLoading, setVerificationLoading] = useState<boolean>(false);
-  const [selectedQaDomain, setSelectedQaDomain] = useState<number>(1);
+  const [selectedUiTestDomain, setSelectedUiTestDomain] = useState<number>(1);
 
   const [ledger, setLedger] = useState<LedgerItem[]>([
     { id: 1, amount: 50000, type: 'CHARGE', description: '토스페이먼츠 가상계좌 크레딧 충전', createdAt: '2026-06-29 14:20' },
@@ -212,7 +212,7 @@ function App() {
                 currentUser={currentUser}
                 domains={domains}
                 setActiveTab={setActiveTab}
-                setSelectedQaDomain={setSelectedQaDomain}
+                setSelectedUiTestDomain={setSelectedUiTestDomain}
               />
             }
           />
@@ -234,12 +234,12 @@ function App() {
           />
 
           <Route
-            path="/qa"
+            path="/uitest"
             element={
-              <QaPage
+              <UiTestPage
                 domains={domains}
-                selectedQaDomain={selectedQaDomain}
-                setSelectedQaDomain={setSelectedQaDomain}
+                selectedUiTestDomain={selectedUiTestDomain}
+                setSelectedUiTestDomain={setSelectedUiTestDomain}
                 currentUser={currentUser}
                 onUserUpdate={handleUserUpdate}
                 onAddLedger={handleAddLedger}
