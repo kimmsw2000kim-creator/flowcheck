@@ -31,6 +31,12 @@ public class UiTestService {
     @Value("${fastapi.url}")
     private String fastApiUrl;
 
+    @Value("${supabase.url:}")
+    private String supabaseUrl;
+
+    @Value("${supabase.anon-key:}")
+    private String supabaseAnonKey;
+
     private static final int TEST_COST = 10_000;
 
     @Transactional
@@ -48,6 +54,22 @@ public class UiTestService {
                             .build();
                     return userRepository.save(newUser);
                 });
+
+        // 계정당 최대 10개의 UI 테스트 동영상/이력만 유지하도록 제한 (10개 초과 시 오래된 항목 및 동영상 삭제)
+        List<UiTest> userTests = uiTestRepository.findByUserOrderByCreatedAtAsc(user);
+        if (userTests.size() >= 10) {
+            int deleteCount = userTests.size() - 9; // 새 항목이 추가되어 정확히 10개가 되도록 초과분 삭제
+            for (int i = 0; i < deleteCount; i++) {
+                UiTest oldestTest = userTests.get(i);
+                
+                // Supabase Storage에서 동영상 파일 제거
+                deleteVideoFromSupabase(oldestTest.getId());
+                
+                // DB에서 레코드 삭제 (Cascade 설정에 의해 ui_test_steps도 자동 삭제됨)
+                uiTestRepository.delete(oldestTest);
+                log.info("Deleted oldest UI test record {} for user {} due to 10-test limit", oldestTest.getId(), userId);
+            }
+        }
 
         // 2. 비용 차감 (쿠폰 및 크레딧 차감 로직 제거 - 무료 작동)
         // 기존의 쿠폰 및 크레딧 차감 로직이 이곳에 위치하였으나 삭제되었습니다.
@@ -166,5 +188,32 @@ public class UiTestService {
         }
         uiTestRepository.save(uiTest);
         log.info("Marked UI test {} as FAILED. Reason: {}", requestId, reason);
+    }
+
+    /**
+     * Supabase Storage에서 이전 UI 테스트 비디오 파일을 원격 삭제합니다.
+     */
+    private void deleteVideoFromSupabase(UUID requestId) {
+        if (supabaseUrl == null || supabaseUrl.trim().isEmpty() || 
+            supabaseAnonKey == null || supabaseAnonKey.trim().isEmpty()) {
+            log.warn("Supabase credentials not fully configured. Skipping video deletion.");
+            return;
+        }
+
+        String bucketName = "ui-test-videos";
+        String path = requestId.toString() + ".webm";
+        String url = supabaseUrl + "/storage/v1/object/" + bucketName + "/" + path;
+
+        try {
+            log.info("Attempting to delete video from Supabase Storage: {}", url);
+            restClient.delete()
+                    .uri(url)
+                    .header("Authorization", "Bearer " + supabaseAnonKey)
+                    .retrieve()
+                    .toBodilessEntity();
+            log.info("Successfully deleted video file {} from Supabase Storage", path);
+        } catch (Exception e) {
+            log.error("Failed to delete video file {} from Supabase Storage (it might not exist)", path, e);
+        }
     }
 }

@@ -112,6 +112,18 @@ export default function UiTestPage({
     }
   };
 
+  // 비디오 녹화본 URL 추출 파싱 (백엔드 추가 컬럼 없이 report 내 마킹 데이터 활용)
+  const hasVideoUrl = uiTestReportMarkdown.includes('[VIDEO_URL]:');
+  let videoUrl = '';
+  let cleanReportMarkdown = uiTestReportMarkdown;
+
+  if (hasVideoUrl) {
+    const parts = uiTestReportMarkdown.split('[VIDEO_URL]:');
+    cleanReportMarkdown = parts[0].trim();
+    // URL 라인 추출
+    videoUrl = parts[1].trim().split('\n')[0].trim();
+  }
+
   return (
     <div style={{ textAlign: 'left' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
@@ -274,8 +286,18 @@ export default function UiTestPage({
                         <FileText size={18} />
                         <h4 style={{ margin: 0 }}>Gemini UI/UX 종합 감사 보고서</h4>
                       </div>
+                      
+                      {videoUrl && (
+                        <div style={{ marginBottom: '1.5rem', border: '1px solid var(--border)', borderRadius: '0.5rem', overflow: 'hidden', backgroundColor: '#000000' }}>
+                          <div style={{ padding: '0.5rem 1rem', backgroundColor: 'var(--bg-tertiary)', borderBottom: '1px solid var(--border)', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                            🎥 AI 탐색 테스트 녹화 비디오 (Supabase Storage)
+                          </div>
+                          <video src={videoUrl} controls width="100%" style={{ display: 'block', maxHeight: '500px', margin: '0 auto' }} />
+                        </div>
+                      )}
+
                       <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
-                        {uiTestReportMarkdown}
+                        {cleanReportMarkdown}
                       </pre>
                     </div>
                   </div>
@@ -289,7 +311,7 @@ export default function UiTestPage({
                     </div>
                     <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.5rem', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
                       <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
-                        {uiTestReportMarkdown}
+                        {cleanReportMarkdown}
                       </pre>
                     </div>
                   </div>
