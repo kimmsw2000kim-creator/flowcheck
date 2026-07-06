@@ -53,7 +53,7 @@ export default function AuthPage({ setActiveTab, onLoginSuccess, showAlert, init
     } else {
       try {
         const data = await signup({ email, password, nickname });
-        showAlert(data.message || "회원가입에 성공했습니다! 로그인해 주세요.", "success");
+        showAlert(data.message || "회원가입 요청이 완료되었습니다. 이메일 인증 후 로그인해 주세요.", "success");
         setMode("login");
         setPassword("");
       } catch (error) {
