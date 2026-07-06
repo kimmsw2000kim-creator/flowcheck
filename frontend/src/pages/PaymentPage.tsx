@@ -72,7 +72,6 @@ export default function PaymentPage({
 }: PaymentPageProps) {
   // Coin pack selection state
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
-  const [promoCode, setPromoCode] = useState<string>('');
 
   // Toss payments state
   const [showTossWidget, setShowTossWidget] = useState<boolean>(false);
@@ -322,30 +321,7 @@ export default function PaymentPage({
     showAlert(`테스트 쿠폰 ${count}회권을 성공적으로 구매하였습니다!`);
   };
 
-  const handleRedeemPromo = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (promoCode.trim().toUpperCase() !== 'WELCOME2026') {
-      showAlert('유효하지 않은 프로모션 코드입니다.', 'error');
-      return;
-    }
-    if (ledger.some(l => l.type === 'PROMOTION' && l.description === 'WELCOME2026')) {
-      showAlert('이미 사용된 프로모션 코드입니다.', 'error');
-      return;
-    }
-    onUserUpdate({
-      balance: currentUser.balance + 50000,
-      coupons: currentUser.coupons
-    });
-    onAddLedger({
-      id: ledger.length + 1,
-      amount: 50000,
-      type: 'PROMOTION',
-      description: 'WELCOME2026',
-      createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
-    });
-    setPromoCode('');
-    showAlert('프로모션 코드 WELCOME2026 적용 완료! 50,000 크레딧이 충전되었습니다.', 'success');
-  };
+
 
   return (
     <div style={{ textAlign: 'left', maxWidth: '1200px', margin: '0 auto', padding: '1rem 0' }}>
@@ -681,22 +657,6 @@ export default function PaymentPage({
         </div>
 
         <div>
-          {/* 프로모션 코드 입력 섹션 */}
-          <div className="card" style={{ marginBottom: '1.5rem', borderRadius: '1rem', padding: '1.5rem', backgroundColor: 'var(--bg-secondary)', boxShadow: 'var(--card-shadow)' }}>
-            <h3 style={{ marginBottom: '0.75rem', fontWeight: 700, fontSize: '1.05rem' }}>이벤트 프로모션 코드 입력</h3>
-            <form onSubmit={handleRedeemPromo} style={{ display: 'flex', gap: '0.5rem' }}>
-              <input 
-                type="text" 
-                className="form-input" 
-                placeholder="WELCOME2026" 
-                value={promoCode} 
-                onChange={(e) => setPromoCode(e.target.value)} 
-                required 
-              />
-              <button type="submit" className="btn btn-primary">적용하기</button>
-            </form>
-          </div>
-
           {/* 거래 내역 섹션 */}
           <div className="card" style={{ borderRadius: '1rem', padding: '1.75rem', backgroundColor: 'var(--bg-secondary)', boxShadow: 'var(--card-shadow)' }}>
             <h3 style={{ marginBottom: '1.25rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.15rem' }}>

@@ -58,6 +58,41 @@ def report_failure(request_id: str, reason: str):
     except Exception as e:
         print(f"Failed to send failure: {e}")
 
+def upload_video_to_supabase(file_path: str, request_id: str) -> Optional[str]:
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_ANON_KEY")
+    if not supabase_url or not supabase_key:
+        print("Supabase credentials not found in env.")
+        return None
+        
+    bucket_name = "ui-test-videos"
+    dest_path = f"{request_id}.webm"
+    url = f"{supabase_url}/storage/v1/object/{bucket_name}/{dest_path}"
+    
+    headers = {
+        "Authorization": f"Bearer {supabase_key}",
+        "Content-Type": "video/webm"
+    }
+    
+    try:
+        with open(file_path, "rb") as f:
+            file_data = f.read()
+            
+        print(f"Uploading video {file_path} to Supabase Storage...")
+        r = httpx.post(url, headers=headers, content=file_data, timeout=30.0)
+        
+        if r.status_code == 200:
+            public_url = f"{supabase_url}/storage/v1/object/public/{bucket_name}/{dest_path}"
+            print(f"Video uploaded successfully. Public URL: {public_url}")
+            return public_url
+        else:
+            print(f"Failed to upload video to Supabase (Status: {r.status_code}): {r.text}")
+            print(f"Tip: Make sure the Supabase storage bucket named '{bucket_name}' exists and has public read access policies.")
+            return None
+    except Exception as e:
+        print(f"Error uploading video: {e}")
+        return None
+
 def run_ui_agent(request_id: str, target_url: str):
     print(f"Starting UI Agent for requestId: {request_id}, targetUrl: {target_url}")
     
@@ -80,9 +115,22 @@ def run_ui_agent(request_id: str, target_url: str):
     
     with sync_playwright() as p:
         try:
-            print("Launching Chromium browser...")
-            browser = p.chromium.launch(headless=False)
-            context = browser.new_context(viewport={"width": 1280, "height": 800})
+            # AWS 등 GUI 화면이 없는 배포 서버 환경에서는 headless=True로 기동되어야 크래시가 나지 않습니다.
+            # 기본값은 True(AWS 배포용)이며, 로컬 창 노출(headed)을 원할 시 .env에 PLAYWRIGHT_HEADLESS=false를 추가 제어합니다.
+            headless_mode = os.getenv("PLAYWRIGHT_HEADLESS", "true").lower() == "true"
+            browser = p.chromium.launch(headless=headless_mode)
+            
+            # 비디오 녹화 설정 활성화 (AWS 배포 버전에서도 영상 추적이 가능하도록 처리)
+            video_dir = os.path.join(os.path.dirname(__file__), "videos")
+            os.makedirs(video_dir, exist_ok=True)
+            
+            # 브라우저 렌더링은 데스크톱 규격(1280x800)을 유지하되, 
+            # 동영상 저장 해상도는 800x500으로 다운스케일링하여 비디오 용량을 60% 이상 절감합니다.
+            context = browser.new_context(
+                viewport={"width": 1280, "height": 800},
+                record_video_dir=video_dir,
+                record_video_size={"width": 800, "height": 500}
+            )
             page = context.new_page()
             
             # Step 1: Open initial page
@@ -354,8 +402,22 @@ def run_ui_agent(request_id: str, target_url: str):
 - ⭐ **4.2 / 5.0** (시뮬레이션 평정치)
 """
             
-            report_report(request_id, report_md)
+            # 비디오 파일 경로 추출 및 브라우저 종료
+            video_path = page.video.path() if page.video else None
+            context.close()
             browser.close()
+            
+            # Supabase Storage 업로드 및 마크다운 보고서에 비디오 URL 바인딩
+            if video_path and os.path.exists(video_path):
+                public_url = upload_video_to_supabase(video_path, request_id)
+                if public_url:
+                    report_md = f"[VIDEO_URL]:{public_url}\n\n" + report_md
+                try:
+                    os.remove(video_path)
+                except Exception as ex:
+                    print(f"Failed to delete local video file: {ex}")
+            
+            report_report(request_id, report_md)
             
         except Exception as outer_e:
             err = f"Playwright execution crash: {str(outer_e)}"
