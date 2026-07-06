@@ -1,3 +1,6 @@
+import truststore
+truststore.inject_into_ssl()
+
 from fastapi import FastAPI, BackgroundTasks
 from pydantic import BaseModel
 from typing import List, Optional
@@ -11,7 +14,6 @@ class UiTestRequest(BaseModel):
 from dotenv import load_dotenv
 from google import genai
 
-import os
 import subprocess
 import tempfile
 import json
@@ -64,7 +66,7 @@ class LoadTestRequest(BaseModel):
 class ChartPoint(BaseModel):
     time: str
     tps: int
-    avg_response: float
+    avgResponse: float
 
 class TestResultsResponse(BaseModel):
     maxTps: int
@@ -197,7 +199,7 @@ async def run_load_test(request: LoadTestRequest):
             chart_points.append(ChartPoint(
                 time=time_label, 
                 tps=point_tps,
-                avg_response=point_avg_res # 프론트엔드의 응답 속도 꺾은선 차트도 활성화됨!
+                avgResponse=point_avg_res # 프론트엔드의 응답 속도 꺾은선 차트도 활성화됨!
             ))
 
     print("테스트 완료! 정밀 결과를 반환합니다.")
