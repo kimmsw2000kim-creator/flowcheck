@@ -48,7 +48,7 @@ export default function LoadPage({
   const [selectedLoadDomain, setSelectedLoadDomain] = useState<number>(initialDomainId);
   const [vusers, setVusers] = useState<number>(100);
   const [duration, setDuration] = useState<number>(30);
-  const [loadPrompt, setLoadPrompt] = useState<string>('Simulate multiple checkouts under extreme concurrency');
+  const [loadPrompt, setLoadPrompt] = useState<string>('');
   const [loadStatus, setLoadStatus] = useState<string>('idle'); // idle, running, success, error
   const [loadMetrics, setLoadMetrics] = useState<LoadMetrics | null>(null);
   const [loadChartData, setLoadChartData] = useState<LoadChartDataPoint[]>([]);
@@ -232,6 +232,7 @@ export default function LoadPage({
                 className="form-input"
                 rows={3}
                 value={loadPrompt.toString()}
+                placeholder="테스트 시나리오에 대한 설명을 입력하세요..."
                 onChange={(e) => setLoadPrompt(e.target.value)}
               ></textarea>
             </div>
