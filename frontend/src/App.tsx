@@ -18,9 +18,6 @@ import AuthPage from './pages/AuthPage';
 // Utils
 import axios from 'axios';
 import ApiURL from './api/ApiURL';
-import MypageApi
-import 
-
 axios.defaults.baseURL = ApiURL;
 
 interface Domain {
