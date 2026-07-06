@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+import axios from 'axios';
 
 export interface StartUiTestResponse {
   requestId: string;
@@ -24,32 +24,25 @@ export interface UiTestStatusResponse {
   steps: UiTestStepData[];
 }
 
+/**
+ * UI 탐색 테스트를 시작합니다.
+ */
 export async function startUiTest(targetUrl: string, userId: string): Promise<StartUiTestResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/ui-tests`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-User-Id": userId,
-    },
-    body: JSON.stringify({ targetUrl }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(errorText || "UI 탐색 테스트 시작에 실패했습니다.");
-  }
-
-  return response.json();
+  const response = await axios.post('/api/ui-tests', 
+    { targetUrl }, 
+    {
+      headers: {
+        'X-User-Id': userId,
+      }
+    }
+  );
+  return response.data;
 }
 
+/**
+ * 실시간 UI 탐색 테스트 상태 및 단계 정보를 조회합니다.
+ */
 export async function getUiTestStatus(requestId: string): Promise<UiTestStatusResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/ui-tests/${requestId}/status`, {
-    method: "GET",
-  });
-
-  if (!response.ok) {
-    throw new Error("실시간 탐색 상태를 조회하지 못했습니다.");
-  }
-
-  return response.json();
+  const response = await axios.get(`/api/ui-tests/${requestId}/status`);
+  return response.data;
 }

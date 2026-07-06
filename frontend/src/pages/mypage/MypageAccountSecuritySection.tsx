@@ -1,4 +1,8 @@
-function MypageAccountSecuritySection() {
+interface MypageAccountSecuritySectionProps {
+  email: string;
+}
+
+function MypageAccountSecuritySection({ email }: MypageAccountSecuritySectionProps) {
     return (
         <section className="mypage-section">
             <h1>계정 · 보안</h1>
@@ -8,7 +12,7 @@ function MypageAccountSecuritySection() {
                 <div className="account-row">
                     <div>
                         <strong>이메일</strong>
-                        <p>corp-user@flowcheck.com</p>
+                        <p>{email}</p>
                     </div>
                     <button type="button" className="btn btn-secondary">변경</button>
                 </div>

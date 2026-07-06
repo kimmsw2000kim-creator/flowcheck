@@ -39,9 +39,9 @@ jobs:
           context: ./frontend
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/${{ env.FRONTEND_IMAGE }}:latest
-build-args: |
-  VITE_SUPABASE_URL=${{ vars.VITE_SUPABASE_URL }}
-  VITE_SUPABASE_PUBLIC_ANON=${{ vars.VITE_SUPABASE_ANON_KEY }}
+          build-args: |
+            VITE_SUPABASE_URL=${{ vars.VITE_SUPABASE_URL }}
+            VITE_SUPABASE_PUBLIC_ANON=${{ vars.VITE_SUPABASE_ANON_KEY }}
 
   deploy:
     needs: build
