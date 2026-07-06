@@ -43,6 +43,15 @@ public class AsyncLoadTestWorker {
                 .orElseThrow(() -> new IllegalArgumentException("Request not found"));
 
         try {
+            testHistory.changeStatus("RUNNING");
+            testHistory.changePhase("PREPARING_REQUEST");
+            testHistory.changeProgress(10);
+            testRequestRepository.save(testHistory);
+
+            testHistory.changePhase("CALLING_FASTAPI");
+            testHistory.changeProgress(20);
+            testRequestRepository.save(testHistory);
+
             // FastAPI 호출 (여기서 몇 분이 걸리더라도 사용자 요청은 이미 202로 끝났으므로 안전함)
             LoadTestResponse.TestResults testResults = restClient.post()
                     .uri(fastApiUrl + "/api/load-tests")
@@ -54,6 +63,15 @@ public class AsyncLoadTestWorker {
                     })
                     .body(LoadTestResponse.TestResults.class);
 
+            testHistory.changePhase("PROCESSING_RESULTS");
+            testHistory.changeProgress(80);
+            testRequestRepository.save(testHistory);
+
+            String aiReview = testResults.getBottleneckComment();
+            if (aiReview == null || aiReview.isBlank()) {
+                aiReview = "AI 분석 결과가 비어 있습니다.";
+            }
+
             LoadTestReport report = LoadTestReport.builder()
                     .testRequest(testHistory)
                     .vusers(request.getVusers())
@@ -61,17 +79,25 @@ public class AsyncLoadTestWorker {
                     .avgLatency((int) (testResults.getAvgResponse() * 1000))
                     .errorRate(BigDecimal.valueOf(testResults.getErrorRate()))
                     .rawMetrics(Map.of("points", testResults.getPoints()))
-                    .aiPerformanceReview(testResults.getBottleneckDiagnosis())
+                    .aiPerformanceReview(aiReview)
                     .build();
+
+            testHistory.changePhase("SAVING_REPORT");
+            testHistory.changeProgress(90);
+            testRequestRepository.save(testHistory);
 
             loadTestReportRepository.save(report);
 
             testHistory.changeStatus("COMPLETED");
+            testHistory.changePhase("COMPLETED");
+            testHistory.changeProgress(100);
             testRequestRepository.save(testHistory);
 
         } catch (Exception e) {
             log.error("Load test failed for request {}", requestId, e);
             testHistory.changeStatus("FAILED");
+            testHistory.changePhase("FAILED");
+            testHistory.changeProgress(100);
             testRequestRepository.save(testHistory);
         }
     }

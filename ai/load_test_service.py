@@ -26,7 +26,7 @@ class TestResultsResponse(BaseModel):
     maxTps: int
     avgResponse: float
     errorRate: float
-    bottleneckDiagnosis: str
+    bottleneckComment: str
     points: List[ChartPoint]
 
 
@@ -196,6 +196,6 @@ async def run_load_test_pipeline(client, request) -> TestResultsResponse:
         maxTps=int(summary["real_tps"]),
         avgResponse=round(summary["real_avg_response"], 2),
         errorRate=round(summary["real_error_rate"], 2),
-        bottleneckDiagnosis=summary["bottleneck_comment"],
+        bottleneckComment=summary["bottleneck_comment"],
         points=chart_points,
     )
