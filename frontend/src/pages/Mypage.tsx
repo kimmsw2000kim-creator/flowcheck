@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 
+import '../styles/mypage.css';
+
 import type { MypageData } from '../types/mypage';
 
 import MypageSidebar from '../components/MypageSidebar';
