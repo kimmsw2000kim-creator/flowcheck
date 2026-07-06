@@ -37,6 +37,7 @@ export async function login({ email, password }: AuthParams): Promise<any> {
         localStorage.setItem('accessToken', data.accessToken);
         localStorage.setItem('refreshToken', data.refreshToken);
         localStorage.setItem('email', data.email);
+        localStorage.setItem('userId', data.userId);
 
         return data;
     } catch (error: any) {
@@ -53,6 +54,7 @@ export function logout(): void {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('email');
+    localStorage.removeItem('userId');
 }
 
 export function getAccessToken(): string | null {

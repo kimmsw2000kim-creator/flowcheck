@@ -50,6 +50,7 @@ public class AuthService {
                                 null,
                                 null,
                                 request.getEmail(),
+                                null,
                                 "회원가입 요청이 완료되었습니다. 이메일 인증을 확인하세요.");
         }
 
@@ -103,12 +104,15 @@ public class AuthService {
                                 ? (String) user.get("email")
                                 : request.getEmail();
 
+                        String userId = user != null ? (String) user.get("id") : null;
+
                         saveLocalUserIfAbsent(responseBody, email);
 
                         return new AuthResponse(
                                 accessToken,
                                 refreshToken,
                                 email,
+                                userId,
                                 "로그인 성공");
 
                 } catch (HttpStatusCodeException e) {
