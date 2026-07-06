@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { CheckCircle, AlertCircle } from 'lucide-react';
 import Header from './components/Header';
 import Footer from './components/Footer';
@@ -9,7 +9,7 @@ import DashboardPage from './pages/DashboardPage';
 import DomainsPage from './pages/DomainsPage';
 import UiTestPage from './pages/UitestPage';
 import LoadPage from './pages/LoadPage';
-import BillingPage from './pages/BillingPage';
+import PaymentPage from './pages/PaymentPage';
 import CommunityPage from './pages/CommunityPage';
 import AdminPage from './pages/AdminPage';
 import Mypage from './pages/Mypage';
@@ -77,12 +77,35 @@ function App() {
   };
   const [currentUser, setCurrentUser] = useState({
     id: '',
-    email: '',
+    email: localStorage.getItem("email") ?? '',
     role: 'USER', // USER or ADMIN
     balance: 0,
     status: 'ACTIVE',
     coupons: 0
   });
+
+  useEffect(() => {
+    const accessToken = localStorage.getItem("accessToken");
+    if (accessToken) {
+      axios.get('/api/mypage', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      })
+      .then((res) => {
+        const data = res.data;
+        setCurrentUser(prev => ({
+          ...prev,
+          email: data.email,
+          balance: data.balance,
+          coupons: data.couponCount
+        }));
+      })
+      .catch((err) => {
+        console.error("Failed to load user profile session:", err);
+      });
+    }
+  }, [currentUser.email]);
 
   const [domains, setDomains] = useState<Domain[]>([]);
   const [newDomainUrl, setNewDomainUrl] = useState<string>('');
@@ -255,7 +278,7 @@ function App() {
           <Route
             path="/billing"
             element={
-              <BillingPage
+              <PaymentPage
                 currentUser={currentUser}
                 onUserUpdate={handleUserUpdate}
                 ledger={ledger}
