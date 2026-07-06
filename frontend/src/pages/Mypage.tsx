@@ -1,10 +1,20 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 
 import type { MypageData } from '../types/mypage';
+
 import MypageSidebar from '../components/MypageSidebar';
-import MypageSiteList from '../components/MypageSiteList';
+
 import MypageProfileSection from './mypage/MypageProfileSection';
+import MypageVerifiedSitesSection from './mypage/MypageVerifiedSitesSection';
+import MypageTestHistorySection from './mypage/MypageTestHistorySection';
+import MypagePointSection from './mypage/MypagePointSection';
+import MypagePointHistorySection from './mypage/MypagePointHistorySection';
+import MypagePaymentHistorySection from './mypage/MypagePaymentHistorySection';
+import MypageMyPostsSection from './mypage/MypageMyPostsSection';
+import MypageNotificationSettingsSection from './mypage/MypageNotificationSettingsSection';
+import MypageThemeSettingsSection from './mypage/MypageThemeSettingsSection';
+import MypageAccountSecuritySection from './mypage/MypageAccountSecuritySection';
 
 import { getAccessToken, getCurrentEmail } from '../api/authApi';
 import { fetchMypage } from '../api/mypageApi';
@@ -19,6 +29,8 @@ const emptyData: MypageData = {
 };
 
 function Mypage() {
+  const navigate = useNavigate();
+
   const [data, setData] = useState<MypageData>({
     ...emptyData,
     email: getCurrentEmail() ?? '',
@@ -50,30 +62,86 @@ function Mypage() {
 
   return (
     <div className="mypage-layout">
-      <MypageSidebar data={data} />
+      <MypageSidebar />
 
       <main className="mypage-main">
-        {loading && <div>마이페이지 정보를 불러오는 중입니다.</div>}
-        {errorMessage && <div>{errorMessage}</div>}
+        {loading && (
+          <div className="empty-state">
+            <strong>마이페이지 정보를 불러오는 중입니다.</strong>
+            <p>잠시만 기다려 주세요.</p>
+          </div>
+        )}
+
+        {!loading && errorMessage && (
+          <div className="empty-state">
+            <strong>{errorMessage}</strong>
+            <p>로그인 후 다시 마이페이지를 확인할 수 있습니다.</p>
+
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => navigate('/login')}
+            >
+              로그인하러 가기
+            </button>
+          </div>
+        )}
 
         {!loading && !errorMessage && (
           <Routes>
             <Route path="/" element={<Navigate to="profile" replace />} />
 
             <Route
-  path="profile"
-  element={<MypageProfileSection data={data} />}
-/>
+              path="profile"
+              element={<MypageProfileSection data={data} />}
+            />
 
-            <Route path="sites" element={<MypageSiteList sites={data.sites} />} />
-            <Route path="tests" element={<div>테스트 이력: {data.testRunCount}건</div>} />
-            <Route path="points" element={<div>포인트: {data.balance.toLocaleString()}P</div>} />
-            <Route path="point-history" element={<div>포인트 내역</div>} />
-            <Route path="payments" element={<div>결제 내역</div>} />
-            <Route path="posts" element={<div>내 글 · 리뷰</div>} />
-            <Route path="notifications" element={<div>알림 설정</div>} />
-            <Route path="theme" element={<div>테마 설정</div>} />
-            <Route path="security" element={<div>계정 · 보안</div>} />
+            <Route
+              path="sites"
+              element={<MypageVerifiedSitesSection sites={data.sites} />}
+            />
+
+            <Route
+              path="tests"
+              element={<MypageTestHistorySection />}
+            />
+
+            <Route
+              path="points"
+              element={<MypagePointSection data={data} />}
+            />
+
+            <Route
+              path="point-history"
+              element={<MypagePointHistorySection />}
+            />
+
+            <Route
+              path="payments"
+              element={<MypagePaymentHistorySection />}
+            />
+
+            <Route
+              path="posts"
+              element={<MypageMyPostsSection />}
+            />
+
+            <Route
+              path="notifications"
+              element={<MypageNotificationSettingsSection />}
+            />
+
+            <Route
+              path="theme"
+              element={<MypageThemeSettingsSection />}
+            />
+
+            <Route
+              path="security"
+              element={<MypageAccountSecuritySection />}
+            />
+
+            <Route path="*" element={<Navigate to="profile" replace />} />
           </Routes>
         )}
       </main>

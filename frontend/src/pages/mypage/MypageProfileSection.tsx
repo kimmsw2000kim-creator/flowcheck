@@ -9,20 +9,17 @@ interface MypageProfileSectionProps {
 }
 
 function MypageProfileSection({ data }: MypageProfileSectionProps) {
-  const profileName = data.email ? data.email.split('@')[0] : '사용자';
-  const avatarText = profileName.charAt(0).toUpperCase();
-
   return (
     <>
       <section className="mypage-header">
         <div className="mypage-profile">
           <div className="profile-avatar">
-            {avatarText}
+            {data.email.charAt(0).toUpperCase()}
           </div>
 
           <div>
-            <h1>{profileName}</h1>
-            <p>{data.email || '로그인 정보 없음'} · 이메일 로그인</p>
+            <h1>마이페이지</h1>
+            <p>{data.email}</p>
           </div>
         </div>
       </section>
