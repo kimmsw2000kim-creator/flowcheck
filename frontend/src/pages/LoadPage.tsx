@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { TrendingUp, RefreshCw } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import axios from 'axios';
@@ -22,6 +22,20 @@ interface LoadMetrics {
   bottleneckComment: string;
 }
 
+interface LoadTestStreamPayload {
+  status: string;
+  phase: string;
+  progress: number;
+  message: string;
+  testResults?: {
+    maxTps: number;
+    avgResponse: number;
+    errorRate: number;
+    bottleneckComment: string;
+    points: LoadChartDataPoint[];
+  };
+}
+
 const phaseLabels: Record<string, string> = {
   QUEUED: '대기 중',
   PREPARING_REQUEST: '요청 준비 중',
@@ -31,8 +45,6 @@ const phaseLabels: Record<string, string> = {
   COMPLETED: '완료',
   FAILED: '실패',
 };
-
-const POLL_INTERVAL_MS = 1000;
 
 interface LoadPageProps {
   domains: Domain[];
@@ -66,6 +78,13 @@ export default function LoadPage({
   const [loadMessage, setLoadMessage] = useState<string>('');
   const [loadMetrics, setLoadMetrics] = useState<LoadMetrics | null>(null);
   const [loadChartData, setLoadChartData] = useState<LoadChartDataPoint[]>([]);
+  const streamRef = useRef<EventSource | null>(null);
+
+  useEffect(() => {
+    return () => {
+      streamRef.current?.close();
+    };
+  }, []);
 
   const handleRunLoadTest = async () => {
     if (currentUser.coupons <= 0 && currentUser.balance < 10000) {
@@ -76,6 +95,7 @@ export default function LoadPage({
     const targetUrl = domains.find(d => d.id === selectedLoadDomain)?.domainUrl || 'https://myshop.com';
 
     const payload = {
+      requestId: crypto.randomUUID(),
       targetUrl,
       vusers,
       duration,
@@ -95,9 +115,7 @@ export default function LoadPage({
       });
 
       const { requestId } = response.data;
-
-      // 폴링을 통해 테스트 결과를 가져오는 함수
-      pollForResult(requestId);
+      subscribeLoadTestStream(requestId);
 
     } catch (error) {
       console.error('Failed to run load test:', error);
@@ -106,16 +124,19 @@ export default function LoadPage({
     }
   };
 
-  const pollForResult = async (requestId: string) => {
+  const subscribeLoadTestStream = (requestId: string) => {
     if (!requestId) {
       console.error("유효하지 않은 requestId입니다.");
       return;
     }
 
-    try {
-      const response = await axios.get(`/api/load-tests/${requestId}`);
-      const data = response.data;
-      console.log('Polling result:', data);
+    streamRef.current?.close();
+    const eventSource = new EventSource(`/api/load-tests/${requestId}/stream`);
+    streamRef.current = eventSource;
+
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data) as LoadTestStreamPayload;
+      console.log('Stream update:', data);
 
       setLoadPhase(data.phase || '');
       setLoadProgress(typeof data.progress === 'number' ? data.progress : 0);
@@ -124,48 +145,46 @@ export default function LoadPage({
       if (data.status === 'FAILED') {
         setLoadStatus('error');
         showAlert(data.message || '테스트 수행 중 오류가 발생했습니다.', 'error');
+        eventSource.close();
         return;
       }
 
-      if (data.status === 'COMPLETED' && data.testResults && data.testResults.maxTps !== undefined) {
-        const { testResults, updatedUser, deductionDetail } = data;
+      if (data.status === 'COMPLETED') {
+        axios.get(`/api/load-tests/${requestId}`)
+          .then((resultResponse) => {
+            const resultData = resultResponse.data;
+            const { testResults } = resultData;
 
-        if (updatedUser) {
-          onUserUpdate({
-            coupons: updatedUser.coupons,
-            balance: updatedUser.balance
+            if (testResults && testResults.maxTps !== undefined) {
+              setLoadStatus('success');
+              setLoadMetrics({
+                maxTps: testResults.maxTps,
+                avgResponse: testResults.avgResponse,
+                errorRate: testResults.errorRate,
+                bottleneckComment: testResults.bottleneckComment
+              });
+              setLoadChartData(testResults.points);
+
+              showAlert('k6 부하 테스트가 완료되었습니다!', 'success');
+            }
+          })
+          .catch((resultError) => {
+            console.error('Failed to load final result:', resultError);
+            setLoadStatus('error');
+            showAlert('최종 결과를 불러오지 못했습니다.', 'error');
+          })
+          .finally(() => {
+            eventSource.close();
           });
-        }
-
-        if (deductionDetail?.type === 'BALANCE') {
-          onAddLedger({
-            id: deductionDetail.ledgerId || Date.now(),
-            amount: -10000,
-            type: 'TEST_CONSUME',
-            description: 'k6 부하 테스트 실행',
-            createdAt: new Date().toISOString().substring(0, 16)
-          });
-        }
-
-        setLoadStatus('success');
-        setLoadMetrics({
-          maxTps: testResults.maxTps,
-          avgResponse: testResults.avgResponse,
-          errorRate: testResults.errorRate,
-          bottleneckComment: testResults.bottleneckComment
-        });
-        setLoadChartData(testResults.points);
-
-        showAlert('k6 부하 테스트가 완료되었습니다!', 'success');
-      } else {
-        // 아직 진행 중이라면 1초 뒤에 다시 상태를 확인합니다.
-        setTimeout(() => pollForResult(requestId), POLL_INTERVAL_MS);
       }
-    } catch (error) {
-      console.error('Failed to poll result:', error);
-      setLoadStatus('error');
-      showAlert('테스트 결과 조회 중 오류가 발생했습니다.', 'error');
-    }
+    };
+
+    eventSource.onerror = (error) => {
+      console.error('SSE stream error:', error);
+      if (streamRef.current === eventSource) {
+        streamRef.current = null;
+      }
+    };
   };
 
   const handleErrorResponse = (error: any) => {
@@ -232,7 +251,7 @@ export default function LoadPage({
               <input
                 type="range"
                 min="10"
-                max="1000"
+                max="2000"
                 step="10"
                 value={vusers}
                 onChange={(e) => setVusers(parseInt(e.target.value))}

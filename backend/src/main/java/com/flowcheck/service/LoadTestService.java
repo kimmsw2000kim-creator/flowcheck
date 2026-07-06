@@ -26,6 +26,7 @@ public class LoadTestService {
         private final CreditsLedgerRepository creditsLedgerRepository;
         private final TestRequestRepository testRequestRepository;
         private final LoadTestReportRepository loadTestReportRepository;
+        private final LoadTestStreamService loadTestStreamService;
 
         private final ApplicationEventPublisher eventPublisher;
 
@@ -75,6 +76,13 @@ public class LoadTestService {
 
                 TestRequest savedRequest = testRequestRepository.save(testHistory);
                 UUID generatedRequestId = savedRequest.getId();
+
+                loadTestStreamService.updateProgress(generatedRequestId,
+                                new com.flowcheck.dto.LoadTest.LoadTestProgressUpdateRequest(
+                                                "PENDING",
+                                                "QUEUED",
+                                                0,
+                                                "부하 테스트가 대기 중입니다."));
 
                 // FastAPI 호출 위임
                 eventPublisher.publishEvent(new LoadTestSubmittedEvent(generatedRequestId, request));

@@ -28,6 +28,7 @@ public class AsyncLoadTestWorker {
 
     private final TestRequestRepository testRequestRepository;
     private final LoadTestReportRepository loadTestReportRepository;
+    private final LoadTestStreamService loadTestStreamService;
     private final RestClient restClient;
 
     @Value("${fastapi.url}")
@@ -39,18 +40,22 @@ public class AsyncLoadTestWorker {
         UUID requestId = event.requestId();
         LoadTestRequest request = event.request();
 
+        request.setRequestId(requestId);
+
         TestRequest testHistory = testRequestRepository.findById(requestId)
                 .orElseThrow(() -> new IllegalArgumentException("Request not found"));
 
         try {
             testHistory.changeStatus("RUNNING");
-            testHistory.changePhase("PREPARING_REQUEST");
-            testHistory.changeProgress(10);
+            testHistory.changePhase("DISPATCHED_TO_FASTAPI");
+            testHistory.changeProgress(15);
             testRequestRepository.save(testHistory);
-
-            testHistory.changePhase("CALLING_FASTAPI");
-            testHistory.changeProgress(20);
-            testRequestRepository.save(testHistory);
+            loadTestStreamService.updateProgress(requestId,
+                    new com.flowcheck.dto.LoadTest.LoadTestProgressUpdateRequest(
+                            "RUNNING",
+                            "DISPATCHED_TO_FASTAPI",
+                            15,
+                            "FastAPI에 부하 테스트 실행을 전달하는 중입니다."));
 
             // FastAPI 호출 (여기서 몇 분이 걸리더라도 사용자 요청은 이미 202로 끝났으므로 안전함)
             LoadTestResponse.TestResults testResults = restClient.post()
@@ -64,7 +69,7 @@ public class AsyncLoadTestWorker {
                     .body(LoadTestResponse.TestResults.class);
 
             testHistory.changePhase("PROCESSING_RESULTS");
-            testHistory.changeProgress(80);
+            testHistory.changeProgress(85);
             testRequestRepository.save(testHistory);
 
             String aiReview = testResults.getBottleneckComment();
@@ -83,8 +88,14 @@ public class AsyncLoadTestWorker {
                     .build();
 
             testHistory.changePhase("SAVING_REPORT");
-            testHistory.changeProgress(90);
+            testHistory.changeProgress(95);
             testRequestRepository.save(testHistory);
+            loadTestStreamService.updateProgress(requestId,
+                    new com.flowcheck.dto.LoadTest.LoadTestProgressUpdateRequest(
+                            "RUNNING",
+                            "SAVING_REPORT",
+                            95,
+                            "결과 리포트를 저장하는 중입니다."));
 
             loadTestReportRepository.save(report);
 
@@ -92,6 +103,12 @@ public class AsyncLoadTestWorker {
             testHistory.changePhase("COMPLETED");
             testHistory.changeProgress(100);
             testRequestRepository.save(testHistory);
+            loadTestStreamService.updateProgress(requestId,
+                    new com.flowcheck.dto.LoadTest.LoadTestProgressUpdateRequest(
+                            "COMPLETED",
+                            "COMPLETED",
+                            100,
+                            "부하 테스트가 완료되었습니다."));
 
         } catch (Exception e) {
             log.error("Load test failed for request {}", requestId, e);
@@ -99,6 +116,12 @@ public class AsyncLoadTestWorker {
             testHistory.changePhase("FAILED");
             testHistory.changeProgress(100);
             testRequestRepository.save(testHistory);
+            loadTestStreamService.updateProgress(requestId,
+                    new com.flowcheck.dto.LoadTest.LoadTestProgressUpdateRequest(
+                            "FAILED",
+                            "FAILED",
+                            100,
+                            e.getMessage() != null ? e.getMessage() : "부하 테스트 처리 중 오류가 발생했습니다."));
         }
     }
 }
