@@ -75,7 +75,7 @@ function App() {
     navigate(tabRoutes[tab] ?? '/dashboard');
   };
   const [currentUser, setCurrentUser] = useState({
-    id: '',
+    id: localStorage.getItem("userId") ?? '',
     email: localStorage.getItem("email") ?? '',
     role: 'USER', // USER or ADMIN
     balance: 0,
@@ -319,7 +319,7 @@ function App() {
             element={
               <AuthPage 
                 setActiveTab={setActiveTab} 
-                onLoginSuccess={(email) => setCurrentUser(prev => ({ ...prev, email }))}
+                onLoginSuccess={(email, _token, userId) => setCurrentUser(prev => ({ ...prev, id: userId, email }))}
                 showAlert={showAlert}
                 initialMode="login"
               />

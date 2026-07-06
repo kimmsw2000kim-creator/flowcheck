@@ -4,7 +4,7 @@ import { supabase } from "../lib/supabaseClient";
 
 interface AuthPageProps {
   setActiveTab: (tab: string) => void;
-  onLoginSuccess: (email: string, token: string) => void;
+  onLoginSuccess: (email: string, token: string, userId: string) => void;
   showAlert: (message: string, type?: string) => void;
   initialMode?: "login" | "signup";
 }
@@ -41,7 +41,7 @@ export default function AuthPage({ setActiveTab, onLoginSuccess, showAlert, init
         localStorage.setItem("refreshToken", data.refreshToken);
         localStorage.setItem("email", data.email);
 
-        onLoginSuccess(data.email, data.accessToken);
+        onLoginSuccess(data.email, data.accessToken, data.userId);
         showAlert("로그인에 성공했습니다!", "success");
         setActiveTab("dashboard");
       } catch (error) {
