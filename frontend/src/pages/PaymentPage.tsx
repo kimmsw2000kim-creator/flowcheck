@@ -21,7 +21,7 @@ interface VirtualAccountDetails {
   orderId: string;
 }
 
-interface BillingPageProps {
+interface PaymentPageProps {
   currentUser: {
     email: string;
     balance: number;
@@ -63,13 +63,13 @@ const creditOptions = [
   },
 ];
 
-export default function BillingPage({
+export default function PaymentPage({
   currentUser,
   onUserUpdate,
   ledger,
   onAddLedger,
   showAlert
-}: BillingPageProps) {
+}: PaymentPageProps) {
   // Coin pack selection state
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [promoCode, setPromoCode] = useState<string>('');
@@ -124,19 +124,44 @@ export default function BillingPage({
         const status = data.status; // DONE, WAITING_FOR_DEPOSIT
 
         if (status === 'DONE') {
-          // 결제 완료 (카드 등 즉시 충전)
-          onUserUpdate({
-            balance: currentUser.balance + parseInt(amount),
-            coupons: currentUser.coupons
+          // 결제 완료 (카드 등 즉시 충전) - 결제 금액(KRW)에 맞는 크레딧(C) 매핑 지급
+          let creditsAwarded = parseInt(amount);
+          if (creditsAwarded === 45000) {
+            creditsAwarded = 50000;
+          } else if (creditsAwarded === 70000) {
+            creditsAwarded = 100000;
+          }
+
+          // 백엔드 DB의 최신 정보(이전 잔액 + 충전액)를 동기화하여 레이스 컨디션 방지
+          axios.get('/api/mypage', {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`
+            }
+          })
+          .then((res) => {
+            const mypageData = res.data;
+            onUserUpdate({
+              balance: mypageData.balance,
+              coupons: mypageData.couponCount
+            });
+            onAddLedger({
+              id: ledger.length + 1,
+              amount: creditsAwarded,
+              type: 'CHARGE',
+              description: `토스페이먼츠 결제 완료 - 주문번호: ${orderId}`,
+              createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
+            });
+            showAlert('결제가 성공적으로 완료되었습니다! 크레딧이 충전되었습니다.', 'success');
+          })
+          .catch((err) => {
+            console.error('Failed to sync updated balance:', err);
+            // 폴백: 로컬 계산값으로 우선 세팅
+            onUserUpdate({
+              balance: currentUser.balance + creditsAwarded,
+              coupons: currentUser.coupons
+            });
+            showAlert('결제가 완료되었습니다! (잔액 동기화 실패, 새로고침 필요)', 'warning');
           });
-          onAddLedger({
-            id: ledger.length + 1,
-            amount: parseInt(amount),
-            type: 'CHARGE',
-            description: `토스페이먼츠 결제 완료 - 주문번호: ${orderId}`,
-            createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
-          });
-          showAlert('결제가 성공적으로 완료되었습니다! 크레딧이 충전되었습니다.', 'success');
         } else if (status === 'WAITING_FOR_DEPOSIT') {
           // 가상계좌 발급 성공 (입금 대기)
           const va = data.virtualAccount;

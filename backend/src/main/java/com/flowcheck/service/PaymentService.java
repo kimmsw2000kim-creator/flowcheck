@@ -250,19 +250,27 @@ public class PaymentService {
      * 실제 사용자 잔액(Balance)을 충전하고, credits_ledger 테이블에 충전 이력을 남기는 유틸 메소드
      */
     private void creditUserBalance(User user, TossPayment payment) {
+        // 결제 금액(KRW)에 따른 실제 지급 크레딧(C) 계산
+        int creditAmount = payment.getAmount();
+        if (payment.getAmount() == 45000) {
+            creditAmount = 50000;
+        } else if (payment.getAmount() == 70000) {
+            creditAmount = 100000;
+        }
+
         // 사용자 크레딧 추가 및 저장
-        user.chargeBalance(payment.getAmount());
+        user.chargeBalance(creditAmount);
         userRepository.save(user);
 
         // 잔액 변동 원장 테이블에 기록 적재
         CreditsLedger ledger = CreditsLedger.builder()
                 .user(user)
-                .amount(payment.getAmount())
+                .amount(creditAmount)
                 .transactionType("CHARGE")
-                .description("Toss Payments 가상계좌 크레딧 충전 - 주문번호: " + payment.getOrderId())
+                .description("Toss Payments 크레딧 충전 - 주문번호: " + payment.getOrderId())
                 .build();
         
         creditsLedgerRepository.save(ledger);
-        log.info("Credited {} credits to user: {} for completed order: {}", payment.getAmount(), user.getEmail(), payment.getOrderId());
+        log.info("Credited {} credits to user: {} for completed order: {}", creditAmount, user.getEmail(), payment.getOrderId());
     }
 }
