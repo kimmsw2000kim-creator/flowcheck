@@ -76,31 +76,22 @@ function App() {
     navigate(tabRoutes[tab] ?? '/dashboard');
   };
   const [currentUser, setCurrentUser] = useState({
-    id: 'f87a32d1-921c-4b9b-90f3-cb2071850123',
-    email: 'corp-user@flowcheck.com',
+    id: '',
+    email: '',
     role: 'USER', // USER or ADMIN
-    balance: 75000,
+    balance: 0,
     status: 'ACTIVE',
-    coupons: 3
+    coupons: 0
   });
 
-  const [domains, setDomains] = useState<Domain[]>([
-    { id: 1, domainUrl: 'https://myshop.com', verificationToken: 'overload-verify-da39a3ee5e6b4b0d3255bfef95601890afd80709', verified: true, createdAt: '2026-06-25' },
-    { id: 2, domainUrl: 'https://testapp.io', verificationToken: 'overload-verify-7c5a0c3b9b8b7d6e5a4c3b2a1a', verified: false, createdAt: '2026-06-29' }
-  ]);
+  const [domains, setDomains] = useState<Domain[]>([]);
   const [newDomainUrl, setNewDomainUrl] = useState<string>('');
   const [verificationLoading, setVerificationLoading] = useState<boolean>(false);
   const [selectedUiTestDomain, setSelectedUiTestDomain] = useState<number>(1);
 
-  const [ledger, setLedger] = useState<LedgerItem[]>([
-    { id: 1, amount: 50000, type: 'CHARGE', description: '토스페이먼츠 가상계좌 크레딧 충전', createdAt: '2026-06-29 14:20' },
-    { id: 2, amount: -30000, type: 'COUPON_BUY', description: '선결제 테스트 쿠폰 구매: 3회권', createdAt: '2026-06-29 14:30' },
-    { id: 3, amount: 20000, type: 'PROMOTION', description: 'WELCOME2026', createdAt: '2026-06-30 09:00' }
-  ]);
+  const [ledger, setLedger] = useState<LedgerItem[]>([]);
 
-  const [reports, setReports] = useState<Report[]>([
-    { id: 1, reporterId: 'd290f1e2-b8b8-4d56-bc9b-3e5f6e872111', targetType: 'POST', targetId: 1, reason: '스팸성 홍보글', status: 'PENDING', createdAt: '2026-06-30' }
-  ]);
+  const [reports, setReports] = useState<Report[]>([]);
 
   const [alertMsg, setAlertMsg] = useState<AlertMsg | null>(null);
 
