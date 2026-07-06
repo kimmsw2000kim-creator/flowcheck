@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { CreditCard, RefreshCw, ShoppingBag, ShieldCheck, Coins, Ticket, Sparkles, History, Gift } from 'lucide-react';
 import { loadTossPayments } from '@tosspayments/tosspayments-sdk';
 import { getAccessToken } from '../api/authApi';
+import axios from 'axios';
 
 interface LedgerItem {
   id: number;
@@ -109,26 +110,17 @@ export default function BillingPage({
 
       setConfirmLoading(true);
 
-      fetch('/api/payment/confirm', {
-        method: 'POST',
+      axios.post('/api/payment/confirm', {
+        paymentKey,
+        orderId,
+        amount: parseInt(amount)
+      }, {
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`
-        },
-        body: JSON.stringify({
-          paymentKey,
-          orderId,
-          amount: parseInt(amount)
-        })
-      })
-      .then(async (response) => {
-        if (!response.ok) {
-          const errText = await response.text();
-          throw new Error(errText || '결제 승인 API 호출 실패');
         }
-        return response.json();
       })
-      .then((data) => {
+      .then((response) => {
+        const data = response.data;
         const status = data.status; // DONE, WAITING_FOR_DEPOSIT
 
         if (status === 'DONE') {
@@ -165,7 +157,8 @@ export default function BillingPage({
       })
       .catch((err) => {
         console.error('Confirm payment failed:', err);
-        showAlert('결제 승인 처리에 실패했습니다: ' + err.message, 'error');
+        const errMsg = err?.response?.data?.message || err.message;
+        showAlert('결제 승인 처리에 실패했습니다: ' + errMsg, 'error');
       })
       .finally(() => {
         setConfirmLoading(false);
@@ -192,31 +185,24 @@ export default function BillingPage({
 
     setConfirmLoading(true);
 
-    fetch('/api/payment/initiate', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`
-      },
-      body: JSON.stringify({
-        amount: selectedProduct.price
-      })
-    })
-    .then(async (response) => {
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || '주문 생성 실패');
+    axios.post('/api/payment/initiate', 
+      { amount: selectedProduct.price }, 
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
       }
-      return response.json();
-    })
-    .then((data) => {
+    )
+    .then((response) => {
+      const data = response.data;
       setPaymentInitiateResponse(data);
       setShowTossWidget(true);
       setWidgetReady(false);
     })
     .catch((err) => {
       console.error('Initiate payment failed:', err);
-      showAlert('결제 정보를 생성하는 중 오류가 발생했습니다: ' + err.message, 'error');
+      const errMsg = err?.response?.data?.message || err.message;
+      showAlert('결제 정보를 생성하는 중 오류가 발생했습니다: ' + errMsg, 'error');
       setSelectedProduct(null);
     })
     .finally(() => {

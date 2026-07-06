@@ -30,7 +30,7 @@ public class PaymentController {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
-     * 결제 정보 생성 (주문서 생성)
+     * 결제 정보 생성
      * 프론트엔드에서 코인 패키지를 선택했을 때 호출되어 결제 데이터를 준비하고 고유 orderId를 발급합니다.
      */
     @Operation(summary = "결제 정보 생성 (주문서 생성)", description = "결제를 시작하기 위해 주문 정보를 생성합니다.")
