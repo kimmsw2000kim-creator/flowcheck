@@ -27,6 +27,7 @@ public class LoadTestResponse {
     public static class ChartPoint {
         private String time;
         private Integer tps;
+        private double avgResponse;
     }
 
     @Getter
