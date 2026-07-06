@@ -2,8 +2,10 @@ package com.flowcheck.controller;
 
 import com.flowcheck.dto.LoadTest.LoadTestRequest;
 import com.flowcheck.dto.LoadTest.LoadTestResponse;
+import com.flowcheck.dto.LoadTest.LoadTestProgressUpdateRequest;
 import com.flowcheck.dto.LoadTest.LoadTestSubmitResponse;
 import com.flowcheck.service.LoadTestService;
+import com.flowcheck.service.LoadTestStreamService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -11,7 +13,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.UUID;
 
@@ -23,6 +27,7 @@ import java.util.UUID;
 public class LoadTestController {
 
     private final LoadTestService loadTestService;
+    private final LoadTestStreamService loadTestStreamService;
 
     @Operation(summary = "부하 테스트 실행 요청", description = "새로운 부하 테스트를 큐에 등록하고 요청 ID를 반환받습니다.")
     @PostMapping()
@@ -38,8 +43,7 @@ public class LoadTestController {
                             .requestId(requestId)
                             .status("PENDING")
                             .message("Load test has been queued successfully.")
-                            .build()
-            );
+                            .build());
 
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
@@ -54,6 +58,21 @@ public class LoadTestController {
     public ResponseEntity<LoadTestResponse> getTestResult(@PathVariable UUID requestId) {
         LoadTestResponse response = loadTestService.getTestResult(requestId);
         return ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "부하 테스트 실시간 상태 스트림", description = "특정 요청 ID의 진행 상태를 SSE로 스트리밍합니다.")
+    @GetMapping(value = "/{requestId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamTestStatus(@PathVariable UUID requestId) {
+        return loadTestStreamService.register(requestId);
+    }
+
+    @Operation(summary = "부하 테스트 진행 상태 접수", description = "FastAPI 서버가 요청 ID별 진행 상태를 Spring에 전달합니다.")
+    @PostMapping("/{requestId}/progress")
+    public ResponseEntity<Void> updateTestProgress(
+            @PathVariable UUID requestId,
+            @Valid @RequestBody LoadTestProgressUpdateRequest request) {
+        loadTestStreamService.updateProgress(requestId, request);
+        return ResponseEntity.ok().build();
     }
 
 }

@@ -12,13 +12,9 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(
-        name = "test_requests",
-        schema = "public",
-        indexes = {
-                @Index(name = "idx_test_requests_user", columnList = "user_id")
-        }
-)
+@Table(name = "test_requests", schema = "public", indexes = {
+        @Index(name = "idx_test_requests_user", columnList = "user_id")
+})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
@@ -60,11 +56,24 @@ public class TestRequest {
     @Column(name = "test_status", nullable = false, length = 20)
     private String testStatus = "PENDING";
 
-//    @NotNull
-//    @Builder.Default
-//    @Enumerated(EnumType.STRING) // 💡 문자열 상태값은 Enum으로 관리하는 것이 가장 안전합니다.
-//    @Column(name = "test_status", nullable = false, length = 20)
-//    private TestStatus testStatus = TestStatus.PENDING;
+    @Size(max = 50)
+    @NotNull
+    @Builder.Default
+    @ColumnDefault("'QUEUED'")
+    @Column(name = "test_phase", nullable = false, length = 50)
+    private String testPhase = "QUEUED";
+
+    @NotNull
+    @Builder.Default
+    @ColumnDefault("0")
+    @Column(name = "test_progress", nullable = false)
+    private Integer testProgress = 0;
+
+    // @NotNull
+    // @Builder.Default
+    // @Enumerated(EnumType.STRING) // 💡 문자열 상태값은 Enum으로 관리하는 것이 가장 안전합니다.
+    // @Column(name = "test_status", nullable = false, length = 20)
+    // private TestStatus testStatus = TestStatus.PENDING;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -76,5 +85,13 @@ public class TestRequest {
 
     public void changeStatus(String newStatus) {
         this.testStatus = newStatus;
+    }
+
+    public void changePhase(String newPhase) {
+        this.testPhase = newPhase;
+    }
+
+    public void changeProgress(Integer newProgress) {
+        this.testProgress = newProgress;
     }
 }

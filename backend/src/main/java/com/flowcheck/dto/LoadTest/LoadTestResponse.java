@@ -1,5 +1,6 @@
 package com.flowcheck.dto.LoadTest;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -8,6 +9,10 @@ import java.util.List;
 @Getter
 @Builder
 public class LoadTestResponse {
+    private String status;
+    private String phase;
+    private Integer progress;
+    private String message;
     private TestResults testResults;
     private UpdatedUser updatedUser;
     private DeductionDetail deductionDetail;
@@ -18,7 +23,8 @@ public class LoadTestResponse {
         private Integer maxTps;
         private Double avgResponse;
         private Double errorRate;
-        private String bottleneckDiagnosis;
+        @JsonAlias("bottleneck_comment")
+        private String bottleneckComment;
         private List<ChartPoint> points;
     }
 
