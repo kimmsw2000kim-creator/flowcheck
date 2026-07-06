@@ -28,7 +28,7 @@ export default function Header({ activeTab, setActiveTab, currentUser, toggleRol
         <button className={`nav-item ${activeTab === 'domains' ? 'active' : ''}`} onClick={() => handleNavClick('domains')}>도메인 관리</button>
         <button className={`nav-item ${activeTab === 'uitest' ? 'active' : ''}`} onClick={() => handleNavClick('uitest')}>ui/ux테스트</button>
         <button className={`nav-item ${activeTab === 'load' ? 'active' : ''}`} onClick={() => handleNavClick('load')}>부하 테스트</button>
-        <button className={`nav-item ${activeTab === 'billing' ? 'active' : ''}`} onClick={() => handleNavClick('billing')}>요금 및 충전</button>
+        <button className={`nav-item ${activeTab === 'billing' ? 'active' : ''}`} onClick={() => handleNavClick('billing')}>크레딧 상점</button>
         <button className={`nav-item ${activeTab === 'community' ? 'active' : ''}`} onClick={() => setActiveTab('community')}>커뮤니티</button>
         <button className={`nav-item ${activeTab === 'admin' ? 'active' : ''}`} onClick={() => handleNavClick('admin')}>관리자 및 고객지원</button>
       </div>
