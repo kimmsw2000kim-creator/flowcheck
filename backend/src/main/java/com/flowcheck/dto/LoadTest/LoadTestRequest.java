@@ -7,10 +7,14 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.UUID;
+
 @Setter
 @Getter
 @NoArgsConstructor
 public class LoadTestRequest {
+
+    private UUID requestId;
 
     @NotBlank(message = "타겟 URL은 필수 입력값입니다.")
     private String targetUrl;

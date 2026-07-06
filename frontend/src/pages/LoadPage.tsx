@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { TrendingUp, RefreshCw } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import axios from 'axios';
@@ -11,17 +11,40 @@ interface Domain {
 
 interface LoadChartDataPoint {
   time: string;
-  users: number;
   tps: number;
-  avg_response: number;
+  avgResponse: number;
 }
 
 interface LoadMetrics {
   maxTps: number;
   avgResponse: number;
   errorRate: number;
-  bottleneckDiagnosis: string;
+  bottleneckComment: string;
 }
+
+interface LoadTestStreamPayload {
+  status: string;
+  phase: string;
+  progress: number;
+  message: string;
+  testResults?: {
+    maxTps: number;
+    avgResponse: number;
+    errorRate: number;
+    bottleneckComment: string;
+    points: LoadChartDataPoint[];
+  };
+}
+
+const phaseLabels: Record<string, string> = {
+  QUEUED: '대기 중',
+  PREPARING_REQUEST: '요청 준비 중',
+  CALLING_FASTAPI: 'FastAPI 호출 중',
+  PROCESSING_RESULTS: '결과 처리 중',
+  SAVING_REPORT: '리포트 저장 중',
+  COMPLETED: '완료',
+  FAILED: '실패',
+};
 
 interface LoadPageProps {
   domains: Domain[];
@@ -48,10 +71,20 @@ export default function LoadPage({
   const [selectedLoadDomain, setSelectedLoadDomain] = useState<number>(initialDomainId);
   const [vusers, setVusers] = useState<number>(100);
   const [duration, setDuration] = useState<number>(30);
-  const [loadPrompt, setLoadPrompt] = useState<string>('Simulate multiple checkouts under extreme concurrency');
+  const [loadPrompt, setLoadPrompt] = useState<string>('');
   const [loadStatus, setLoadStatus] = useState<string>('idle'); // idle, running, success, error
+  const [loadPhase, setLoadPhase] = useState<string>('');
+  const [loadProgress, setLoadProgress] = useState<number>(0);
+  const [loadMessage, setLoadMessage] = useState<string>('');
   const [loadMetrics, setLoadMetrics] = useState<LoadMetrics | null>(null);
   const [loadChartData, setLoadChartData] = useState<LoadChartDataPoint[]>([]);
+  const streamRef = useRef<EventSource | null>(null);
+
+  useEffect(() => {
+    return () => {
+      streamRef.current?.close();
+    };
+  }, []);
 
   const handleRunLoadTest = async () => {
     if (currentUser.coupons <= 0 && currentUser.balance < 10000) {
@@ -62,6 +95,7 @@ export default function LoadPage({
     const targetUrl = domains.find(d => d.id === selectedLoadDomain)?.domainUrl || 'https://myshop.com';
 
     const payload = {
+      requestId: crypto.randomUUID(),
       targetUrl,
       vusers,
       duration,
@@ -69,6 +103,9 @@ export default function LoadPage({
     };
 
     setLoadStatus('running');
+    setLoadPhase('QUEUED');
+    setLoadProgress(0);
+    setLoadMessage('요청을 백엔드에 전달하는 중입니다.');
 
     try {
       const response = await axios.post("/api/load-tests", payload, {
@@ -78,9 +115,7 @@ export default function LoadPage({
       });
 
       const { requestId } = response.data;
-
-      // 폴링을 통해 테스트 결과를 가져오는 함수
-      pollForResult(requestId);
+      subscribeLoadTestStream(requestId);
 
     } catch (error) {
       console.error('Failed to run load test:', error);
@@ -89,56 +124,67 @@ export default function LoadPage({
     }
   };
 
-  const pollForResult = async (requestId: string) => {
+  const subscribeLoadTestStream = (requestId: string) => {
     if (!requestId) {
       console.error("유효하지 않은 requestId입니다.");
       return;
     }
 
-    try {
-      const response = await axios.get(`/api/load-tests/${requestId}`);
-      const data = response.data;
-      console.log('Polling result:', data);
+    streamRef.current?.close();
+    const eventSource = new EventSource(`/api/load-tests/${requestId}/stream`);
+    streamRef.current = eventSource;
 
-      if (data.testResults && data.testResults.maxTps !== undefined) {
-        const { testResults, updatedUser, deductionDetail } = data;
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data) as LoadTestStreamPayload;
+      console.log('Stream update:', data);
 
-        if (updatedUser) {
-          onUserUpdate({
-            coupons: updatedUser.coupons,
-            balance: updatedUser.balance
-          });
-        }
+      setLoadPhase(data.phase || '');
+      setLoadProgress(typeof data.progress === 'number' ? data.progress : 0);
+      setLoadMessage(data.message || '');
 
-        if (deductionDetail?.type === 'BALANCE') {
-          onAddLedger({
-            id: deductionDetail.ledgerId || Date.now(),
-            amount: -10000,
-            type: 'TEST_CONSUME',
-            description: 'k6 부하 테스트 실행',
-            createdAt: new Date().toISOString().substring(0, 16)
-          });
-        }
-
-        setLoadStatus('success');
-        setLoadMetrics({
-          maxTps: testResults.maxTps,
-          avgResponse: testResults.avgResponse,
-          errorRate: testResults.errorRate,
-          bottleneckDiagnosis: testResults.bottleneckDiagnosis
-        });
-        setLoadChartData(testResults.points);
-
-        showAlert('k6 부하 테스트가 완료되었습니다!', 'success');
-      } else {
-        // 아직 PENDING 상태라면 3초 뒤에 다시 스스로를 호출
-        setTimeout(() => pollForResult(requestId), 3000);
+      if (data.status === 'FAILED') {
+        setLoadStatus('error');
+        showAlert(data.message || '테스트 수행 중 오류가 발생했습니다.', 'error');
+        eventSource.close();
+        return;
       }
-    } catch (error) {
-      console.error('Failed to poll result:', error);
-      setLoadStatus('error');
-      showAlert('테스트 결과 조회 중 오류가 발생했습니다.', 'error');
-    }
+
+      if (data.status === 'COMPLETED') {
+        axios.get(`/api/load-tests/${requestId}`)
+          .then((resultResponse) => {
+            const resultData = resultResponse.data;
+            const { testResults } = resultData;
+
+            if (testResults && testResults.maxTps !== undefined) {
+              setLoadStatus('success');
+              setLoadMetrics({
+                maxTps: testResults.maxTps,
+                avgResponse: testResults.avgResponse,
+                errorRate: testResults.errorRate,
+                bottleneckComment: testResults.bottleneckComment
+              });
+              setLoadChartData(testResults.points);
+
+              showAlert('k6 부하 테스트가 완료되었습니다!', 'success');
+            }
+          })
+          .catch((resultError) => {
+            console.error('Failed to load final result:', resultError);
+            setLoadStatus('error');
+            showAlert('최종 결과를 불러오지 못했습니다.', 'error');
+          })
+          .finally(() => {
+            eventSource.close();
+          });
+      }
+    };
+
+    eventSource.onerror = (error) => {
+      console.error('SSE stream error:', error);
+      if (streamRef.current === eventSource) {
+        streamRef.current = null;
+      }
+    };
   };
 
   const handleErrorResponse = (error: any) => {
@@ -205,7 +251,7 @@ export default function LoadPage({
               <input
                 type="range"
                 min="10"
-                max="500"
+                max="2000"
                 step="10"
                 value={vusers}
                 onChange={(e) => setVusers(parseInt(e.target.value))}
@@ -232,6 +278,7 @@ export default function LoadPage({
                 className="form-input"
                 rows={3}
                 value={loadPrompt.toString()}
+                placeholder="테스트 시나리오에 대한 설명을 입력하세요..."
                 onChange={(e) => setLoadPrompt(e.target.value)}
               ></textarea>
             </div>
@@ -261,7 +308,16 @@ export default function LoadPage({
             {loadStatus === 'running' && (
               <div style={{ textAlign: 'center', paddingTop: '5rem' }}>
                 <RefreshCw className="animate-spin" size={40} style={{ margin: '0 auto 1.5rem', color: 'var(--accent)' }} />
-                <p>Gemini AI가 k6 테스트 스크립트를 자동 작성하고 트래픽 시뮬레이션을 생성하는 중입니다...</p>
+                <p style={{ marginBottom: '1rem' }}>{loadMessage || 'Gemini AI가 k6 테스트 스크립트를 자동 작성하고 트래픽 시뮬레이션을 생성하는 중입니다...'}</p>
+                <div style={{ maxWidth: '480px', margin: '0 auto', textAlign: 'left' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                    <span>{phaseLabels[loadPhase] || loadPhase || '작업 준비 중'}</span>
+                    <span>{loadProgress}%</span>
+                  </div>
+                  <div style={{ height: '8px', borderRadius: '999px', backgroundColor: 'var(--bg-tertiary)', overflow: 'hidden', border: '1px solid var(--border)' }}>
+                    <div style={{ width: `${loadProgress}%`, height: '100%', background: 'linear-gradient(90deg, var(--accent), var(--success))', transition: 'width 0.3s ease' }} />
+                  </div>
+                </div>
               </div>
             )}
 
@@ -294,14 +350,14 @@ export default function LoadPage({
                       <YAxis yAxisId="right" orientation="right" stroke="var(--success)" />
                       <Tooltip contentStyle={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border)' }} />
                       <Legend />
-                      <Line yAxisId="left" type="monotone" dataKey="avg_response" name="평균 응답 시간 (ms)" stroke="var(--accent)" activeDot={{ r: 8 }} />
+                      <Line yAxisId="left" type="monotone" dataKey="avgResponse" name="평균 응답 시간 (ms)" stroke="var(--accent)" activeDot={{ r: 8 }} />
                       <Line yAxisId="right" type="monotone" dataKey="tps" name="초당 처리량 (TPS)" stroke="var(--success)" />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
 
                 <div className="markdown-body" style={{ background: 'var(--bg-tertiary)', padding: '1.5rem', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
-                  <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{loadMetrics.bottleneckDiagnosis}</pre>
+                  <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{loadMetrics.bottleneckComment}</pre>
                 </div>
               </div>
             )}
