@@ -42,13 +42,13 @@ public class AuthService {
                 HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
 
                 ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, entity, Map.class);
-                saveLocalUserIfAbsent(response.getBody(), request.getEmail());
+                //saveLocalUserIfAbsent(response.getBody(), request.getEmail());
 
                 return new AuthResponse(
                                 null,
                                 null,
                                 request.getEmail(),
-                                "회원가입 성공. 이메일 인증을 확인하세요.");
+                                "회원가입 요청이 완료되었습니다. 이메일 인증을 확인하세요.");
         }
 
         public AuthResponse login(LoginRequest request) {
