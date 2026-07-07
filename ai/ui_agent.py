@@ -14,12 +14,19 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"), override=True
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8080")
 
 class AgentAction(BaseModel):
+    """
+    AI 에이전트가 수행할 개별 브라우저 액션을 정의하는 Pydantic 모델입니다.
+    Gemini API 호출 시 이 스키마에 맞춘 구조화된 JSON 출력을 요청합니다.
+    """
     action: str = Field(description="Action to perform: 'CLICK', 'TYPE', or 'FINISH'")
     selector: Optional[str] = Field(None, description="Valid CSS selector of the target element. Keep it simple and direct. Null if action is FINISH")
     text: Optional[str] = Field(None, description="Text to enter if action is TYPE. Null otherwise")
     reason: str = Field(description="Korean explanation of the action rationale (e.g. '상점 메뉴로 진입하기 위해 클릭합니다')")
 
 def report_step(request_id: str, step: int, url: str, action: str, selector: str = None, text: str = None, reason: str = None, error: str = None):
+    """
+    자율 탐색 중 수행한 각 단계(Step)의 진행 정보를 백엔드 서버에 전송합니다.
+    """
     payload = {
         "step": step,
         "url": url,
@@ -38,6 +45,9 @@ def report_step(request_id: str, step: int, url: str, action: str, selector: str
         print(f"Failed to send step: {e}")
 
 def report_report(request_id: str, report_md: str):
+    """
+    최종 생성된 마크다운 형식의 UX/UI 분석 보고서를 백엔드 서버에 전송합니다.
+    """
     payload = {
         "reportMarkdown": report_md
     }
@@ -50,6 +60,9 @@ def report_report(request_id: str, report_md: str):
         print(f"Failed to send report: {e}")
 
 def report_failure(request_id: str, reason: str):
+    """
+    자율 탐색 중 복구 불가능한 치명적 오류가 발생했을 때 실패 상태와 사유를 백엔드에 전송합니다.
+    """
     try:
         url_dest = f"{BACKEND_URL}/api/ui-tests/{request_id}/fail"
         print(f"Reporting fail to backend: {url_dest}")
@@ -59,6 +72,10 @@ def report_failure(request_id: str, reason: str):
         print(f"Failed to send failure: {e}")
 
 def upload_video_to_supabase(file_path: str, request_id: str) -> Optional[str]:
+    """
+    Playwright가 녹화한 화면 녹화 파일(.webm)을 Supabase Storage 버킷에 업로드합니다.
+    성공 시 해당 비디오의 퍼블릭 URL을 반환하며, 실패 시 None을 반환합니다.
+    """
     supabase_url = os.getenv("SUPABASE_URL")
     supabase_key = os.getenv("SUPABASE_ANON_KEY")
     if not supabase_url or not supabase_key:
@@ -94,6 +111,22 @@ def upload_video_to_supabase(file_path: str, request_id: str) -> Optional[str]:
         return None
 
 def run_ui_agent(request_id: str, target_url: str):
+    """
+    지정한 대상 URL에 대해 AI 기반의 UI/UX 자율 탐색 및 분석 테스트를 실행합니다.
+    
+    진행 과정:
+    1. .env 환경 변수를 로드하고 Gemini API 클라이언트를 초기화합니다. (API Key가 없으면 시뮬레이션 모드 작동)
+    2. Playwright 크롬 브라우저를 기동하여 화면 녹화를 활성화하고 대상 URL에 접속합니다.
+    3. 최대 10단계 동안 루프를 돌며 아래 과정을 반복합니다:
+       - 현재 화면 스크린샷 캡처
+       - 스크린샷과 프롬프트를 Gemini API에 전달하여 다음 행동(CLICK, TYPE, FINISH)을 판별
+       - 탐색 중 실패했던 CSS 선택자는 프롬프트에 제외 목록으로 반영
+       - 판별된 행동을 실제 브라우저에서 수행 (대상 요소를 테두리로 하이라이트 표시)
+       - 각 단계의 진행 상황을 실시간으로 백엔드 서버에 전송
+    4. 탐색이 종료(FINISH)되거나 단계 제한에 도달하면 탐색 히스토리를 바탕으로 Gemini에 UX/UI 감사 보고서 생성을 요청합니다.
+    5. 녹화된 비디오 파일을 Supabase Storage에 업로드하고 해당 URL을 보고서 상단에 첨부합니다.
+    6. 생성된 최종 보고서를 백엔드로 전송하고 브라우저 등의 리소스를 정리합니다.
+    """
     print(f"Starting UI Agent for requestId: {request_id}, targetUrl: {target_url}")
     
     # 실행 시점에 .env 파일을 강제로 다시 읽어 캐싱 문제를 완전히 예방합니다.
@@ -134,7 +167,7 @@ def run_ui_agent(request_id: str, target_url: str):
             )
             page = context.new_page()
             
-            # Step 1: Open initial page
+            # Step 1: 대상 초기 페이지 오픈
             print(f"Navigating to {target_url}...")
             try:
                 page.goto(target_url, timeout=20000, wait_until="load")
@@ -154,7 +187,7 @@ def run_ui_agent(request_id: str, target_url: str):
                 "reason": "대상의 초기 페이지를 로드하였습니다."
             })
             
-            # 최대 10단계 자율 탐색 루프
+            # 최대 10단계 자율 탐색 루프 (2단계부터 시작)
             for step_idx in range(2, 11):
                 page.wait_for_timeout(2500) # 페이지 안정을 위한 대기
                 current_url = page.url
@@ -201,7 +234,6 @@ def run_ui_agent(request_id: str, target_url: str):
                         # 탐색을 계속하고 다른 기능을 테스트하려면 다른 대화형 요소(버튼, 링크 또는 입력)를 찾으십시오.
                         prompt_text += f"\nCRITICAL: Do NOT attempt to click or type into the following selectors because they failed previously: {failed_selectors}. Please find other interactive elements (buttons, links, or inputs) to continue the exploration and test other features."
 
-                    
                     try:
                         print(f"Calling Gemini for step {step_idx}...")
                         response = client.models.generate_content(
@@ -226,7 +258,7 @@ def run_ui_agent(request_id: str, target_url: str):
                         api_error = str(e)
                         is_simulated_mode = True
 
-                # 시뮬레이션 모드 행동 설정
+                # 시뮬레이션 모드 행동 설정 (API 키 비활성화 또는 오류 시 실행)
                 if is_simulated_mode or action_data is None:
                     if step_idx == 2:
                         action_data = {
@@ -252,6 +284,7 @@ def run_ui_agent(request_id: str, target_url: str):
                 text = action_data.get("text")
                 reason = action_data.get("reason", "No reason provided")
                 
+                # FINISH 액션 처리: 루프 탈출 및 종료
                 if action == "FINISH":
                     report_step(request_id, step_idx, current_url, "FINISH", reason=reason)
                     steps_history.append({
@@ -262,6 +295,7 @@ def run_ui_agent(request_id: str, target_url: str):
                     })
                     break
                 
+                # CLICK 액션 처리
                 elif action == "CLICK":
                     if not selector:
                         report_step(request_id, step_idx, current_url, "CLICK", error="No selector provided by AI", reason=reason)
@@ -269,7 +303,7 @@ def run_ui_agent(request_id: str, target_url: str):
                     
                     try:
                         print(f"Clicking on selector: {selector}")
-                        # 대상 요소 붉은 테두리로 하이라이트 (시각 효과)
+                        # 대상 요소 붉은 테두리로 하이라이트 (시각 효과 부여)
                         try:
                             page.evaluate(f"document.querySelector('{selector}').style.border = '3px solid red'")
                             page.wait_for_timeout(500)
@@ -315,6 +349,7 @@ def run_ui_agent(request_id: str, target_url: str):
                             })
                             continue
                 
+                # TYPE 액션 처리
                 elif action == "TYPE":
                     if not selector or not text:
                         report_step(request_id, step_idx, current_url, "TYPE", error="Missing selector or text input", reason=reason)
@@ -322,7 +357,7 @@ def run_ui_agent(request_id: str, target_url: str):
                     
                     try:
                         print(f"Typing '{text}' in selector: {selector}")
-                        # 대상 요소 파란 테두리로 하이라이트 (시각 효과)
+                        # 대상 요소 파란 테두리로 하이라이트 (시각 효과 부여)
                         try:
                             page.evaluate(f"document.querySelector('{selector}').style.border = '3px solid blue'")
                             page.wait_for_timeout(500)
