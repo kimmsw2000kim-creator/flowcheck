@@ -59,3 +59,19 @@ export async function verifyDomain(accessToken: string, id: number): Promise<Dom
     throw new Error(message);
   }
 }
+
+export async function deleteDomain(accessToken: string, id: number): Promise<void> {
+  try {
+    await axios.delete(`/api/sites/${id}`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+  } catch (error: any) {
+    const message =
+      error.response?.data?.message ||
+      error.response?.data?.error ||
+      '도메인 삭제에 실패했습니다.';
+    throw new Error(message);
+  }
+}

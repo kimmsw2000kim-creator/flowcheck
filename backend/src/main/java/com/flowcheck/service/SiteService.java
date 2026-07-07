@@ -113,6 +113,21 @@ public class SiteService {
         }
     }
 
+    @Transactional
+    public void deleteSite(String email, Long siteId) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+
+        RegisteredSite site = registeredSiteRepository.findById(siteId)
+                .orElseThrow(() -> new IllegalArgumentException("등록된 도메인 사이트를 찾을 수 없습니다."));
+
+        if (!site.getUser().getUserId().equals(user.getUserId())) {
+            throw new IllegalArgumentException("해당 도메인을 삭제할 권한이 없습니다.");
+        }
+
+        registeredSiteRepository.delete(site);
+    }
+
     private boolean verifyMetaTag(String domainUrl, String token) throws IOException {
         log.info("메타 태그 검증 시작 - URL: {}", domainUrl);
         Document doc = Jsoup.connect(domainUrl)
