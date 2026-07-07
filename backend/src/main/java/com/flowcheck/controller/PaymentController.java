@@ -104,6 +104,35 @@ public class PaymentController {
     }
 
     /**
+     * 크레딧 거래 내역 조회
+     */
+    @Operation(summary = "크레딧 거래 내역 조회", description = "현재 로그인한 사용자의 크레딧 거래 내역(원장)을 조회합니다.")
+    @GetMapping("/ledger")
+    public ResponseEntity<List<CreditsLedgerResponseDto>> getCreditsLedger(
+            @RequestHeader(value = "Authorization") String authorization) {
+
+        log.info("[API] /api/payment/ledger - 크레딧 거래 내역 조회 요청 수신");
+        String email = extractEmailFromToken(authorization);
+        List<CreditsLedgerResponseDto> ledger = paymentService.getCreditsLedger(email);
+        return ResponseEntity.ok(ledger);
+    }
+
+    /**
+     * 쿠폰 패키지 구매
+     */
+    @Operation(summary = "쿠폰 패키지 구매", description = "크레딧을 사용해 테스트 쿠폰 패키지를 구매합니다.")
+    @PostMapping("/buy-coupons")
+    public ResponseEntity<Void> buyCoupons(
+            @RequestBody CouponBuyRequestDto requestDto,
+            @RequestHeader(value = "Authorization") String authorization) {
+
+        log.info("[API] /api/payment/buy-coupons - 쿠폰 패키지 구매 요청 수신. Count: {}", requestDto.count());
+        String email = extractEmailFromToken(authorization);
+        paymentService.buyCoupons(email, requestDto.count());
+        return ResponseEntity.ok().build();
+    }
+
+    /**
      * Authorization 헤더로부터 Supabase JWT 토큰을 해석하여 이메일 문자열을 반환하는 헬퍼 메소드
      */
     private String extractEmailFromToken(String authorization) {

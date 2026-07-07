@@ -103,6 +103,18 @@ function App() {
       .catch((err) => {
         console.error("Failed to load user profile session:", err);
       });
+
+      axios.get('/api/payment/ledger', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      })
+      .then((res) => {
+        setLedger(res.data);
+      })
+      .catch((err) => {
+        console.error("Failed to load ledger history:", err);
+      });
     }
   }, [currentUser.email]);
 
