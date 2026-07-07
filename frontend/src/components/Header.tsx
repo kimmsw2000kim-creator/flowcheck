@@ -40,14 +40,14 @@ export default function Header({ activeTab, setActiveTab, currentUser, toggleRol
             역할 전환
           </button>
         </div>
-        <button 
-          onClick={() => handleNavClick('login')} 
+        <button
+          onClick={() => handleNavClick('login')}
           className={`nav-item ${activeTab === 'login' || activeTab === 'signup' ? 'active' : ''}`}
         >
           로그인/회원가입
         </button>
-        <button 
-          onClick={() => handleNavClick('mypage')} 
+        <button
+          onClick={() => handleNavClick('mypage')}
           className={`nav-item ${activeTab === 'mypage' ? 'active' : ''}`}
         >
           마이페이지

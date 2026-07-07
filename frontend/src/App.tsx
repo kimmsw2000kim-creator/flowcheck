@@ -128,6 +128,24 @@ function App() {
     showAlert(`시뮬레이션 역할을 ${nextRole === 'ADMIN' ? '관리자' : '일반 사용자'}(으)로 전환했습니다.`, 'info');
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('email');
+    localStorage.removeItem('userId');
+
+    setCurrentUser({
+      id:'',
+      email:'',
+      role:'user',
+      balance:0,
+      status:'ACTIVE',
+      coupons:0,
+    });
+
+    navigate('/login')
+  }
+
   const handleAddDomain = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newDomainUrl) return;

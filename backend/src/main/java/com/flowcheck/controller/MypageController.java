@@ -3,6 +3,7 @@ package com.flowcheck.controller;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowcheck.dto.MypageResponseDTO;
+import com.flowcheck.dto.MypageTestHistoryResponseDTO;
 import com.flowcheck.service.MypageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -14,6 +15,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -31,6 +33,16 @@ public class MypageController {
         MypageResponseDTO responseDTO = myPageService.getMyPage(email);
 
         return ResponseEntity.ok(responseDTO);
+    }
+
+    @GetMapping("/api/mypage/tests")
+    public ResponseEntity<List<MypageTestHistoryResponseDTO>> getMyTestHistory(
+            @RequestHeader(value = "Authorization", required = false) String authorization
+    ) {
+        String email = extractEmailFromToken(authorization);
+        List<MypageTestHistoryResponseDTO> response = myPageService.getTestHistory(email);
+
+        return ResponseEntity.ok(response);
     }
 
     private String extractEmailFromToken(String authorization) {
