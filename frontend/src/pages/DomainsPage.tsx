@@ -1,13 +1,6 @@
 import React from 'react';
 import { CheckCircle, RefreshCw } from 'lucide-react';
-
-interface Domain {
-  id: number;
-  domainUrl: string;
-  verificationToken: string;
-  verified: boolean;
-  createdAt: string;
-}
+import { Domain } from '../types/domain';
 
 interface DomainsPageProps {
   domains: Domain[];

@@ -20,13 +20,8 @@ import axios from 'axios';
 import ApiURL from './api/ApiURL';
 axios.defaults.baseURL = ApiURL;
 
-interface Domain {
-  id: number;
-  domainUrl: string;
-  verificationToken: string;
-  verified: boolean;
-  createdAt: string;
-}
+import type { Domain } from './types/domain';
+import { fetchDomains, registerDomain, verifyDomain } from './api/domainApi';
 
 interface LedgerItem {
   id: number;
@@ -109,6 +104,20 @@ function App() {
   const [domains, setDomains] = useState<Domain[]>([]);
   const [newDomainUrl, setNewDomainUrl] = useState<string>('');
   const [verificationLoading, setVerificationLoading] = useState<boolean>(false);
+
+  useEffect(() => {
+    const accessToken = localStorage.getItem("accessToken");
+    if (accessToken) {
+      fetchDomains(accessToken)
+        .then((data) => {
+          setDomains(data);
+        })
+        .catch((err) => {
+          console.error("Failed to load domains:", err.message);
+        });
+    }
+  }, [currentUser.email]);
+
   const [selectedUiTestDomain, setSelectedUiTestDomain] = useState<number>(1);
 
   const [ledger, setLedger] = useState<LedgerItem[]>([]);
@@ -131,25 +140,40 @@ function App() {
   const handleAddDomain = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newDomainUrl) return;
-    const newDom: Domain = {
-      id: domains.length + 1,
-      domainUrl: newDomainUrl,
-      verificationToken: 'overload-verify-' + Math.random().toString(36).substring(2),
-      verified: false,
-      createdAt: new Date().toISOString().split('T')[0]
-    };
-    setDomains([...domains, newDom]);
-    setNewDomainUrl('');
-    showAlert('도메인이 임시 등록되었습니다. 소유권 검증 토큰 태그를 적용해 주세요.');
+    const accessToken = localStorage.getItem("accessToken");
+    if (!accessToken) {
+      showAlert('로그인이 필요합니다.', 'error');
+      return;
+    }
+    registerDomain(accessToken, newDomainUrl)
+      .then((data) => {
+        setDomains(prev => [data, ...prev]);
+        setNewDomainUrl('');
+        showAlert('도메인이 등록되었습니다. 소유권 검증 토큰을 적용한 후 지금 검증하기를 클릭하세요.');
+      })
+      .catch((err) => {
+        showAlert(err.message, 'error');
+      });
   };
 
   const handleVerifyDomain = (id: number) => {
     setVerificationLoading(true);
-    setTimeout(() => {
-      setDomains(domains.map(d => d.id === id ? { ...d, verified: true } : d));
+    const accessToken = localStorage.getItem("accessToken");
+    if (!accessToken) {
+      showAlert('로그인이 필요합니다.', 'error');
       setVerificationLoading(false);
-      showAlert('도메인 소유권 검증이 완료되었습니다!');
-    }, 1500);
+      return;
+    }
+    verifyDomain(accessToken, id)
+      .then(() => {
+        setDomains(prev => prev.map(d => d.id === id ? { ...d, verified: true } : d));
+        setVerificationLoading(false);
+        showAlert('도메인 소유권 검증이 완료되었습니다!');
+      })
+      .catch((err) => {
+        setVerificationLoading(false);
+        showAlert(err.message, 'error');
+      });
   };
 
   const handleUserUpdate = (updatedUser: { balance: number; coupons: number }) => {
