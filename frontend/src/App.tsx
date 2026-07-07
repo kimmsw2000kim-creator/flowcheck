@@ -21,7 +21,7 @@ import ApiURL from './api/ApiURL';
 axios.defaults.baseURL = ApiURL;
 
 import type { Domain } from './types/domain';
-import { fetchDomains, registerDomain, verifyDomain } from './api/domainApi';
+import { fetchDomains, registerDomain, verifyDomain, deleteDomain } from './api/domainApi';
 
 interface LedgerItem {
   id: number;
@@ -194,6 +194,23 @@ function App() {
       });
   };
 
+  const handleDeleteDomain = (id: number) => {
+    if (!window.confirm("정말로 이 도메인을 삭제하시겠습니까?")) return;
+    const accessToken = localStorage.getItem("accessToken");
+    if (!accessToken) {
+      showAlert('로그인이 필요합니다.', 'error');
+      return;
+    }
+    deleteDomain(accessToken, id)
+      .then(() => {
+        setDomains(prev => prev.filter(d => d.id !== id));
+        showAlert('도메인이 정상적으로 삭제되었습니다.');
+      })
+      .catch((err) => {
+        showAlert(err.message, 'error');
+      });
+  };
+
   const handleUserUpdate = (updatedUser: { balance: number; coupons: number }) => {
     setCurrentUser(prev => ({
       ...prev,
@@ -283,6 +300,7 @@ function App() {
                 setNewDomainUrl={setNewDomainUrl}
                 handleAddDomain={handleAddDomain}
                 handleVerifyDomain={handleVerifyDomain}
+                handleDeleteDomain={handleDeleteDomain}
                 verificationLoading={verificationLoading}
               />
             }

@@ -59,6 +59,17 @@ public class SiteController {
         return ResponseEntity.ok(response);
     }
 
+    @Operation(summary = "사이트 등록 해제(삭제)", description = "등록된 도메인 사이트를 삭제합니다.")
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteSite(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable("id") Long id
+    ) {
+        String email = extractEmailFromToken(authorization);
+        siteService.deleteSite(email, id);
+        return ResponseEntity.noContent().build();
+    }
+
     private String extractEmailFromToken(String authorization) {
         if (authorization == null || !authorization.startsWith("Bearer ")) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다.");
