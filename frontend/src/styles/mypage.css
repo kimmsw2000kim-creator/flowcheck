@@ -239,6 +239,87 @@
   background: #fff1c2;
 }
 
+.status-badge.failed {
+  color: #b42318;
+  background: #fee4e2;
+}
+
+.test-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.test-history-item {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 16px;
+  padding: 18px 20px;
+  background: #ffffff;
+  border: 1px solid #dce6ef;
+  border-radius: 12px;
+}
+
+.test-history-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  color: #0077c8;
+  background: #e8f5ff;
+  border-radius: 50%;
+}
+
+.test-history-main {
+  min-width: 0;
+}
+
+.test-history-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.test-history-title-row strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #0f172a;
+  font-size: 16px;
+}
+
+.test-history-title-row p,
+.test-history-description {
+  margin: 0;
+  color: #64748b;
+  font-size: 14px;
+  word-break: break-all;
+}
+
+.test-history-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-bottom: 10px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.test-history-progress {
+  height: 8px;
+  margin-bottom: 10px;
+  overflow: hidden;
+  background: #e2e8f0;
+  border-radius: 999px;
+}
+
+.test-history-progress > div {
+  height: 100%;
+  background: linear-gradient(90deg, #008ee6, #22c55e);
+  border-radius: inherit;
+}
+
 @media (max-width: 900px) {
   .mypage-layout {
     grid-template-columns: 1fr;
@@ -261,9 +342,14 @@
   }
 
   .site-item,
-  .mypage-section-card {
+  .mypage-section-card,
+  .test-history-title-row {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .test-history-item {
+    grid-template-columns: 1fr;
   }
 }
 

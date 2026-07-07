@@ -1,4 +1,4 @@
-package com.flowcheck.dto;
+package com.flowcheck.dto.mypage;
 
 import java.time.OffsetDateTime;
 

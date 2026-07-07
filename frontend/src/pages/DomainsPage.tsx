@@ -1,13 +1,6 @@
 import React from 'react';
-import { CheckCircle, RefreshCw } from 'lucide-react';
-
-interface Domain {
-  id: number;
-  domainUrl: string;
-  verificationToken: string;
-  verified: boolean;
-  createdAt: string;
-}
+import { CheckCircle, RefreshCw, Trash2 } from 'lucide-react';
+import { Domain } from '../types/domain';
 
 interface DomainsPageProps {
   domains: Domain[];
@@ -15,6 +8,7 @@ interface DomainsPageProps {
   setNewDomainUrl: (url: string) => void;
   handleAddDomain: (e: React.FormEvent) => void;
   handleVerifyDomain: (id: number) => void;
+  handleDeleteDomain: (id: number) => void;
   verificationLoading: boolean;
 }
 
@@ -24,6 +18,7 @@ export default function DomainsPage({
   setNewDomainUrl,
   handleAddDomain,
   handleVerifyDomain,
+  handleDeleteDomain,
   verificationLoading
 }: DomainsPageProps) {
   return (
@@ -82,18 +77,39 @@ export default function DomainsPage({
                     )}
                   </td>
                   <td>
-                    {d.verified ? (
-                      <span className="badge badge-success">인증 완료</span>
-                    ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      {d.verified ? (
+                        <span className="badge badge-success">인증 완료</span>
+                      ) : (
+                        <button 
+                          className="btn btn-primary" 
+                          style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
+                          onClick={() => handleVerifyDomain(d.id)}
+                          disabled={verificationLoading}
+                        >
+                          {verificationLoading ? <RefreshCw className="animate-spin" size={16} /> : '지금 검증하기'}
+                        </button>
+                      )}
                       <button 
-                        className="btn btn-primary" 
-                        style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
-                        onClick={() => handleVerifyDomain(d.id)}
-                        disabled={verificationLoading}
+                        className="btn" 
+                        style={{ 
+                          padding: '0.4rem', 
+                          fontSize: '0.85rem', 
+                          backgroundColor: 'rgba(239, 68, 68, 0.1)', 
+                          color: '#ef4444',
+                          border: '1px solid rgba(239, 68, 68, 0.2)',
+                          borderRadius: '0.375rem',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                        onClick={() => handleDeleteDomain(d.id)}
+                        title="도메인 삭제"
                       >
-                        {verificationLoading ? <RefreshCw className="animate-spin" size={16} /> : '지금 검증하기'}
+                        <Trash2 size={16} />
                       </button>
-                    )}
+                    </div>
                   </td>
                 </tr>
               ))}
