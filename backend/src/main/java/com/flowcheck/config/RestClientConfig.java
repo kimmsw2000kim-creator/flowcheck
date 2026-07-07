@@ -38,6 +38,7 @@ public class RestClientConfig {
             // 3. 우회 SSL Context가 바인딩된 자바 내장 HttpClient 빌드
             HttpClient httpClient = HttpClient.newBuilder()
                     .sslContext(sslContext)
+                    .version(HttpClient.Version.HTTP_1_1)
                     .build();
 
             // 4. Spring의 JdkClientHttpRequestFactory를 사용하여 커스텀 HttpClient를 RestClient 빌더에 적용
