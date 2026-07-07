@@ -1,17 +1,11 @@
 package com.flowcheck.service;
 
-import com.flowcheck.domain.RegisteredSite;
-import com.flowcheck.domain.TestRequest;
-import com.flowcheck.domain.UiTest;
-import com.flowcheck.domain.User;
-import com.flowcheck.dto.MypageResponseDTO;
-import com.flowcheck.dto.MypageTestHistoryResponseDTO;
-import com.flowcheck.dto.SiteSummaryResponseDTO;
-import com.flowcheck.repository.RegisteredSiteRepository;
-import com.flowcheck.repository.TestRequestRepository;
-import com.flowcheck.repository.UiTestRepository;
-import com.flowcheck.repository.UserCouponRepository;
-import com.flowcheck.repository.UserRepository;
+import com.flowcheck.domain.*;
+import com.flowcheck.dto.mypage.MypagePointHistoryResponseDTO;
+import com.flowcheck.dto.mypage.MypageResponseDTO;
+import com.flowcheck.dto.mypage.MypageTestHistoryResponseDTO;
+import com.flowcheck.dto.mypage.SiteSummaryResponseDTO;
+import com.flowcheck.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -28,6 +22,7 @@ public class MypageService {
     private final UiTestRepository uiTestRepository;
     private final UserCouponRepository userCouponRepository;
     private final UserRepository userRepository;
+    private final CreditsLedgerRepository creditsLedgerRepository;
 
     public MypageResponseDTO getMyPage(String email) {
         User user = userRepository.findByEmail(email)
@@ -131,5 +126,25 @@ public class MypageService {
 
         String firstLine = report.strip().lines().findFirst().orElse("");
         return firstLine.length() > 120 ? firstLine.substring(0, 120) + "..." : firstLine;
+    }
+
+    public List<MypagePointHistoryResponseDTO> getPointHistory(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        UUID userId = user.getUserId();
+
+        List<CreditsLedger> ledgers =
+                creditsLedgerRepository.findByUser_UserIdOrderByCreatedAtDesc(userId);
+
+        return ledgers.stream()
+                .map(ledger -> new MypagePointHistoryResponseDTO(
+                        ledger.getId(),
+                        ledger.getAmount(),
+                        ledger.getTransactionType(),
+                        ledger.getDescription(),
+                        ledger.getCreatedAt()
+                ))
+                .toList();
     }
 }

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { MypageData, MypageTestHistoryItem } from '../types/mypage';
+import type { MypageData, MypagePointHistoryItem, MypageTestHistoryItem } from '../types/mypage';
 
 export async function fetchMypage(accessToken: string): Promise<MypageData> {
     try {
@@ -38,3 +38,16 @@ export async function fetchMypageTestHistory(accessToken: string): Promise<Mypag
         throw new Error(message);
     }
 }
+
+export async function fetchMypagePointHistory(
+    accessToken: string
+): Promise<MypagePointHistoryItem[]> {
+    const response = await axios.get<MypagePointHistoryItem[]>('/api/mypage/points/history', {
+        headers: {
+            Authorization: `Bearer ${accessToken}`,
+        },
+    });
+
+    return response.data;
+}
+

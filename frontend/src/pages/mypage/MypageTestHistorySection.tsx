@@ -6,34 +6,34 @@ import { fetchMypageTestHistory } from '../../api/mypageApi';
 import type { MypageTestHistoryItem } from '../../types/mypage';
 
 const statusLabels: Record<string, string> = {
-  PENDING: '대기 중',
-  RUNNING: '실행 중',
-  COMPLETED: '완료',
-  FAILED: '실패',
+    PENDING: '대기 중',
+    RUNNING: '실행 중',
+    COMPLETED: '완료',
+    FAILED: '실패',
 };
 
 const phaseLabels: Record<string, string> = {
-  QUEUED: '대기',
-  PREPARING_REQUEST: '요청 준비',
-  CALLING_FASTAPI: 'AI 서버 호출',
-  PROCESSING_RESULTS: '결과 처리',
-  SAVING_REPORT: '저장 중',
-  COMPLETED: '완료',
-  FAILED: '실패',
+    QUEUED: '대기',
+    PREPARING_REQUEST: '요청 준비',
+    CALLING_FASTAPI: 'AI 서버 호출',
+    PROCESSING_RESULTS: '결과 처리',
+    SAVING_REPORT: '저장 중',
+    COMPLETED: '완료',
+    FAILED: '실패',
 };
 
 function formatDate(value: string) {
-  if (!value) {
-    return '-';
-  }
+    if (!value) {
+        return '-';
+    }
 
-  return new Date(value).toLocaleString('ko-KR', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+    return new Date(value).toLocaleString('ko-KR', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
 }
 
 function MypageTestHistorySection() {
