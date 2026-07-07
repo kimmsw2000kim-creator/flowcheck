@@ -32,6 +32,7 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@SuppressWarnings("null")
 public class PaymentService {
 
     private final UserRepository userRepository;
@@ -288,7 +289,7 @@ public class PaymentService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-        List<CreditsLedger> ledgers = creditsLedgerRepository.findByUserOrderByCreatedAtDesc(user);
+        List<CreditsLedger> ledgers = creditsLedgerRepository.findByUser_UserIdOrderByCreatedAtDesc(user.getUserId());
         java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
         return ledgers.stream()
