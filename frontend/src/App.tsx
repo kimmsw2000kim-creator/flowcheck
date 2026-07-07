@@ -14,6 +14,9 @@ import CommunityPage from './pages/CommunityPage';
 import AdminPage from './pages/AdminPage';
 import Mypage from './pages/Mypage';
 import AuthPage from './pages/AuthPage';
+import PostDetailPage from "./pages/PostDetailPage";
+import PostWritePage from "./pages/PostWritePage";
+import PostEditPage from "./pages/PostEditPage";
 
 // Utils
 import axios from 'axios';
@@ -69,7 +72,9 @@ function App() {
   };
 
   const activeTab =
-    Object.entries(tabRoutes).find(([, path]) => path === location.pathname)?.[0] ?? 'dashboard';
+    Object.entries(tabRoutes).find(([, path]) =>
+      location.pathname === path || location.pathname.startsWith(`${path}/`)
+    )?.[0] ?? 'dashboard';
 
   const setActiveTab = (tab: string) => {
     navigate(tabRoutes[tab] ?? '/dashboard');
@@ -83,6 +88,8 @@ function App() {
     coupons: 0
   });
 
+  const isLoggedIn = Boolean(localStorage.getItem("accessToken"));
+
   useEffect(() => {
     const accessToken = localStorage.getItem("accessToken");
     if (accessToken) {
@@ -91,18 +98,18 @@ function App() {
           Authorization: `Bearer ${accessToken}`
         }
       })
-      .then((res) => {
-        const data = res.data;
-        setCurrentUser(prev => ({
-          ...prev,
-          email: data.email,
-          balance: data.balance,
-          coupons: data.couponCount
-        }));
-      })
-      .catch((err) => {
-        console.error("Failed to load user profile session:", err);
-      });
+        .then((res) => {
+          const data = res.data;
+          setCurrentUser(prev => ({
+            ...prev,
+            email: data.email,
+            balance: data.balance,
+            coupons: data.couponCount
+          }));
+        })
+        .catch((err) => {
+          console.error("Failed to load user profile session:", err);
+        });
     }
   }, [currentUser.email]);
 
@@ -302,6 +309,33 @@ function App() {
           />
 
           <Route
+            path="/community/write"
+            element={
+              isLoggedIn ? (
+                <PostWritePage />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+
+          <Route
+            path="/community/:postId"
+            element={<PostDetailPage />}
+          />
+
+          <Route
+            path="/community/:postId/edit"
+            element={
+              isLoggedIn ? (
+                <PostEditPage />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+
+          <Route
             path="/admin"
             element={
               <AdminPage
@@ -317,8 +351,8 @@ function App() {
           <Route
             path="/login"
             element={
-              <AuthPage 
-                setActiveTab={setActiveTab} 
+              <AuthPage
+                setActiveTab={setActiveTab}
                 onLoginSuccess={(email, _token, userId) => setCurrentUser(prev => ({ ...prev, id: userId, email }))}
                 showAlert={showAlert}
                 initialMode="login"
@@ -329,14 +363,16 @@ function App() {
           <Route
             path="/signup"
             element={
-              <AuthPage 
-                setActiveTab={setActiveTab} 
+              <AuthPage
+                setActiveTab={setActiveTab}
                 onLoginSuccess={(email) => setCurrentUser(prev => ({ ...prev, email }))}
                 showAlert={showAlert}
                 initialMode="signup"
               />
             }
           />
+
+
 
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
