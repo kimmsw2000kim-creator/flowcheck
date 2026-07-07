@@ -50,7 +50,7 @@ function Mypage() {
       return;
     }
 
-    fetchMypage(accessToken)
+    fetchMypage()
       .then((mypageData) => {
         setData(mypageData);
       })

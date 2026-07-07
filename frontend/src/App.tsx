@@ -14,11 +14,33 @@ import CommunityPage from './pages/CommunityPage';
 import AdminPage from './pages/AdminPage';
 import Mypage from './pages/Mypage';
 import AuthPage from './pages/AuthPage';
+import AuthCallback from './pages/AuthCallback';
+import LandingPage from './pages/LandingPage';
 
 // Utils
 import axios from 'axios';
 import ApiURL from './api/ApiURL';
 axios.defaults.baseURL = ApiURL;
+
+// Axios Request Interceptor to automatically attach Authorization header
+axios.interceptors.request.use((config) => {
+  const token = localStorage.getItem('accessToken');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+}, (error) => {
+  return Promise.reject(error);
+});
+
+// 401
+axios.interceptors.response.use((response) => response, (error) => {
+  if (error.response && error.response.status == 401) {
+    localStorage.clear();
+    window.location.href = '/login';
+  }
+  return Promise.reject(error);
+});
 
 import type { Domain } from './types/domain';
 import { fetchDomains, registerDomain, verifyDomain, deleteDomain } from './api/domainApi';
@@ -78,38 +100,33 @@ function App() {
     coupons: 0
   });
 
+  const isLoggedIn = !!currentUser.email;
+  const isLandingPage = !isLoggedIn && location.pathname === '/';
+
   useEffect(() => {
     const accessToken = localStorage.getItem("accessToken");
     if (accessToken) {
-      axios.get('/api/mypage', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`
-        }
-      })
-      .then((res) => {
-        const data = res.data;
-        setCurrentUser(prev => ({
-          ...prev,
-          email: data.email,
-          balance: data.balance,
-          coupons: data.couponCount
-        }));
-      })
-      .catch((err) => {
-        console.error("Failed to load user profile session:", err);
-      });
+      axios.get('/api/mypage')
+        .then((res) => {
+          const data = res.data;
+          setCurrentUser(prev => ({
+            ...prev,
+            email: data.email,
+            balance: data.balance,
+            coupons: data.couponCount
+          }));
+        })
+        .catch((err) => {
+          console.error("Failed to load user profile session:", err);
+        });
 
-      axios.get('/api/payment/ledger', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`
-        }
-      })
-      .then((res) => {
-        setLedger(res.data);
-      })
-      .catch((err) => {
-        console.error("Failed to load ledger history:", err);
-      });
+      axios.get('/api/payment/ledger')
+        .then((res) => {
+          setLedger(res.data);
+        })
+        .catch((err) => {
+          console.error("Failed to load ledger history:", err);
+        });
     }
   }, [currentUser.email]);
 
@@ -120,7 +137,7 @@ function App() {
   useEffect(() => {
     const accessToken = localStorage.getItem("accessToken");
     if (accessToken) {
-      fetchDomains(accessToken)
+      fetchDomains()
         .then((data) => {
           setDomains(data);
         })
@@ -156,12 +173,12 @@ function App() {
     localStorage.removeItem('userId');
 
     setCurrentUser({
-      id:'',
-      email:'',
-      role:'user',
-      balance:0,
-      status:'ACTIVE',
-      coupons:0,
+      id: '',
+      email: '',
+      role: 'user',
+      balance: 0,
+      status: 'ACTIVE',
+      coupons: 0,
     });
 
     navigate('/login')
@@ -170,12 +187,11 @@ function App() {
   const handleAddDomain = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newDomainUrl) return;
-    const accessToken = localStorage.getItem("accessToken");
-    if (!accessToken) {
+    if (!currentUser.email) {
       showAlert('로그인이 필요합니다.', 'error');
       return;
     }
-    registerDomain(accessToken, newDomainUrl)
+    registerDomain(newDomainUrl)
       .then((data) => {
         setDomains(prev => [data, ...prev]);
         setNewDomainUrl('');
@@ -188,13 +204,12 @@ function App() {
 
   const handleVerifyDomain = (id: number) => {
     setVerificationLoading(true);
-    const accessToken = localStorage.getItem("accessToken");
-    if (!accessToken) {
+    if (!currentUser.email) {
       showAlert('로그인이 필요합니다.', 'error');
       setVerificationLoading(false);
       return;
     }
-    verifyDomain(accessToken, id)
+    verifyDomain(id)
       .then(() => {
         setDomains(prev => prev.map(d => d.id === id ? { ...d, verified: true } : d));
         setVerificationLoading(false);
@@ -208,12 +223,11 @@ function App() {
 
   const handleDeleteDomain = (id: number) => {
     if (!window.confirm("정말로 이 도메인을 삭제하시겠습니까?")) return;
-    const accessToken = localStorage.getItem("accessToken");
-    if (!accessToken) {
+    if (!currentUser.email) {
       showAlert('로그인이 필요합니다.', 'error');
       return;
     }
-    deleteDomain(accessToken, id)
+    deleteDomain(id)
       .then(() => {
         setDomains(prev => prev.filter(d => d.id !== id));
         showAlert('도메인이 정상적으로 삭제되었습니다.');
@@ -286,135 +300,147 @@ function App() {
         toggleRole={toggleRole}
       />
 
-      <main className="main-content">
+      <main className={isLandingPage ? "landing-main" : "main-content"}>
         <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route
-            path="/dashboard"
-            element={
-              <DashboardPage
-                currentUser={currentUser}
-                domains={domains}
-                setActiveTab={setActiveTab}
-                setSelectedUiTestDomain={setSelectedUiTestDomain}
+          {isLoggedIn ? (
+            <>
+              {/* Authenticated Routes */}
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/login" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/signup" element={<Navigate to="/dashboard" replace />} />
+              <Route
+                path="/dashboard"
+                element={
+                  <DashboardPage
+                    currentUser={currentUser}
+                    domains={domains}
+                    setActiveTab={setActiveTab}
+                    setSelectedUiTestDomain={setSelectedUiTestDomain}
+                  />
+                }
               />
-            }
-          />
 
-          <Route path="/mypage/*" element={<Mypage />} />
+              <Route path="/mypage/*" element={<Mypage />} />
 
-          <Route
-            path="/domains"
-            element={
-              <DomainsPage
-                domains={domains}
-                newDomainUrl={newDomainUrl}
-                setNewDomainUrl={setNewDomainUrl}
-                handleAddDomain={handleAddDomain}
-                handleVerifyDomain={handleVerifyDomain}
-                handleDeleteDomain={handleDeleteDomain}
-                verificationLoading={verificationLoading}
+              <Route
+                path="/domains"
+                element={
+                  <DomainsPage
+                    domains={domains}
+                    newDomainUrl={newDomainUrl}
+                    setNewDomainUrl={setNewDomainUrl}
+                    handleAddDomain={handleAddDomain}
+                    handleVerifyDomain={handleVerifyDomain}
+                    handleDeleteDomain={handleDeleteDomain}
+                    verificationLoading={verificationLoading}
+                  />
+                }
               />
-            }
-          />
 
-          <Route
-            path="/uitest"
-            element={
-              <UiTestPage
-                domains={domains}
-                selectedUiTestDomain={selectedUiTestDomain}
-                setSelectedUiTestDomain={setSelectedUiTestDomain}
-                currentUser={currentUser}
-                onUserUpdate={handleUserUpdate}
-                onAddLedger={handleAddLedger}
-                showAlert={showAlert}
+              <Route
+                path="/uitest"
+                element={
+                  <UiTestPage
+                    domains={domains}
+                    selectedUiTestDomain={selectedUiTestDomain}
+                    setSelectedUiTestDomain={setSelectedUiTestDomain}
+                    currentUser={currentUser}
+                    onUserUpdate={handleUserUpdate}
+                    onAddLedger={handleAddLedger}
+                    showAlert={showAlert}
+                  />
+                }
               />
-            }
-          />
 
-          <Route
-            path="/load"
-            element={
-              <LoadPage
-                domains={domains}
-                currentUser={currentUser}
-                onUserUpdate={handleUserUpdate}
-                onAddLedger={handleAddLedger}
-                showAlert={showAlert}
+              <Route
+                path="/load"
+                element={
+                  <LoadPage
+                    domains={domains}
+                    currentUser={currentUser}
+                    onUserUpdate={handleUserUpdate}
+                    onAddLedger={handleAddLedger}
+                    showAlert={showAlert}
+                  />
+                }
               />
-            }
-          />
 
-          <Route
-            path="/billing"
-            element={
-              <PaymentPage
-                currentUser={currentUser}
-                onUserUpdate={handleUserUpdate}
-                ledger={ledger}
-                onAddLedger={handleAddLedger}
-                showAlert={showAlert}
+              <Route
+                path="/billing"
+                element={
+                  <PaymentPage
+                    currentUser={currentUser}
+                    onUserUpdate={handleUserUpdate}
+                    ledger={ledger}
+                    onAddLedger={handleAddLedger}
+                    showAlert={showAlert}
+                  />
+                }
               />
-            }
-          />
 
-          <Route
-            path="/community"
-            element={
-              <CommunityPage
-                currentUser={currentUser}
-                onUserUpdate={handleUserUpdate}
-                ledger={ledger}
-                onAddLedger={handleAddLedger}
-                showAlert={showAlert}
-                handleSubmitReport={handleSubmitReport}
+              <Route
+                path="/community"
+                element={
+                  <CommunityPage
+                    currentUser={currentUser}
+                    onUserUpdate={handleUserUpdate}
+                    ledger={ledger}
+                    onAddLedger={handleAddLedger}
+                    showAlert={showAlert}
+                    handleSubmitReport={handleSubmitReport}
+                  />
+                }
               />
-            }
-          />
 
-          <Route
-            path="/admin"
-            element={
-              <AdminPage
-                currentUser={currentUser}
-                reports={reports}
-                setReports={setReports}
-                handleSuspendUser={handleSuspendUser}
-                showAlert={showAlert}
+              <Route
+                path="/admin"
+                element={
+                  <AdminPage
+                    currentUser={currentUser}
+                    reports={reports}
+                    setReports={setReports}
+                    handleSuspendUser={handleSuspendUser}
+                    showAlert={showAlert}
+                  />
+                }
               />
-            }
-          />
 
-          <Route
-            path="/login"
-            element={
-              <AuthPage 
-                setActiveTab={setActiveTab} 
-                onLoginSuccess={(email, _token, userId) => setCurrentUser(prev => ({ ...prev, id: userId, email }))}
-                showAlert={showAlert}
-                initialMode="login"
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </>
+          ) : (
+            <>
+              {/* Unauthenticated Routes */}
+              <Route path="/" element={<LandingPage />} />
+              <Route
+                path="/login"
+                element={
+                  <AuthPage
+                    setActiveTab={setActiveTab}
+                    onLoginSuccess={(email, _token, userId) => setCurrentUser(prev => ({ ...prev, id: userId, email }))}
+                    showAlert={showAlert}
+                    initialMode="login"
+                  />
+                }
               />
-            }
-          />
-
-          <Route
-            path="/signup"
-            element={
-              <AuthPage 
-                setActiveTab={setActiveTab} 
-                onLoginSuccess={(email) => setCurrentUser(prev => ({ ...prev, email }))}
-                showAlert={showAlert}
-                initialMode="signup"
+              <Route
+                path="/signup"
+                element={
+                  <AuthPage
+                    setActiveTab={setActiveTab}
+                    onLoginSuccess={(email) => setCurrentUser(prev => ({ ...prev, email }))}
+                    showAlert={showAlert}
+                    initialMode="signup"
+                  />
+                }
               />
-            }
-          />
-
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/auth/callback" element={<AuthCallback />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </>
+          )}
         </Routes>
       </main>
 
-      <Footer />
+      {isLoggedIn && <Footer />}
     </div>
   );
 }
