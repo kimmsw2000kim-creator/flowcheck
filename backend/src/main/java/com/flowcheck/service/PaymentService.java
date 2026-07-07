@@ -2,10 +2,14 @@ package com.flowcheck.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.flowcheck.domain.Coupon;
+import com.flowcheck.domain.UserCoupon;
 import com.flowcheck.domain.CreditsLedger;
 import com.flowcheck.domain.TossPayment;
 import com.flowcheck.domain.User;
 import com.flowcheck.dto.payment.*;
+import com.flowcheck.repository.CouponRepository;
+import com.flowcheck.repository.UserCouponRepository;
 import com.flowcheck.repository.CreditsLedgerRepository;
 import com.flowcheck.repository.TossPaymentRepository;
 import com.flowcheck.repository.UserRepository;
@@ -28,11 +32,14 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@SuppressWarnings("null")
 public class PaymentService {
 
     private final UserRepository userRepository;
     private final TossPaymentRepository tossPaymentRepository;
     private final CreditsLedgerRepository creditsLedgerRepository;
+    private final CouponRepository couponRepository;
+    private final UserCouponRepository userCouponRepository;
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
 
@@ -272,5 +279,72 @@ public class PaymentService {
         
         creditsLedgerRepository.save(ledger);
         log.info("Credited {} credits to user: {} for completed order: {}", creditAmount, user.getEmail(), payment.getOrderId());
+    }
+
+    /**
+     * 사용자 크레딧 거래 내역 전체 조회
+     */
+    @Transactional(readOnly = true)
+    public List<CreditsLedgerResponseDto> getCreditsLedger(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        List<CreditsLedger> ledgers = creditsLedgerRepository.findByUser_UserIdOrderByCreatedAtDesc(user.getUserId());
+        java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+
+        return ledgers.stream()
+                .map(l -> new CreditsLedgerResponseDto(
+                        l.getId(),
+                        l.getAmount(),
+                        l.getTransactionType(),
+                        l.getDescription(),
+                        l.getCreatedAt() != null ? l.getCreatedAt().format(formatter) : ""
+                ))
+                .toList();
+    }
+
+    /**
+     * 쿠폰 패키지 구매
+     */
+    @Transactional
+    public void buyCoupons(String email, int count) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        int cost = count * 10000;
+        if (user.getBalance() < cost) {
+            throw new IllegalStateException("크레딧 잔액이 부족합니다.");
+        }
+
+        user.deductBalance(cost);
+        userRepository.save(user);
+
+        Coupon coupon = couponRepository.findByCouponCode("COUPON_" + count)
+                .orElseGet(() -> {
+                    Coupon newCoupon = Coupon.builder()
+                            .couponCode("COUPON_" + count)
+                            .testCount(count)
+                            .creditPrice(cost)
+                            .isActive(true)
+                            .build();
+                    return couponRepository.save(newCoupon);
+                });
+
+        UserCoupon userCoupon = UserCoupon.builder()
+                .user(user)
+                .coupon(coupon)
+                .remainingChances(count)
+                .build();
+        userCouponRepository.save(userCoupon);
+
+        CreditsLedger ledger = CreditsLedger.builder()
+                .user(user)
+                .amount(-cost)
+                .transactionType("COUPON_BUY")
+                .description("선결제 테스트 쿠폰 구매: " + count + "회권")
+                .build();
+        creditsLedgerRepository.save(ledger);
+
+        log.info("User {} successfully bought a {}-coupon package for {} credits.", email, count, cost);
     }
 }

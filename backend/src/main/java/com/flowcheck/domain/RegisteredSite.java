@@ -55,9 +55,8 @@ public class RegisteredSite {
     @Column(name = "service_name", columnDefinition = "TEXT", length = Integer.MAX_VALUE)
     private String serviceName;
 
-    // 사이트 검증 완료 시 사용하면 좋을 듯
-    // public void markAsVerified() {
-    //        this.isVerified = true;
-    //        this.verifiedAt = OffsetDateTime.now();
-    //    }
+    public void markAsVerified() {
+        this.isVerified = true;
+        this.verifiedAt = OffsetDateTime.now();
+    }
 }

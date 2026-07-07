@@ -20,7 +20,7 @@ function MypageSiteList({ sites }: MypageSiteListProps) {
             <div className="site-item" key={site.siteId}>
               <div>
                 <strong>{site.serviceName || '이름 없는 사이트'}</strong>
-                <p>{site.domainUrl}</p>
+                <p>{site.domainURL}</p>
               </div>
 
               <span className={`status-badge ${site.isVerified ? '' : 'pending'}`}>
