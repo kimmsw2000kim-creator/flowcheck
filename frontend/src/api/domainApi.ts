@@ -1,13 +1,9 @@
 import axios from 'axios';
 import type { Domain } from '../types/domain';
 
-export async function fetchDomains(accessToken: string): Promise<Domain[]> {
+export async function fetchDomains(): Promise<Domain[]> {
   try {
-    const response = await axios.get<Domain[]>('/api/sites', {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
+    const response = await axios.get<Domain[]>('/api/sites');
     return response.data;
   } catch (error: any) {
     const message =
@@ -18,16 +14,11 @@ export async function fetchDomains(accessToken: string): Promise<Domain[]> {
   }
 }
 
-export async function registerDomain(accessToken: string, domainUrl: string): Promise<Domain> {
+export async function registerDomain(domainUrl: string): Promise<Domain> {
   try {
     const response = await axios.post<Domain>(
       '/api/sites',
-      { domainUrl },
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      }
+      { domainUrl }
     );
     return response.data;
   } catch (error: any) {
@@ -39,16 +30,11 @@ export async function registerDomain(accessToken: string, domainUrl: string): Pr
   }
 }
 
-export async function verifyDomain(accessToken: string, id: number): Promise<Domain> {
+export async function verifyDomain(id: number): Promise<Domain> {
   try {
     const response = await axios.post<Domain>(
       `/api/sites/${id}/verify`,
-      {},
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      }
+      {}
     );
     return response.data;
   } catch (error: any) {
@@ -60,13 +46,9 @@ export async function verifyDomain(accessToken: string, id: number): Promise<Dom
   }
 }
 
-export async function deleteDomain(accessToken: string, id: number): Promise<void> {
+export async function deleteDomain(id: number): Promise<void> {
   try {
-    await axios.delete(`/api/sites/${id}`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
+    await axios.delete(`/api/sites/${id}`);
   } catch (error: any) {
     const message =
       error.response?.data?.message ||

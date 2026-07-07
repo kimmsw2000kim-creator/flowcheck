@@ -34,7 +34,7 @@ function MypagePointHistorySection() {
             return;
         }
 
-        fetchMypagePointHistory(accessToken)
+        fetchMypagePointHistory()
             .then(setHistories)
             .catch((error) => {
                 setErrorMessage(error.message || '포인트 내역을 불러오지 못했습니다.');

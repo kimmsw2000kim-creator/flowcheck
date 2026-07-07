@@ -113,10 +113,6 @@ export default function PaymentPage({
         paymentKey,
         orderId,
         amount: parseInt(amount)
-      }, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
-        }
       })
       .then((response) => {
         const data = response.data;
@@ -132,11 +128,7 @@ export default function PaymentPage({
           }
 
           // 백엔드 DB의 최신 정보(이전 잔액 + 충전액)를 동기화하여 레이스 컨디션 방지
-          axios.get('/api/mypage', {
-            headers: {
-              'Authorization': `Bearer ${accessToken}`
-            }
-          })
+          axios.get('/api/mypage')
           .then((res) => {
             const mypageData = res.data;
             onUserUpdate({
@@ -210,12 +202,7 @@ export default function PaymentPage({
     setConfirmLoading(true);
 
     axios.post('/api/payment/initiate', 
-      { amount: selectedProduct.price }, 
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
-        }
-      }
+      { amount: selectedProduct.price }
     )
     .then((response) => {
       const data = response.data;
@@ -314,18 +301,10 @@ export default function PaymentPage({
       return;
     }
 
-    axios.post('/api/payment/buy-coupons', { count }, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`
-      }
-    })
+    axios.post('/api/payment/buy-coupons', { count })
     .then(() => {
       // 구매 완료 시 백엔드 DB 최신 정보를 동기화
-      axios.get('/api/mypage', {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
-        }
-      })
+      axios.get('/api/mypage')
       .then((res) => {
         const mypageData = res.data;
         onUserUpdate({
