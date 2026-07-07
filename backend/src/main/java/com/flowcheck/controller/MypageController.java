@@ -2,8 +2,9 @@ package com.flowcheck.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.flowcheck.dto.MypageResponseDTO;
-import com.flowcheck.dto.MypageTestHistoryResponseDTO;
+import com.flowcheck.dto.mypage.MypagePointHistoryResponseDTO;
+import com.flowcheck.dto.mypage.MypageResponseDTO;
+import com.flowcheck.dto.mypage.MypageTestHistoryResponseDTO;
 import com.flowcheck.service.MypageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -41,6 +42,16 @@ public class MypageController {
     ) {
         String email = extractEmailFromToken(authorization);
         List<MypageTestHistoryResponseDTO> response = myPageService.getTestHistory(email);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/api/mypage/points/history")
+    public ResponseEntity<List<MypagePointHistoryResponseDTO>> getMypagePointHistory(
+            @RequestHeader(value = "Authorization", required = false) String authorization
+    ) {
+        String email = extractEmailFromToken(authorization);
+        List<MypagePointHistoryResponseDTO> response = myPageService.getPointHistory(email);
 
         return ResponseEntity.ok(response);
     }

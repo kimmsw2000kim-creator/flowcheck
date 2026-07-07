@@ -27,3 +27,11 @@ export interface MypageTestHistoryItem {
   createdAt: string;
   updatedAt: string | null;
 }
+
+export interface MypagePointHistoryItem {
+  ledgerId: number;
+  amount: number;
+  transactionType : string;
+  description: string;
+  createdAt: string;
+}
