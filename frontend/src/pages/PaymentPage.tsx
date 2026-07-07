@@ -307,18 +307,61 @@ export default function PaymentPage({
       showAlert('크레딧 잔액이 부족합니다.', 'error');
       return;
     }
-    onUserUpdate({
-      balance: currentUser.balance - cost,
-      coupons: currentUser.coupons + count
+
+    const accessToken = getAccessToken();
+    if (!accessToken) {
+      showAlert('쿠폰 구매를 위해 로그인이 필요합니다.', 'error');
+      return;
+    }
+
+    axios.post('/api/payment/buy-coupons', { count }, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      }
+    })
+    .then(() => {
+      // 구매 완료 시 백엔드 DB 최신 정보를 동기화
+      axios.get('/api/mypage', {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      })
+      .then((res) => {
+        const mypageData = res.data;
+        onUserUpdate({
+          balance: mypageData.balance,
+          coupons: mypageData.couponCount
+        });
+        onAddLedger({
+          id: ledger.length + 1,
+          amount: -cost,
+          type: 'COUPON_BUY',
+          description: `선결제 테스트 쿠폰 구매: ${count}회권`,
+          createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
+        });
+        showAlert(`테스트 쿠폰 ${count}회권을 성공적으로 구매하였습니다!`);
+      })
+      .catch((err) => {
+        console.error('Failed to sync balance after coupon buy:', err);
+        onUserUpdate({
+          balance: currentUser.balance - cost,
+          coupons: currentUser.coupons + count
+        });
+        onAddLedger({
+          id: ledger.length + 1,
+          amount: -cost,
+          type: 'COUPON_BUY',
+          description: `선결제 테스트 쿠폰 구매: ${count}회권`,
+          createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
+        });
+        showAlert(`테스트 쿠폰 ${count}회권을 성공적으로 구매하였습니다! (잔액 동기화 실패)`, 'warning');
+      });
+    })
+    .catch((err) => {
+      console.error('Coupon purchase failed:', err);
+      const errMsg = err?.response?.data?.message || err.message;
+      showAlert('쿠폰 구매 처리에 실패했습니다: ' + errMsg, 'error');
     });
-    onAddLedger({
-      id: ledger.length + 1,
-      amount: -cost,
-      type: 'COUPON_BUY',
-      description: `선결제 테스트 쿠폰 구매: ${count}회권`,
-      createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
-    });
-    showAlert(`테스트 쿠폰 ${count}회권을 성공적으로 구매하였습니다!`);
   };
 
 
@@ -680,7 +723,7 @@ export default function PaymentPage({
                           <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
                             {l.type === 'CHARGE' ? '크레딧 충전' : l.type === 'COUPON_BUY' ? '쿠폰 패키지 구매' : l.type === 'PROMOTION' ? '프로모션 보상' : l.type === 'TEST_CONSUME' ? '테스트 차감' : l.type}
                           </div>
-                          <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem', marginTop: '2px' }}>{l.description}</div>
+                          <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem', marginTop: '2px' }}>{l.description ? l.description.split(' - 주문번호:')[0] : ''}</div>
                         </td>
                         <td style={{ 
                           padding: '0.75rem 1rem', 

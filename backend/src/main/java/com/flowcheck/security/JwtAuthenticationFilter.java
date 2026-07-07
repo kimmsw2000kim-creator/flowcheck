@@ -35,12 +35,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 SimpleGrantedAuthority authority = new SimpleGrantedAuthority("ROLE_USER");
 
                 // Use Spring Security's standard User details class
-                org.springframework.security.core.userdetails.User principal =
-                        new org.springframework.security.core.userdetails.User(email, "", Collections.singletonList(authority));
+                org.springframework.security.core.userdetails.User principal = new org.springframework.security.core.userdetails.User(
+                        email, "", Collections.singletonList(authority));
 
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                         principal, null, Collections.singletonList(authority));
-                
+
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
