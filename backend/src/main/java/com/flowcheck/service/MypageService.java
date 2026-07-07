@@ -1,16 +1,22 @@
 package com.flowcheck.service;
 
 import com.flowcheck.domain.RegisteredSite;
+import com.flowcheck.domain.TestRequest;
+import com.flowcheck.domain.UiTest;
 import com.flowcheck.domain.User;
 import com.flowcheck.dto.MypageResponseDTO;
+import com.flowcheck.dto.MypageTestHistoryResponseDTO;
 import com.flowcheck.dto.SiteSummaryResponseDTO;
 import com.flowcheck.repository.RegisteredSiteRepository;
 import com.flowcheck.repository.TestRequestRepository;
+import com.flowcheck.repository.UiTestRepository;
 import com.flowcheck.repository.UserCouponRepository;
 import com.flowcheck.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
@@ -19,6 +25,7 @@ import java.util.UUID;
 public class MypageService {
     private final RegisteredSiteRepository registeredSiteRepository;
     private final TestRequestRepository testRequestRepository;
+    private final UiTestRepository uiTestRepository;
     private final UserCouponRepository userCouponRepository;
     private final UserRepository userRepository;
 
@@ -30,7 +37,9 @@ public class MypageService {
 
         int couponCount = userCouponRepository.sumRemainingChancesByUserId(userId);
         long registeredSiteCount = registeredSiteRepository.countByUser_UserId(userId);
-        long testRunCount = testRequestRepository.countByUser_UserId(userId);
+        long testRunCount =
+                testRequestRepository.countByUser_UserId(userId)
+                        + uiTestRepository.countByUser_UserId(userId);
 
         List<RegisteredSite> registeredSites =
                 registeredSiteRepository.findByUser_UserIdOrderByCreatedAtDesc(userId);
@@ -54,5 +63,73 @@ public class MypageService {
                 testRunCount,
                 sites
         );
+    }
+
+    public List<MypageTestHistoryResponseDTO> getTestHistory(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        UUID userId = user.getUserId();
+        List<MypageTestHistoryResponseDTO> histories = new ArrayList<>();
+
+        List<TestRequest> loadTests =
+                testRequestRepository.findByUser_UserIdOrderByCreatedAtDesc(userId);
+
+        loadTests.forEach(test -> histories.add(new MypageTestHistoryResponseDTO(
+                test.getId(),
+                "LOAD",
+                "부하 테스트",
+                test.getTargetUrl(),
+                test.getTestStatus(),
+                test.getTestPhase(),
+                test.getTestProgress(),
+                test.getPromptInput(),
+                test.getCreatedAt(),
+                test.getUpdatedAt()
+        )));
+
+        List<UiTest> uiTests =
+                uiTestRepository.findByUser_UserIdOrderByCreatedAtDesc(userId);
+
+        uiTests.forEach(test -> histories.add(new MypageTestHistoryResponseDTO(
+                test.getId(),
+                "UI",
+                "UI/UX 테스트",
+                test.getTargetUrl(),
+                test.getStatus(),
+                null,
+                resolveUiTestProgress(test.getStatus()),
+                summarizeReport(test.getReport()),
+                test.getCreatedAt(),
+                test.getUpdatedAt()
+        )));
+
+        histories.sort(Comparator.comparing(
+                MypageTestHistoryResponseDTO::createdAt,
+                Comparator.nullsLast(Comparator.reverseOrder())
+        ));
+
+        return histories;
+    }
+
+    private Integer resolveUiTestProgress(String status) {
+        if ("COMPLETED".equals(status) || "FAILED".equals(status)) {
+            return 100;
+        }
+
+        if ("RUNNING".equals(status)) {
+            return 50;
+        }
+
+        return 0;
+    }
+
+    private String summarizeReport(String report) {
+        if (report == null || report.isBlank()) {
+            return null;
+        }
+
+        String firstLine = report.strip().lines().findFirst().orElse("");
+        return firstLine.length() > 120 ? firstLine.substring(0, 120) + "..." : firstLine;
     }
 }
