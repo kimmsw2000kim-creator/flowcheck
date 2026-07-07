@@ -140,7 +140,7 @@ function Mypage() {
 
             <Route
               path="security"
-              element={<MypageAccountSecuritySection />}
+              element={<MypageAccountSecuritySection email={data.email} />}
             />
 
             <Route path="*" element={<Navigate to="profile" replace />} />

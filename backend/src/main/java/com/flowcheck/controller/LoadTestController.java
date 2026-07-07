@@ -32,7 +32,7 @@ public class LoadTestController {
     @Operation(summary = "부하 테스트 실행 요청", description = "새로운 부하 테스트를 큐에 등록하고 요청 ID를 반환받습니다.")
     @PostMapping()
     public ResponseEntity<?> runTest(
-            @RequestHeader(value = "X-User-Id", defaultValue = "00000000-0000-0000-0000-000000000000") UUID userId,
+            @RequestHeader(value = "X-User-Id") UUID userId,
             @Valid @RequestBody LoadTestRequest request) {
 
         try {
