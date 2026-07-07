@@ -110,6 +110,7 @@ def run_ui_agent(request_id: str, target_url: str):
         client = genai.Client(api_key=api_key)
         
     steps_history = []
+    failed_selectors = []
     is_simulated_mode = not has_api_key
     api_error = None
     
@@ -169,6 +170,18 @@ def run_ui_agent(request_id: str, target_url: str):
                 # Gemini API를 사용할 수 있는 상황이면 호출, 아니면 시뮬레이션 모드 전환
                 action_data = None
                 if not is_simulated_mode and client:
+                    # [번역 주석]
+                    # 당신은 AI UI 테스트 탐색기입니다. 현재 페이지: {current_url}.
+                    # 스크린샷을 분석하고 수행할 다음 작업을 선택하세요.
+                    # 
+                    # 목표: 이 웹사이트의 페이지와 메뉴를 탐색하고, 대화형 버튼이나 링크를 클릭하고, 기능을 테스트합니다.
+                    # 
+                    # 사용 가능한 작업:
+                    # 1. CLICK: 링크, 버튼, 메뉴 항목 또는 입력 양식을 클릭합니다. 올바른 CSS 선택기를 제공해야 합니다.
+                    # 2. TYPE: 검색어 또는 양식 데이터를 입력합니다. 올바른 CSS 선택기와 텍스트 값을 제공해야 합니다.
+                    # 3. FINISH: 주요 부분을 충분히 테스트했거나 다른 작업이 없으면 탐색을 중지합니다.
+                    # 
+                    # 스키마에 따라 유효한 JSON 개체를 반환하십시오.
                     prompt_text = f"""
                     You are an AI UI test explorer. You are currently on page: {current_url}.
                     Analyze the screenshot and choose the next action to perform.
@@ -182,6 +195,12 @@ def run_ui_agent(request_id: str, target_url: str):
                     
                     Please return a valid JSON object according to the schema.
                     """
+                    if failed_selectors:
+                        # [번역 주석]
+                        # 중요: 이전에 실패했으므로 다음 선택기를 클릭하거나 입력하려고 시도하지 마십시오: {failed_selectors}.
+                        # 탐색을 계속하고 다른 기능을 테스트하려면 다른 대화형 요소(버튼, 링크 또는 입력)를 찾으십시오.
+                        prompt_text += f"\nCRITICAL: Do NOT attempt to click or type into the following selectors because they failed previously: {failed_selectors}. Please find other interactive elements (buttons, links, or inputs) to continue the exploration and test other features."
+
                     
                     try:
                         print(f"Calling Gemini for step {step_idx}...")
@@ -246,7 +265,7 @@ def run_ui_agent(request_id: str, target_url: str):
                 elif action == "CLICK":
                     if not selector:
                         report_step(request_id, step_idx, current_url, "CLICK", error="No selector provided by AI", reason=reason)
-                        break
+                        continue
                     
                     try:
                         print(f"Clicking on selector: {selector}")
@@ -282,6 +301,9 @@ def run_ui_agent(request_id: str, target_url: str):
                             })
                             continue
                         else:
+                            print(f"Click failed on {selector}: {err}. Adding to failed list and continuing...")
+                            if selector and selector not in failed_selectors:
+                                failed_selectors.append(selector)
                             report_step(request_id, step_idx, current_url, "CLICK", selector=selector, error=err, reason=reason)
                             steps_history.append({
                                 "step": step_idx,
@@ -291,12 +313,12 @@ def run_ui_agent(request_id: str, target_url: str):
                                 "error": err,
                                 "reason": reason
                             })
-                            break
+                            continue
                 
                 elif action == "TYPE":
                     if not selector or not text:
                         report_step(request_id, step_idx, current_url, "TYPE", error="Missing selector or text input", reason=reason)
-                        break
+                        continue
                     
                     try:
                         print(f"Typing '{text}' in selector: {selector}")
@@ -333,6 +355,9 @@ def run_ui_agent(request_id: str, target_url: str):
                             })
                             continue
                         else:
+                            print(f"Type failed on {selector}: {err}. Adding to failed list and continuing...")
+                            if selector and selector not in failed_selectors:
+                                failed_selectors.append(selector)
                             report_step(request_id, step_idx, current_url, "TYPE", selector=selector, text=text, error=err, reason=reason)
                             steps_history.append({
                                 "step": step_idx,
@@ -342,13 +367,28 @@ def run_ui_agent(request_id: str, target_url: str):
                                 "error": err,
                                 "reason": reason
                             })
-                            break
+                            continue
             
             # 최종 마크다운 리포트 생성 및 저장
             print("Generating final UX/UI audit report...")
             report_md = None
             if not is_simulated_mode and client:
                 history_str = json.dumps(steps_history, ensure_ascii=False, indent=2)
+                # [번역 주석]
+                # 당신은 전문 UI 테스팅 및 UX 디자이너입니다.
+                # 대상 URL: {target_url}에서 AI 자율 탐색 로봇의 다음 실행 경로를 분석하십시오.
+                # 
+                # 탐색 경로 단계:
+                # {history_str}
+                # 
+                # 한국어로 된 전문적이고 가독성이 높은 UX 감사 보고서를 작성해 주십시오.
+                # 보고서에는 다음이 포함되어야 합니다:
+                # 1. 탐색 요약 (Exploration Summary)
+                # 2. 주요 탐색 성과 및 정상 작동 확인 요소
+                # 3. 보완점 및 UI/UX 피드백 (예: 레이아웃, 사용성 개선 가능 부분)
+                # 4. 종합 평가 점수 (예: 5점 만점 중 몇 점)
+                # 
+                # 마크다운 콘텐츠로만 응답하십시오. 출력 보고서 자체 주위에 마크다운 블록 코드(```)를 포함하지 마십시오 (원시 마크다운 텍스트만 작성).
                 report_prompt = f"""
                 You are an expert UI testing and UX designer.
                 Analyze the following execution path of an AI autonomous exploration robot on target URL: {target_url}.
