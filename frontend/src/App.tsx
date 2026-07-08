@@ -14,6 +14,7 @@ import CommunityPage from './pages/CommunityPage';
 import AdminPage from './pages/AdminPage';
 import Mypage from './pages/Mypage';
 import AuthPage from './pages/AuthPage';
+import AuthCallback from './pages/AuthCallback';
 import PostDetailPage from "./pages/PostDetailPage";
 import PostWritePage from "./pages/PostWritePage";
 import PostEditPage from "./pages/PostEditPage";
@@ -82,36 +83,36 @@ function App() {
   const [currentUser, setCurrentUser] = useState({
     id: localStorage.getItem("userId") ?? '',
     email: localStorage.getItem("email") ?? '',
-    role: 'USER', // USER or ADMIN
+    role: 'USER',
     balance: 0,
     status: 'ACTIVE',
     coupons: 0
   });
 
-  const isLoggedIn = Boolean(localStorage.getItem("accessToken"));
+  const accessToken = localStorage.getItem("accessToken");
+  const isLoggedIn = Boolean(accessToken);
 
   useEffect(() => {
-    const accessToken = localStorage.getItem("accessToken");
-    if (accessToken) {
-      axios.get('/api/mypage', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`
-        }
+    if (!accessToken) return;
+
+    axios.get('/api/mypage', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`
+      }
+    })
+      .then((res) => {
+        const data = res.data;
+        setCurrentUser(prev => ({
+          ...prev,
+          email: data.email,
+          balance: data.balance,
+          coupons: data.couponCount
+        }));
       })
-        .then((res) => {
-          const data = res.data;
-          setCurrentUser(prev => ({
-            ...prev,
-            email: data.email,
-            balance: data.balance,
-            coupons: data.couponCount
-          }));
-        })
-        .catch((err) => {
-          console.error("Failed to load user profile session:", err);
-        });
-    }
-  }, [currentUser.email]);
+      .catch((err) => {
+        console.error("Failed to load user profile session:", err);
+      });
+  }, [accessToken]);
 
   const [domains, setDomains] = useState<Domain[]>([]);
   const [newDomainUrl, setNewDomainUrl] = useState<string>('');
@@ -187,6 +188,24 @@ function App() {
 
   const handleSuspendUser = (targetUserId: string) => {
     showAlert(`해당 유저(${targetUserId})가 7일간 서비스 정지 처리되었습니다.`, 'success');
+  };
+
+  const handleLoginSuccess = (email: string, _token?: string, userId?: string) => {
+    if (email) {
+      localStorage.setItem("email", email);
+    }
+
+    if (userId) {
+      localStorage.setItem("userId", userId);
+    }
+
+    setCurrentUser(prev => ({
+      ...prev,
+      id: userId ?? prev.id,
+      email
+    }));
+
+    navigate("/dashboard");
   };
 
   return (
@@ -349,11 +368,16 @@ function App() {
           />
 
           <Route
+            path="/auth/callback"
+            element={<AuthCallback />}
+          />
+
+          <Route
             path="/login"
             element={
               <AuthPage
                 setActiveTab={setActiveTab}
-                onLoginSuccess={(email, _token, userId) => setCurrentUser(prev => ({ ...prev, id: userId, email }))}
+                onLoginSuccess={handleLoginSuccess}
                 showAlert={showAlert}
                 initialMode="login"
               />
@@ -365,7 +389,7 @@ function App() {
             element={
               <AuthPage
                 setActiveTab={setActiveTab}
-                onLoginSuccess={(email) => setCurrentUser(prev => ({ ...prev, email }))}
+                onLoginSuccess={handleLoginSuccess}
                 showAlert={showAlert}
                 initialMode="signup"
               />
