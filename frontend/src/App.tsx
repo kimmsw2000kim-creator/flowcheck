@@ -11,18 +11,24 @@ import UiTestPage from './pages/UitestPage';
 import LoadPage from './pages/LoadPage';
 import PaymentPage from './pages/PaymentPage';
 import CommunityPage from './pages/CommunityPage';
+import PostWritePage from "./pages/PostWritePage";
+import PostDetailPage from "./pages/PostDetailPage";
+import PostEditPage from "./pages/PostEditPage";
 import AdminPage from './pages/AdminPage';
 import Mypage from './pages/Mypage';
 import AuthPage from './pages/AuthPage';
 import AuthCallback from './pages/AuthCallback';
 import LandingPage from './pages/LandingPage';
 
-// Utils
+// Types & Utils
 import axios from 'axios';
 import ApiURL from './api/ApiURL';
+import type { Domain } from './types/domain';
+import { fetchDomains, registerDomain, verifyDomain, deleteDomain } from './api/domainApi';
+
 axios.defaults.baseURL = ApiURL;
 
-// Axios Request Interceptor to automatically attach Authorization header
+// Axios Request Interceptor: Automatically attach Authorization header
 axios.interceptors.request.use((config) => {
   const token = localStorage.getItem('accessToken');
   if (token) {
@@ -33,17 +39,14 @@ axios.interceptors.request.use((config) => {
   return Promise.reject(error);
 });
 
-// 401
+// Axios Response Interceptor: Global 401 Unauthorized Handler
 axios.interceptors.response.use((response) => response, (error) => {
-  if (error.response && error.response.status == 401) {
+  if (error.response && error.response.status === 401) {
     localStorage.clear();
     window.location.href = '/login';
   }
   return Promise.reject(error);
 });
-
-import type { Domain } from './types/domain';
-import { fetchDomains, registerDomain, verifyDomain, deleteDomain } from './api/domainApi';
 
 interface LedgerItem {
   id: number;
@@ -85,12 +88,16 @@ function App() {
     signup: '/signup',
   };
 
+  // Supports sub-paths for active tab checking (e.g., /community/write)
   const activeTab =
-    Object.entries(tabRoutes).find(([, path]) => path === location.pathname)?.[0] ?? 'dashboard';
+    Object.entries(tabRoutes).find(([ , path]) =>
+      location.pathname === path || location.pathname.startsWith(`${path}/`)
+    )?.[0] ?? 'dashboard';
 
   const setActiveTab = (tab: string) => {
     navigate(tabRoutes[tab] ?? '/dashboard');
   };
+
   const [currentUser, setCurrentUser] = useState({
     id: localStorage.getItem("userId") ?? '',
     email: localStorage.getItem("email") ?? '',
@@ -105,6 +112,7 @@ function App() {
   const isLoggedIn = !!currentUser.email;
   const isLandingPage = !isLoggedIn && location.pathname === '/';
 
+  // Fetch User Profile and Billing Ledger
   useEffect(() => {
     const accessToken = localStorage.getItem("accessToken");
     if (accessToken) {
@@ -134,6 +142,7 @@ function App() {
     }
   }, [currentUser.email]);
 
+  // Fetch Verified Domain List
   const [domains, setDomains] = useState<Domain[]>([]);
   const [newDomainUrl, setNewDomainUrl] = useState<string>('');
   const [verificationLoading, setVerificationLoading] = useState<boolean>(false);
@@ -152,11 +161,8 @@ function App() {
   }, [currentUser.email]);
 
   const [selectedUiTestDomain, setSelectedUiTestDomain] = useState<number>(1);
-
   const [ledger, setLedger] = useState<LedgerItem[]>([]);
-
   const [reports, setReports] = useState<Report[]>([]);
-
   const [alertMsg, setAlertMsg] = useState<AlertMsg | null>(null);
 
   const showAlert = (message: string, type: string = 'success') => {
@@ -171,24 +177,31 @@ function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('email');
-    localStorage.removeItem('userId');
-
+    localStorage.clear();
     setCurrentUser({
       id: '',
       email: '',
-      role: 'user',
+      role: 'USER',
       balance: 0,
       status: 'ACTIVE',
       coupons: 0,
       loadTestCoupons: 0,
       uiUxTestCoupons: 0
     });
+    navigate('/login');
+  };
 
-    navigate('/login')
-  }
+  const handleLoginSuccess = (email: string, _token?: string, userId?: string) => {
+    if (email) localStorage.setItem("email", email);
+    if (userId) localStorage.setItem("userId", userId);
+    
+    setCurrentUser(prev => ({
+      ...prev,
+      id: userId ?? prev.id,
+      email
+    }));
+    navigate("/dashboard");
+  };
 
   const handleAddDomain = (e: React.FormEvent) => {
     e.preventDefault();
@@ -316,6 +329,7 @@ function App() {
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/login" element={<Navigate to="/dashboard" replace />} />
               <Route path="/signup" element={<Navigate to="/dashboard" replace />} />
+              
               <Route
                 path="/dashboard"
                 element={
@@ -386,6 +400,7 @@ function App() {
                 }
               />
 
+              {/* Community Tab Sub-routing System */}
               <Route
                 path="/community"
                 element={
@@ -399,6 +414,9 @@ function App() {
                   />
                 }
               />
+              <Route path="/community/write" element={<PostWritePage />} />
+              <Route path="/community/:postId" element={<PostDetailPage />} />
+              <Route path="/community/:postId/edit" element={<PostEditPage />} />
 
               <Route
                 path="/admin"
@@ -424,7 +442,7 @@ function App() {
                 element={
                   <AuthPage
                     setActiveTab={setActiveTab}
-                    onLoginSuccess={(email, _token, userId) => setCurrentUser(prev => ({ ...prev, id: userId, email }))}
+                    onLoginSuccess={handleLoginSuccess}
                     showAlert={showAlert}
                     initialMode="login"
                   />
@@ -435,7 +453,7 @@ function App() {
                 element={
                   <AuthPage
                     setActiveTab={setActiveTab}
-                    onLoginSuccess={(email) => setCurrentUser(prev => ({ ...prev, email }))}
+                    onLoginSuccess={handleLoginSuccess}
                     showAlert={showAlert}
                     initialMode="signup"
                   />
