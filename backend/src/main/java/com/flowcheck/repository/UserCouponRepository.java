@@ -11,7 +11,7 @@ import java.util.UUID;
 
 public interface UserCouponRepository extends JpaRepository<UserCoupon, UUID> {
 
-    List<UserCoupon> findByUserAndRemainingChancesGreaterThan(User user, Integer chances);
+    List<UserCoupon> findByUserAndRemainingChancesGreaterThanOrderByCreatedAtAsc(User user, Integer chances);
 
     @Query("""
         select coalesce(sum(uc.remainingChances), 0)
