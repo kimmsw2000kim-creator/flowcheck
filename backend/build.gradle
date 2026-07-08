@@ -61,6 +61,9 @@ dependencies {
 
     // Jsoup for HTML meta tag parsing
     implementation 'org.jsoup:jsoup:1.17.2'
+
+    // Devtools(변경점 서버 실시간 반영)
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
 }
 
 tasks.named('test') {
