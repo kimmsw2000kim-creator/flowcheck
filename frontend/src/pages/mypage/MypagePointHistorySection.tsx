@@ -7,7 +7,7 @@ import type { MypagePointHistoryItem } from '../../types/mypage';
 const typeLabels: Record<string, string> = {
     CHARGE: '크레딧 충전',
     TEST_CONSUME: '테스트 차감',
-    COUPON_BUY: '이용권 구매',
+    COUPON_BUY: '쿠폰 구매',
 };
 
 function formatDate(value: string) {

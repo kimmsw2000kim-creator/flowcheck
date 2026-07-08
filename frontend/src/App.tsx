@@ -97,7 +97,9 @@ function App() {
     role: 'USER', // USER or ADMIN
     balance: 0,
     status: 'ACTIVE',
-    coupons: 0
+    coupons: 0,
+    loadTestCoupons: 0,
+    uiUxTestCoupons: 0
   });
 
   const isLoggedIn = !!currentUser.email;
@@ -113,7 +115,9 @@ function App() {
             ...prev,
             email: data.email,
             balance: data.balance,
-            coupons: data.couponCount
+            coupons: data.couponCount,
+            loadTestCoupons: data.loadTestCouponCount,
+            uiUxTestCoupons: data.uiUxTestCouponCount
           }));
         })
         .catch((err) => {
@@ -179,6 +183,8 @@ function App() {
       balance: 0,
       status: 'ACTIVE',
       coupons: 0,
+      loadTestCoupons: 0,
+      uiUxTestCoupons: 0
     });
 
     navigate('/login')
@@ -237,11 +243,13 @@ function App() {
       });
   };
 
-  const handleUserUpdate = (updatedUser: { balance: number; coupons: number }) => {
+  const handleUserUpdate = (updatedUser: { balance: number; coupons: number; loadTestCoupons?: number; uiUxTestCoupons?: number }) => {
     setCurrentUser(prev => ({
       ...prev,
       balance: updatedUser.balance,
-      coupons: updatedUser.coupons
+      coupons: updatedUser.coupons,
+      loadTestCoupons: updatedUser.loadTestCoupons !== undefined ? updatedUser.loadTestCoupons : prev.loadTestCoupons,
+      uiUxTestCoupons: updatedUser.uiUxTestCoupons !== undefined ? updatedUser.uiUxTestCoupons : prev.uiUxTestCoupons
     }));
   };
 

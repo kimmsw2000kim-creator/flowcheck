@@ -21,7 +21,7 @@ function MypageSidebar() {
       <div className="sidebar-section-title">포인트 · 결제</div>
       <nav className="sidebar-menu">
         <NavLink className="sidebar-item" to="/mypage/points">
-          이용권 · 포인트
+          쿠폰 · 포인트
         </NavLink>
 
         <NavLink className="sidebar-item" to="/mypage/point-history">

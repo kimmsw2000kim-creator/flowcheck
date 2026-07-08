@@ -10,6 +10,8 @@ export interface MypageData {
   email: string;
   balance: number;
   couponCount: number;
+  loadTestCouponCount: number;
+  uiUxTestCouponCount: number;
   registeredSiteCount: number;
   testRunCount: number;
   sites: SiteSummary[];

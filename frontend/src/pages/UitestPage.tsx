@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Play, CheckCircle, AlertCircle, RefreshCw, Globe, Monitor, Terminal, FileText } from 'lucide-react';
+import axios from 'axios';
 import { startUiTest, getUiTestStatus, UiTestStepData } from '../api/uiTestApi';
 
 interface Domain {
@@ -15,9 +16,11 @@ interface UiTestPageProps {
   currentUser: {
     id: string;
     coupons: number;
+    loadTestCoupons: number;
+    uiUxTestCoupons: number;
     balance: number;
   };
-  onUserUpdate: (updatedUser: { coupons: number; balance: number }) => void;
+  onUserUpdate: (updatedUser: { coupons: number; balance: number; loadTestCoupons?: number; uiUxTestCoupons?: number }) => void;
   onAddLedger: (ledgerItem: any) => void;
   showAlert: (message: string, type?: string) => void;
 }
@@ -66,7 +69,11 @@ export default function UiTestPage({
       return;
     }
 
-    // 쿠폰/크레딧 체크 및 차감 로직 우회 (무료 테스트 모드)
+    // 쿠폰/크레딧 체크 및 차감
+    if (currentUser.uiUxTestCoupons <= 0 && currentUser.balance < 1000) {
+      showAlert('UI/UX 테스트 쿠폰 또는 크레딧 잔액이 부족합니다.', 'error');
+      return;
+    }
 
     setUiTestStatus('running');
     setUiTestSteps([]);
@@ -78,6 +85,19 @@ export default function UiTestPage({
       const requestId = startRes.requestId;
       
       showAlert('자율형 AI UI 테스트 탐색 에이전트가 가동되었습니다!', 'success');
+
+      // 잔액/쿠폰 정보 갱신
+      try {
+        const mypageRes = await axios.get('/api/mypage');
+        onUserUpdate({
+          balance: mypageRes.data.balance,
+          coupons: mypageRes.data.couponCount,
+          loadTestCoupons: mypageRes.data.loadTestCouponCount,
+          uiUxTestCoupons: mypageRes.data.uiUxTestCouponCount
+        });
+      } catch (err) {
+        console.error('Failed to sync user state after starting UI test:', err);
+      }
 
       // 3. 폴링 시작 (1.5초 주기)
       const interval = setInterval(async () => {
@@ -177,9 +197,49 @@ export default function UiTestPage({
               </div>
             </div>
 
-            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1.5rem', lineHeight: '1.4' }}>
-              <p>⚡ <strong>소모 비용</strong>: 없음 (무료 무제한 테스트 모드)</p>
-              <p>🤖 Playwright 봇이 실제 브라우저를 열고 최대 10단계 동안 Gemini 2.5 Flash를 이용해 화면을 탐색합니다.</p>
+            {/* 쿠폰 및 크레딧 현황 카드 */}
+            <div style={{
+              background: 'var(--bg-tertiary)',
+              border: `1.5px solid ${currentUser.uiUxTestCoupons > 0 ? 'var(--accent)' : currentUser.balance >= 1000 ? '#f59e0b' : '#ef4444'}`,
+              borderRadius: '0.75rem',
+              padding: '1rem 1.25rem',
+              marginBottom: '1.25rem',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)' }}>🎟️ 보유 현황</span>
+                <span style={{
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  padding: '0.2rem 0.6rem',
+                  borderRadius: '999px',
+                  background: currentUser.uiUxTestCoupons > 0 ? 'rgba(99,102,241,0.15)' : currentUser.balance >= 1000 ? 'rgba(245,158,11,0.15)' : 'rgba(239,68,68,0.15)',
+                  color: currentUser.uiUxTestCoupons > 0 ? 'var(--accent)' : currentUser.balance >= 1000 ? '#f59e0b' : '#ef4444',
+                }}>
+                  {currentUser.uiUxTestCoupons > 0 ? '쿠폰으로 차감' : currentUser.balance >= 1000 ? '크레딧으로 차감' : '잔액 부족'}
+                </span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '0.75rem' }}>
+                <div style={{ background: 'var(--bg-secondary)', borderRadius: '0.5rem', padding: '0.6rem 0.8rem' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>UI/UX 쿠폰</div>
+                  <div style={{ fontWeight: 800, fontSize: '1.1rem', color: currentUser.uiUxTestCoupons > 0 ? 'var(--accent)' : 'var(--text-muted)' }}>
+                    {currentUser.uiUxTestCoupons}회
+                  </div>
+                </div>
+                <div style={{ background: 'var(--bg-secondary)', borderRadius: '0.5rem', padding: '0.6rem 0.8rem' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>크레딧 잔액</div>
+                  <div style={{ fontWeight: 800, fontSize: '1.1rem', color: currentUser.balance >= 1000 ? 'var(--text-primary)' : '#ef4444' }}>
+                    {currentUser.balance.toLocaleString()}P
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', borderTop: '1px solid var(--border)', paddingTop: '0.6rem' }}>
+                {currentUser.uiUxTestCoupons > 0
+                  ? <>이번 테스트에 <strong style={{ color: 'var(--accent)' }}>UI/UX 쿠폰 1회</strong>가 소모됩니다. (잔여 {currentUser.uiUxTestCoupons - 1}회)</>
+                  : <>이번 테스트에 <strong style={{ color: '#f59e0b' }}>1,000 크레딧</strong>이 소모됩니다.</>
+                }
+              </div>
             </div>
 
             <button 

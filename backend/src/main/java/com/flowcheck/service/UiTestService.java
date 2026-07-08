@@ -37,7 +37,7 @@ public class UiTestService {
     @Value("${supabase.anon-key:}")
     private String supabaseAnonKey;
 
-    private static final int TEST_COST = 10_000;
+    private static final int TEST_COST = 1_000;
 
     @Transactional
     public UUID submitUiTest(UUID userId, UiTestStartRequest request) {
@@ -61,19 +61,40 @@ public class UiTestService {
             int deleteCount = userTests.size() - 9; // 새 항목이 추가되어 정확히 10개가 되도록 초과분 삭제
             for (int i = 0; i < deleteCount; i++) {
                 UiTest oldestTest = userTests.get(i);
-                
+
                 // Supabase Storage에서 동영상 파일 제거
                 deleteVideoFromSupabase(oldestTest.getId());
-                
+
                 // DB에서 레코드 삭제 (Cascade 설정에 의해 ui_test_steps도 자동 삭제됨)
                 uiTestRepository.delete(oldestTest);
-                log.info("Deleted oldest UI test record {} for user {} due to 10-test limit", oldestTest.getId(), userId);
+                log.info("Deleted oldest UI test record {} for user {} due to 10-test limit", oldestTest.getId(),
+                        userId);
             }
         }
 
-        // 2. 비용 차감 (쿠폰 및 크레딧 차감 로직 제거 - 무료 작동)
-        // 기존의 쿠폰 및 크레딧 차감 로직이 이곳에 위치하였으나 삭제되었습니다.
+        // 2. 비용 차감 (UI_UX_TEST 쿠폰 우선 차감, 없을 경우 크레딧 차감)
+        List<UserCoupon> availableCoupons = userCouponRepository
+                .findByUserAndCoupon_CouponTypeAndRemainingChancesGreaterThanOrderByCreatedAtAsc(user, CouponType.UI_UX_TEST, 0);
 
+        if (!availableCoupons.isEmpty()) {
+            // 쿠폰 사용
+            UserCoupon couponToUse = availableCoupons.getFirst();
+            couponToUse.useChance();
+        } else if (user.getBalance() >= TEST_COST) {
+            // 잔액 사용
+            user.deductBalance(TEST_COST);
+            userRepository.save(user);
+
+            CreditsLedger ledger = CreditsLedger.builder()
+                    .user(user)
+                    .amount(-TEST_COST)
+                    .transactionType("TEST_CONSUME")
+                    .description("AI UI/UX Test Execution")
+                    .build();
+            creditsLedgerRepository.save(ledger);
+        } else {
+            throw new IllegalStateException("Insufficient coupons or balance.");
+        }
 
         // 3. 테스트 이력 생성 (PENDING)
         UiTest uiTest = UiTest.builder()
@@ -88,8 +109,7 @@ public class UiTestService {
         try {
             Map<String, String> payload = Map.of(
                     "requestId", requestId.toString(),
-                    "targetUrl", request.getTargetUrl()
-            );
+                    "targetUrl", request.getTargetUrl());
 
             log.info("Calling FastAPI endpoint /api/ui-tests for requestId: {}", requestId);
             restClient.post()
@@ -168,7 +188,7 @@ public class UiTestService {
                 .orElseThrow(() -> new IllegalArgumentException("Test request not found."));
 
         uiTest.setReport(request.getReportMarkdown());
-        
+
         // 최종 레포트 저장 시 상태를 COMPLETED로 변경 (만약 오류만 수집되었거나 특정 비정상 종료 시 FAILED로 분기 가능)
         if (uiTest.getStatus().equals("FAILED") == false) {
             uiTest.changeStatus("COMPLETED");
@@ -194,8 +214,8 @@ public class UiTestService {
      * Supabase Storage에서 이전 UI 테스트 비디오 파일을 원격 삭제합니다.
      */
     private void deleteVideoFromSupabase(UUID requestId) {
-        if (supabaseUrl == null || supabaseUrl.trim().isEmpty() || 
-            supabaseAnonKey == null || supabaseAnonKey.trim().isEmpty()) {
+        if (supabaseUrl == null || supabaseUrl.trim().isEmpty() ||
+                supabaseAnonKey == null || supabaseAnonKey.trim().isEmpty()) {
             log.warn("Supabase credentials not fully configured. Skipping video deletion.");
             return;
         }
