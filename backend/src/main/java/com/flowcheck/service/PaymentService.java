@@ -3,6 +3,7 @@ package com.flowcheck.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowcheck.domain.Coupon;
+import com.flowcheck.domain.CouponType;
 import com.flowcheck.domain.UserCoupon;
 import com.flowcheck.domain.CreditsLedger;
 import com.flowcheck.domain.TossPayment;
@@ -95,8 +96,7 @@ public class PaymentService {
                 user.getUserId().toString(),
                 orderId,
                 orderName,
-                requestDto.amount()
-        );
+                requestDto.amount());
     }
 
     /**
@@ -109,7 +109,8 @@ public class PaymentService {
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
         TossPayment tossPayment = tossPaymentRepository.findByOrderId(confirmDto.orderId())
-                .orElseThrow(() -> new IllegalArgumentException("Payment record not found for orderId: " + confirmDto.orderId()));
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Payment record not found for orderId: " + confirmDto.orderId()));
 
         // 데이터 무결성 검증 (요청금액과 DB 기록금액 일치 여부)
         if (!tossPayment.getAmount().equals(confirmDto.amount())) {
@@ -117,8 +118,9 @@ public class PaymentService {
         }
 
         // 토스페이먼츠 인증 헤더 (Basic Auth: secretKey + ":"를 Base64 인코딩)
-        String basicAuthHeader = "Basic " + Base64.getEncoder().encodeToString((secretKey + ":").getBytes(StandardCharsets.UTF_8));
-        
+        String basicAuthHeader = "Basic "
+                + Base64.getEncoder().encodeToString((secretKey + ":").getBytes(StandardCharsets.UTF_8));
+
         log.info("Sending payment confirm to Toss Payments for order: {}", confirmDto.orderId());
 
         String tossResponseString;
@@ -131,8 +133,7 @@ public class PaymentService {
                     .body(Map.of(
                             "paymentKey", confirmDto.paymentKey(),
                             "orderId", confirmDto.orderId(),
-                            "amount", confirmDto.amount()
-                    ))
+                            "amount", confirmDto.amount()))
                     .retrieve()
                     .onStatus(status -> status.is4xxClientError() || status.is5xxServerError(), (req, res) -> {
                         String errorText = new String(res.getBody().readAllBytes(), StandardCharsets.UTF_8);
@@ -158,7 +159,7 @@ public class PaymentService {
                 tossPayment.setAccountNumber(va.path("accountNumber").asText());
                 tossPayment.setBankCode(va.has("bank") ? va.path("bank").asText() : va.path("bankCode").asText());
                 tossPayment.setCustomerName(va.path("customerName").asText());
-                
+
                 String dueDateStr = va.path("dueDate").asText();
                 if (dueDateStr != null && !dueDateStr.isEmpty()) {
                     tossPayment.setDueDate(OffsetDateTime.parse(dueDateStr));
@@ -195,7 +196,8 @@ public class PaymentService {
         log.info("Toss Webhook received for order: {}, event: {}", orderId, webhookDto.eventType());
 
         TossPayment tossPayment = tossPaymentRepository.findByOrderId(orderId)
-                .orElseThrow(() -> new IllegalArgumentException("Payment record not found for webhook orderId: " + orderId));
+                .orElseThrow(
+                        () -> new IllegalArgumentException("Payment record not found for webhook orderId: " + orderId));
 
         // 이미 결제가 완료된 주문이면 스킵
         if ("DONE".equalsIgnoreCase(tossPayment.getPaymentStatus())) {
@@ -207,7 +209,8 @@ public class PaymentService {
         String incomingStatus = webhookDto.data() != null ? webhookDto.data().status() : null;
         if (incomingStatus == null) {
             // 예외/호환성 처리: 특정 입금 완료 이벤트의 경우 DONE으로 강제 매핑
-            if ("VIRTUAL_ACCOUNT_DEPOSIT_COMPLETED".equalsIgnoreCase(webhookDto.eventType()) || "DEPOSIT_RECEIVED".equalsIgnoreCase(webhookDto.eventType())) {
+            if ("VIRTUAL_ACCOUNT_DEPOSIT_COMPLETED".equalsIgnoreCase(webhookDto.eventType())
+                    || "DEPOSIT_RECEIVED".equalsIgnoreCase(webhookDto.eventType())) {
                 incomingStatus = "DONE";
             }
         }
@@ -218,11 +221,11 @@ public class PaymentService {
                 tossPayment.setPaymentKey(webhookDto.data().paymentKey());
             }
             tossPaymentRepository.save(tossPayment);
-            
+
             // 유저 크레딧 증가 및 원장 추가
             User user = tossPayment.getUser();
             creditUserBalance(user, tossPayment);
-            
+
             log.info("Toss payment deposit completed successfully via webhook for orderId: {}", orderId);
         }
     }
@@ -248,8 +251,7 @@ public class PaymentService {
                         p.getCustomerName(),
                         p.getPaymentStatus(),
                         p.getDueDate(),
-                        p.getCreatedAt()
-                ))
+                        p.getCreatedAt()))
                 .toList();
     }
 
@@ -276,9 +278,10 @@ public class PaymentService {
                 .transactionType("CHARGE")
                 .description("Toss Payments 크레딧 충전 - 주문번호: " + payment.getOrderId())
                 .build();
-        
+
         creditsLedgerRepository.save(ledger);
-        log.info("Credited {} credits to user: {} for completed order: {}", creditAmount, user.getEmail(), payment.getOrderId());
+        log.info("Credited {} credits to user: {} for completed order: {}", creditAmount, user.getEmail(),
+                payment.getOrderId());
     }
 
     /**
@@ -298,8 +301,7 @@ public class PaymentService {
                         l.getAmount(),
                         l.getTransactionType(),
                         l.getDescription(),
-                        l.getCreatedAt() != null ? l.getCreatedAt().format(formatter) : ""
-                ))
+                        l.getCreatedAt() != null ? l.getCreatedAt().format(formatter) : ""))
                 .toList();
     }
 
@@ -307,11 +309,13 @@ public class PaymentService {
      * 쿠폰 패키지 구매
      */
     @Transactional
-    public void buyCoupons(String email, int count) {
+    public void buyCoupons(String email, int count, CouponType couponType) {
+        CouponType targetType = couponType != null ? couponType : CouponType.LOAD_TEST;
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-        int cost = count * 10000;
+        int unitPrice = targetType == CouponType.UI_UX_TEST ? 1000 : 10000;
+        int cost = count * unitPrice;
         if (user.getBalance() < cost) {
             throw new IllegalStateException("크레딧 잔액이 부족합니다.");
         }
@@ -319,12 +323,14 @@ public class PaymentService {
         user.deductBalance(cost);
         userRepository.save(user);
 
-        Coupon coupon = couponRepository.findByCouponCode("COUPON_" + count)
+        String couponCode = "COUPON_" + targetType.name() + "_" + count;
+        Coupon coupon = couponRepository.findByCouponCode(couponCode)
                 .orElseGet(() -> {
                     Coupon newCoupon = Coupon.builder()
-                            .couponCode("COUPON_" + count)
+                            .couponCode(couponCode)
                             .testCount(count)
                             .creditPrice(cost)
+                            .couponType(targetType)
                             .isActive(true)
                             .build();
                     return couponRepository.save(newCoupon);
@@ -341,10 +347,10 @@ public class PaymentService {
                 .user(user)
                 .amount(-cost)
                 .transactionType("COUPON_BUY")
-                .description("선결제 테스트 쿠폰 구매: " + count + "회권")
+                .description("선결제 테스트 쿠폰 구매: " + count + "회권 (" + targetType + ")")
                 .build();
         creditsLedgerRepository.save(ledger);
 
-        log.info("User {} successfully bought a {}-coupon package for {} credits.", email, count, cost);
+        log.info("User {} successfully bought a {}-coupon ({}) package for {} credits.", email, count, targetType, cost);
     }
 }

@@ -12,7 +12,6 @@ import MypageVerifiedSitesSection from './mypage/MypageVerifiedSitesSection';
 import MypageTestHistorySection from './mypage/MypageTestHistorySection';
 import MypagePointSection from './mypage/MypagePointSection';
 import MypagePointHistorySection from './mypage/MypagePointHistorySection';
-import MypagePaymentHistorySection from './mypage/MypagePaymentHistorySection';
 import MypageMyPostsSection from './mypage/MypageMyPostsSection';
 import MypageNotificationSettingsSection from './mypage/MypageNotificationSettingsSection';
 import MypageThemeSettingsSection from './mypage/MypageThemeSettingsSection';
@@ -25,6 +24,8 @@ const emptyData: MypageData = {
   email: '',
   balance: 0,
   couponCount: 0,
+  loadTestCouponCount: 0,
+  uiUxTestCouponCount: 0,
   registeredSiteCount: 0,
   testRunCount: 0,
   sites: [],
@@ -50,7 +51,7 @@ function Mypage() {
       return;
     }
 
-    fetchMypage(accessToken)
+    fetchMypage()
       .then((mypageData) => {
         setData(mypageData);
       })
@@ -118,10 +119,6 @@ function Mypage() {
               element={<MypagePointHistorySection />}
             />
 
-            <Route
-              path="payments"
-              element={<MypagePaymentHistorySection />}
-            />
 
             <Route
               path="posts"

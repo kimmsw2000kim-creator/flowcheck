@@ -39,7 +39,7 @@ export default function AuthPage({
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: window.location.origin,
+          redirectTo: window.location.origin + "/auth/callback",
         },
       });
 
@@ -123,9 +123,6 @@ export default function AuthPage({
     if (mode === "login") {
       try {
         const data = await login({ email, password });
-        localStorage.setItem("accessToken", data.accessToken);
-        localStorage.setItem("refreshToken", data.refreshToken);
-        localStorage.setItem("email", data.email);
 
         onLoginSuccess(data.email, data.accessToken, data.userId);
         showAlert("로그인에 성공했습니다!", "success");

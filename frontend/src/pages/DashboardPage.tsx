@@ -12,6 +12,8 @@ interface DashboardPageProps {
   currentUser: {
     balance: number;
     coupons: number;
+    loadTestCoupons?: number;
+    uiUxTestCoupons?: number;
   };
   domains: Domain[];
   setActiveTab: (tab: string) => void;
@@ -35,7 +37,9 @@ export default function DashboardPage({ currentUser, domains, setActiveTab, setS
         </div>
         <div className="card">
           <div className="card-title"><PlusCircle size={18} /> 선결제 테스트 쿠폰</div>
-          <div className="card-value">{currentUser.coupons} <span style={{ fontSize: '1rem' }}>회 남음</span></div>
+          <div className="card-value" style={{ fontSize: '1.4rem' }}>
+            부하: {currentUser.loadTestCoupons || 0}회 / UI: {currentUser.uiUxTestCoupons || 0}회
+          </div>
         </div>
         <div className="card">
           <div className="card-title"><Shield size={18} /> 등록된 대상 도메인</div>

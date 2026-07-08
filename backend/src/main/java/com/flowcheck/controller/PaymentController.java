@@ -23,7 +23,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/payment")
 @RequiredArgsConstructor
-@CrossOrigin(origins = {"http://localhost:5173", "https://flow-check.duckdns.org"})
+@CrossOrigin(origins = { "http://localhost:5173", "https://flow-check.duckdns.org" })
 public class PaymentController {
 
     private final PaymentService paymentService;
@@ -42,7 +42,7 @@ public class PaymentController {
         log.info("[API] /api/payment/initiate - 요청 수신");
         // Authorization 헤더의 JWT 토큰에서 Supabase 사용자 이메일 추출
         String email = extractEmailFromToken(authorization);
-        
+
         // 주문 고유번호(orderId)를 채운 임시 결제 내역을 저장하고 토스 SDK로 넘길 데이터를 응답
         PaymentInitiateResponseDto response = paymentService.initiatePayment(requestDto, email);
         return ResponseEntity.ok(response);
@@ -126,9 +126,9 @@ public class PaymentController {
             @RequestBody CouponBuyRequestDto requestDto,
             @RequestHeader(value = "Authorization") String authorization) {
 
-        log.info("[API] /api/payment/buy-coupons - 쿠폰 패키지 구매 요청 수신. Count: {}", requestDto.count());
+        log.info("[API] /api/payment/buy-coupons - 쿠폰 패키지 구매 요청 수신. Count: {}, Type: {}", requestDto.count(), requestDto.couponType());
         String email = extractEmailFromToken(authorization);
-        paymentService.buyCoupons(email, requestDto.count());
+        paymentService.buyCoupons(email, requestDto.count(), requestDto.couponType());
         return ResponseEntity.ok().build();
     }
 
@@ -148,8 +148,7 @@ public class PaymentController {
             // JWT Payload 영역 디코딩 (Base64)
             String payloadJson = new String(
                     Base64.getUrlDecoder().decode(parts[1]),
-                    StandardCharsets.UTF_8
-            );
+                    StandardCharsets.UTF_8);
 
             // JSON 트리 파싱하여 email 속성 추출
             JsonNode payload = objectMapper.readTree(payloadJson);

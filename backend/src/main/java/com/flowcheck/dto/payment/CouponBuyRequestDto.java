@@ -1,5 +1,8 @@
 package com.flowcheck.dto.payment;
 
+import com.flowcheck.domain.CouponType;
+
 public record CouponBuyRequestDto(
-    int count
-) {}
+        int count,
+        CouponType couponType) {
+}

@@ -50,7 +50,7 @@ function MypageTestHistorySection() {
             return;
         }
 
-        fetchMypageTestHistory(accessToken)
+        fetchMypageTestHistory()
             .then(setTests)
             .catch((error) => {
                 setErrorMessage(error.message || '테스트 이력을 불러오지 못했습니다.');

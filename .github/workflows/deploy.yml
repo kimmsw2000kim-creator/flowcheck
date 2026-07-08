@@ -87,4 +87,5 @@ jobs:
 
             docker compose --env-file ./.env pull
             docker compose --env-file ./.env up -d --remove-orphans
+            docker compose --env-file ./.env up -d --force-recreate nginx
             docker image prune -f
