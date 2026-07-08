@@ -33,6 +33,27 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/${{ env.BACKEND_IMAGE }}:latest
 
+      - name: Extract frontend env from DOT_ENV
+        shell: bash
+        env:
+          DOT_ENV: ${{ secrets.DOT_ENV }}
+        run: |
+          VITE_SUPABASE_URL=$(printf '%s\n' "$DOT_ENV" | grep '^VITE_SUPABASE_URL=' | cut -d '=' -f2-)
+          VITE_SUPABASE_ANON_KEY=$(printf '%s\n' "$DOT_ENV" | grep '^VITE_SUPABASE_ANON_KEY=' | cut -d '=' -f2-)
+
+          if [ -z "$VITE_SUPABASE_URL" ]; then
+            echo "VITE_SUPABASE_URL missing in DOT_ENV"
+            exit 1
+          fi
+
+          if [ -z "$VITE_SUPABASE_ANON_KEY" ]; then
+            echo "VITE_SUPABASE_ANON_KEY missing in DOT_ENV"
+            exit 1
+          fi
+
+          echo "VITE_SUPABASE_URL=$VITE_SUPABASE_URL" >> "$GITHUB_ENV"
+          echo "VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY" >> "$GITHUB_ENV"
+
       - name: Build and push frontend image
         uses: docker/build-push-action@v5
         with:
@@ -40,8 +61,8 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/${{ env.FRONTEND_IMAGE }}:latest
           build-args: |
-            VITE_SUPABASE_URL=${{ vars.VITE_SUPABASE_URL }}
-            VITE_SUPABASE_PUBLIC_ANON=${{ vars.VITE_SUPABASE_ANON_KEY }}
+            VITE_SUPABASE_URL=${{ env.VITE_SUPABASE_URL }}
+            VITE_SUPABASE_PUBLIC_ANON=${{ env.VITE_SUPABASE_ANON_KEY }}
 
   deploy:
     needs: build
