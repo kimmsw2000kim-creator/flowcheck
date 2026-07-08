@@ -20,10 +20,10 @@ export default function Header({ activeTab, setActiveTab, currentUser, toggleRol
 
   return (
     <nav className="navbar">
-      <div 
-        className="logo" 
-        style={{ cursor: 'pointer' }} 
-        onClick={() => handleNavClick(isLoggedIn ? 'dashboard' : 'login')}
+      <div
+        className="logo"
+        style={{ cursor: 'pointer' }}
+        onClick={() => handleNavClick('dashboard')}
       >
         <Activity size={24} style={{ color: 'var(--accent)' }} />
         <span>FlowCheck</span>
