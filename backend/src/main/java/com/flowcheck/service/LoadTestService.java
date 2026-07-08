@@ -53,7 +53,7 @@ public class LoadTestService {
                                 .build();
 
                 List<UserCoupon> availableCoupons = userCouponRepository
-                                .findByUserAndRemainingChancesGreaterThan(user, 0);
+                                .findByUserAndRemainingChancesGreaterThanOrderByCreatedAtAsc(user, 0);
 
                 if (!availableCoupons.isEmpty()) {
                         // 쿠폰 사용
