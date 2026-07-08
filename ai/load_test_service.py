@@ -1,14 +1,28 @@
+import uuid
 import json
 import os
 import random
-import subprocess
-import tempfile
+import asyncio
 from typing import Any, List, Optional
 
 import httpx
-
+import boto3
+from botocore.exceptions import ClientError
 from pydantic import BaseModel
 
+AWS_REGION = os.environ.get("AWS_REGION", "ap-northeast-2")
+
+try:
+    S3_BUCKET = os.environ["S3_BUCKET"]
+    ECS_CLUSTER = os.environ["ECS_CLUSTER"]
+    ECS_TASK_FAMILY = os.environ["ECS_TASK_FAMILY"]
+    ECS_SUBNET_ID = os.environ["ECS_SUBNET_ID"]
+    ECS_SECURITY_GROUP_ID = os.environ["ECS_SECURITY_GROUP_ID"]
+except KeyError as e:
+    raise RuntimeError(f"필수 환경 변수가 설정되지 않았습니다: {e}")
+
+s3_client = boto3.client('s3', region_name=AWS_REGION)
+ecs_client = boto3.client('ecs', region_name=AWS_REGION)
 
 class LoadTestGenerationError(RuntimeError):
     pass
@@ -148,39 +162,64 @@ def extract_metric(metric_data):
     return metric_data.get("values", metric_data)
 
 
-def run_k6_script(script_text: str, duration: int) -> dict:
+# def run_k6_script(script_text: str, duration: int) -> dict:
+def run_k6_aws_fargate(script_text: str, duration: int, request_id: str) -> dict:
+    
+    test_id = request_id if request_id else str(uuid.uuid4())
+    script_s3_key = f"tasks/{test_id}/script.js"
+    result_s3_key = f"tasks/{test_id}/summary.json"
+
     try:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            script_path = os.path.join(temp_dir, "script.js")
-            result_path = os.path.join(temp_dir, "summary.json")
+        # 1. 생성된 k6 스크립트를 S3에 업로드
+        s3_client.put_object(
+            Bucket=S3_BUCKET,
+            Key=script_s3_key,
+            Body=script_text.encode('utf-8')
+        )
 
-            with open(script_path, "w", encoding="utf-8") as file_handle:
-                file_handle.write(script_text)
+        # 2. ECS Fargate Task 실행
+        response = ecs_client.run_task(
+            cluster=ECS_CLUSTER,
+            launchType='FARGATE',
+            taskDefinition=ECS_TASK_FAMILY,
+            networkConfiguration={
+                'awsvpcConfiguration': {
+                    'subnets': [ECS_SUBNET_ID],
+                    'securityGroups': [ECS_SECURITY_GROUP_ID],
+                    'assignPublicIp': 'ENABLED' # ECR 이미지 다운로드 및 S3 통신을 위해 필수
+                }
+            },
+            overrides={
+                'containerOverrides': [
+                    {
+                        'name': 'k6-container',
+                        'environment': [
+                            {'name': 'S3_BUCKET', 'value': S3_BUCKET},
+                            {'name': 'TEST_ID', 'value': test_id}
+                        ]
+                    }
+                ]
+            }
+        )
 
-            subprocess.run(
-                [
-                    "docker",
-                    "run",
-                    "--rm",
-                    "-v",
-                    f"{os.path.abspath(temp_dir)}:/app",
-                    "grafana/k6",
-                    "run",
-                    "--insecure-skip-tls-verify",
-                    "--summary-export",
-                    "/app/summary.json",
-                    "/app/script.js",
-                ],
-                check=True,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-            )
+        # 작업 ARN(고유 식별자) 추출
+        task_arn = response['tasks'][0]['taskArn']
 
-            with open(result_path, "r", encoding="utf-8") as file_handle:
-                summary_data = json.load(file_handle)
-    except subprocess.CalledProcessError as exc:
-        raise LoadTestExecutionError("부하 테스트 스크립트를 실행하지 못했습니다.") from exc
+        # 3. Fargate Task가 완료될 때까지 대기 (Polling)
+        waiter = ecs_client.get_waiter('tasks_stopped')
+        waiter.wait(
+            cluster=ECS_CLUSTER,
+            tasks=[task_arn],
+            WaiterConfig={'Delay': 10, 'MaxAttempts': 60} # 10초 간격으로 최대 10분 대기
+        )
+
+        # 4. S3에서 생성된 결과 파일 다운로드
+        result_obj = s3_client.get_object(Bucket=S3_BUCKET, Key=result_s3_key)
+        summary_data = json.loads(result_obj['Body'].read().decode('utf-8'))
+    except ClientError as e:
+        raise LoadTestExecutionError(f"AWS 리소스(S3, ECS) 접근 중 오류가 발생했습니다: {e}")
+    except Exception as e:
+        raise LoadTestExecutionError(f"클라우드 부하 테스트 실행 중 알 수 없는 오류가 발생했습니다: {e}")
 
     metrics = summary_data.get("metrics", {})
     http_reqs = extract_metric(metrics.get("http_reqs", {}))
@@ -238,8 +277,10 @@ def build_chart_points(duration: int, real_tps: float, real_avg_response: float,
 
 
 async def run_load_test_pipeline(client, request) -> TestResultsResponse:
+    request_id = getattr(request, "requestId", None)
+
     await publish_progress(
-        getattr(request, "requestId", None),
+        request_id,
         LoadTestProgressUpdate(
             status="RUNNING",
             phase="GENERATING_SCRIPT",
@@ -257,12 +298,12 @@ async def run_load_test_pipeline(client, request) -> TestResultsResponse:
     )
 
     await publish_progress(
-        getattr(request, "requestId", None),
+        request_id,
         LoadTestProgressUpdate(
             status="RUNNING",
-            phase="RUNNING_K6",
+            phase="PROVISIONING_INFRA",
             progress=35,
-            message="k6 테스트를 실행하는 중입니다.",
+            message="클라우드 부하 테스트 인프라를 프로비저닝하고 실행 중입니다. (약 1분 소요)",
         ),
     )
 
@@ -270,9 +311,15 @@ async def run_load_test_pipeline(client, request) -> TestResultsResponse:
     print(generated_script)
     print("===================================================\n")
 
-    summary = run_k6_script(generated_script, request.duration)
+    summary = await asyncio.to_thread(
+        run_k6_aws_fargate,
+        generated_script,
+        request.duration,
+        request_id
+    )
+
     await publish_progress(
-        getattr(request, "requestId", None),
+        request_id,
         LoadTestProgressUpdate(
             status="RUNNING",
             phase="PROCESSING_RESULTS",
