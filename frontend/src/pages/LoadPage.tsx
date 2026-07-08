@@ -92,7 +92,7 @@ export default function LoadPage({
       return;
     }
 
-    const targetUrl = domains.find(d => d.id === selectedLoadDomain)?.domainUrl || 'https://myshop.com';
+    const targetUrl = domains.find(d => d.id === selectedLoadDomain)?.domainUrl;
 
     const payload = {
       requestId: crypto.randomUUID(),
