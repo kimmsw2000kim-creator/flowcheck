@@ -25,6 +25,8 @@ const emptyData: MypageData = {
   email: '',
   balance: 0,
   couponCount: 0,
+  loadTestCouponCount: 0,
+  uiUxTestCouponCount: 0,
   registeredSiteCount: 0,
   testRunCount: 0,
   sites: [],

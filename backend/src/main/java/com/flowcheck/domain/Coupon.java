@@ -8,7 +8,6 @@ import org.hibernate.annotations.ColumnDefault;
 
 import java.util.UUID;
 
-
 @Entity
 @Table(name = "coupons", schema = "public")
 @Getter
@@ -44,5 +43,11 @@ public class Coupon {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
+    @NotNull
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @ColumnDefault("'LOAD_TEST'")
+    @Column(name = "coupon_type", nullable = false, length = 20)
+    private CouponType couponType = CouponType.LOAD_TEST;
 
 }
