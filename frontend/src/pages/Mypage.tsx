@@ -12,7 +12,6 @@ import MypageVerifiedSitesSection from './mypage/MypageVerifiedSitesSection';
 import MypageTestHistorySection from './mypage/MypageTestHistorySection';
 import MypagePointSection from './mypage/MypagePointSection';
 import MypagePointHistorySection from './mypage/MypagePointHistorySection';
-import MypagePaymentHistorySection from './mypage/MypagePaymentHistorySection';
 import MypageMyPostsSection from './mypage/MypageMyPostsSection';
 import MypageNotificationSettingsSection from './mypage/MypageNotificationSettingsSection';
 import MypageThemeSettingsSection from './mypage/MypageThemeSettingsSection';
@@ -120,10 +119,6 @@ function Mypage() {
               element={<MypagePointHistorySection />}
             />
 
-            <Route
-              path="payments"
-              element={<MypagePaymentHistorySection />}
-            />
 
             <Route
               path="posts"

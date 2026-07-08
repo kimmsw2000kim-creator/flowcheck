@@ -28,9 +28,6 @@ function MypageSidebar() {
           포인트 내역
         </NavLink>
 
-        <NavLink className="sidebar-item" to="/mypage/payments">
-          결제 내역
-        </NavLink>
       </nav>
 
       <div className="sidebar-section-title">커뮤니티 · 설정</div>
