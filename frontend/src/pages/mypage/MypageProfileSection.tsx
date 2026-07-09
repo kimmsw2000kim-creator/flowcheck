@@ -3,6 +3,7 @@ import { Activity, CreditCard, Globe, Ticket } from 'lucide-react';
 import MypageStatCard from '../../components/MypageStatCard';
 import MypageSiteList from '../../components/MypageSiteList';
 import type { MypageData } from '../../types/mypage';
+import styles from '../../styles/mypage.module.css';
 
 interface MypageProfileSectionProps {
   data: MypageData;
@@ -11,9 +12,9 @@ interface MypageProfileSectionProps {
 function MypageProfileSection({ data }: MypageProfileSectionProps) {
   return (
     <>
-      <section className="mypage-header">
-        <div className="mypage-profile">
-          <div className="profile-avatar">
+      <section className={styles['mypage-header']}>
+        <div className={styles['mypage-profile']}>
+          <div className={styles['profile-avatar']}>
             {data.email.charAt(0).toUpperCase()}
           </div>
 
@@ -24,7 +25,7 @@ function MypageProfileSection({ data }: MypageProfileSectionProps) {
         </div>
       </section>
 
-      <section className="mypage-stats">
+      <section className={styles['mypage-stats']}>
         <MypageStatCard
           icon={CreditCard}
           label="포인트"
