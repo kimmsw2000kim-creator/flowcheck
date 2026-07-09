@@ -13,11 +13,14 @@ function authHeaders() {
     };
 }
 
-export async function getPosts() {
-    const response = await fetch(`${API_BASE_URL}/api/posts`, {
-        method: "GET",
-        headers: authHeaders(),
-    });
+export async function getPosts(page = 0, size = 10) {
+    const response = await fetch(
+        `${API_BASE_URL}/api/posts?page=${page}&size=${size}`,
+        {
+            method: "GET",
+            headers: authHeaders(),
+        }
+    );
 
     if (!response.ok) {
         throw new Error("게시글 목록을 불러오지 못했습니다.");
@@ -26,7 +29,7 @@ export async function getPosts() {
     return response.json();
 }
 
-export async function getPost(postId) {
+export async function getPost(postId: number) {
     const response = await fetch(`${API_BASE_URL}/api/posts/${postId}`, {
         method: "GET",
         headers: authHeaders(),
@@ -39,11 +42,19 @@ export async function getPost(postId) {
     return response.json();
 }
 
-export async function createPost({ title, content }) {
+export async function createPost({
+    title,
+    content,
+    promoUrl,
+}: {
+    title: string;
+    content: string;
+    promoUrl?: string;
+}) {
     const response = await fetch(`${API_BASE_URL}/api/posts`, {
         method: "POST",
         headers: authHeaders(),
-        body: JSON.stringify({ title, content }),
+        body: JSON.stringify({ title, content, promoUrl }),
     });
 
     if (!response.ok) {
@@ -53,7 +64,16 @@ export async function createPost({ title, content }) {
     return response.json();
 }
 
-export async function updatePost(postId, { title, content }) {
+export async function updatePost(
+    postId: number,
+    {
+        title,
+        content,
+    }: {
+        title: string;
+        content: string;
+    }
+) {
     const response = await fetch(`${API_BASE_URL}/api/posts/${postId}`, {
         method: "PUT",
         headers: authHeaders(),
@@ -67,7 +87,7 @@ export async function updatePost(postId, { title, content }) {
     return response.json();
 }
 
-export async function deletePost(postId) {
+export async function deletePost(postId: number) {
     const response = await fetch(`${API_BASE_URL}/api/posts/${postId}`, {
         method: "DELETE",
         headers: authHeaders(),
@@ -78,21 +98,49 @@ export async function deletePost(postId) {
     }
 }
 
-export async function createComment(postId, content) {
-    const response = await fetch(`${API_BASE_URL}/api/posts/${postId}/comments`, {
+export async function likePost(postId: number) {
+    const response = await fetch(`${API_BASE_URL}/api/posts/${postId}/like`, {
         method: "POST",
         headers: authHeaders(),
-        body: JSON.stringify({ content }),
     });
 
     if (!response.ok) {
-        throw new Error("댓글 작성에 실패했습니다.");
+        throw new Error("좋아요 처리에 실패했습니다.");
+    }
+}
+
+export async function getComments(postId: number) {
+    const response = await fetch(`${API_BASE_URL}/api/posts/${postId}/comments`, {
+        method: "GET",
+        headers: authHeaders(),
+    });
+
+    if (!response.ok) {
+        throw new Error("댓글을 불러오지 못했습니다.");
     }
 
     return response.json();
 }
 
-export async function deleteComment(commentId) {
+export async function createComment(
+    postId: number,
+    data: {
+        content: string;
+        parentId: number | null;
+    }
+) {
+    const response = await fetch(`${API_BASE_URL}/api/posts/${postId}/comments`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+        throw new Error("댓글 작성에 실패했습니다.");
+    }
+}
+
+export async function deleteComment(commentId: number) {
     const response = await fetch(`${API_BASE_URL}/api/comments/${commentId}`, {
         method: "DELETE",
         headers: authHeaders(),

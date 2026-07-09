@@ -2,6 +2,7 @@ package com.flowcheck.domain;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.Getter;
 
 import java.time.LocalDateTime;
 
@@ -29,6 +30,10 @@ public class Post {
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
+
+    private String writerEmail;
+
+    private int likeCount = 0;
 
     private LocalDateTime createdAt;
 
