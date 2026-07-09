@@ -68,7 +68,6 @@ export default function LoadPage({
   onAddLedger,
   showAlert
 }: LoadPageProps) {
-  const verifiedDomains = domains.filter(d => d.verified);
 
   const [selectedLoadDomain, setSelectedLoadDomain] = useState<number>(0);
   const [vusers, setVusers] = useState<number>(100);
