@@ -41,6 +41,8 @@ export default function UiTestPage({
   const [uiTestSteps, setUiTestSteps] = useState<UiTestStepData[]>([]);
   const [uiTestReportMarkdown, setUiTestReportMarkdown] = useState<string>('');
   const [pollingId, setPollingId] = useState<any>(null);
+  const pollErrorCountRef = React.useRef(0);  // 연속 폴링 에러 횟수
+  const pollCountRef = React.useRef(0);         // 총 폴링 횟수
 
   // 도메인 선택 변경 시 URL 입력창 자동 반영
   useEffect(() => {
@@ -102,9 +104,28 @@ export default function UiTestPage({
       }
 
       // 3. 폴링 시작 (1.5초 주기)
+      pollErrorCountRef.current = 0;
+      pollCountRef.current = 0;
+      const MAX_POLL_ERRORS = 5;    // 연속 에러 5회 → 중단
+      const MAX_POLL_COUNT = 480;   // 최대 12분 (480 * 1.5s)
+
       const interval = setInterval(async () => {
+        pollCountRef.current += 1;
+
+        // 최대 폴링 횟수 초과 시 강제 중단
+        if (pollCountRef.current > MAX_POLL_COUNT) {
+          console.warn('Max polling count exceeded. Stopping polling.');
+          setUiTestStatus('error');
+          setUiTestReportMarkdown('# 타임아웃\n\n테스트가 12분 이상 응답이 없어 자동으로 중단되었습니다.');
+          clearInterval(interval);
+          setPollingId(null);
+          showAlert('테스트 응답 대기 시간이 초과되었습니다.', 'error');
+          return;
+        }
+
         try {
           const statusRes = await getUiTestStatus(requestId);
+          pollErrorCountRef.current = 0; // 성공 시 에러 카운터 리셋
           setUiTestSteps(statusRes.steps);
 
           if (statusRes.status === 'COMPLETED') {
@@ -121,7 +142,18 @@ export default function UiTestPage({
             showAlert('AI UI 테스트 도중 에러가 발생하였습니다.', 'error');
           }
         } catch (pollErr) {
-          console.error('Status polling error:', pollErr);
+          pollErrorCountRef.current += 1;
+          console.error(`Status polling error (${pollErrorCountRef.current}/${MAX_POLL_ERRORS}):`, pollErr);
+
+          // 연속 에러가 한도 초과 시 폴링 중단
+          if (pollErrorCountRef.current >= MAX_POLL_ERRORS) {
+            console.error('Too many consecutive polling errors. Stopping polling.');
+            setUiTestStatus('error');
+            setUiTestReportMarkdown('# 연결 오류\n\n서버와의 통신이 반복적으로 실패하여 테스트 상태 조회를 중단하였습니다.');
+            clearInterval(interval);
+            setPollingId(null);
+            showAlert('서버 통신 오류로 상태 조회가 중단되었습니다.', 'error');
+          }
         }
       }, 1500);
 
