@@ -41,19 +41,9 @@ public class UiTestService {
 
     @Transactional
     public UUID submitUiTest(String email, UiTestStartRequest request) {
-        // 1. 유저 조회 또는 자동 생성 (로컬 테스트 및 빠른 수동 검증의 편의를 위해 없을 경우 생성)
+        // 1. 유저 조회
         User user = userRepository.findByEmail(email)
-                .orElseGet(() -> {
-                    log.info("User {} not found, creating dynamic mock user.", email);
-                    User newUser = User.builder()
-                            .userId(UUID.randomUUID())
-                            .email(email)
-                            .balance(100_000)
-                            .role(Role.USER)
-                            .status(UserStatus.ACTIVE)
-                            .build();
-                    return userRepository.save(newUser);
-                });
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
 
         // ✅ 동일 유저가 이미 PENDING/RUNNING 테스트를 가지고 있으면 중복 실행 차단
         boolean hasActiveTest = uiTestRepository.existsByUserAndStatusIn(
@@ -100,7 +90,7 @@ public class UiTestService {
                     .build();
             creditsLedgerRepository.save(ledger);
         } else {
-            throw new IllegalStateException("Insufficient coupons or balance.");
+            throw new IllegalStateException("UI/UX 테스트 쿠폰 또는 크레딧 잔액이 부족합니다.");
         }
 
         // 3. 테스트 이력 생성 (PENDING)
@@ -137,10 +127,14 @@ public class UiTestService {
         return requestId;
     }
 
+    /**
+     * UI 테스트의 현재 상태 및 지금까지 진행된 스텝 기록을 조회합니다.
+     * 프론트엔드에서 폴링(Polling) 방식으로 테스트 진행 상황을 화면에 렌더링할 때 사용됩니다.
+     */
     @Transactional(readOnly = true)
     public UiTestStatusResponse getTestStatus(UUID requestId) {
         UiTest uiTest = uiTestRepository.findById(requestId)
-                .orElseThrow(() -> new IllegalArgumentException("Test request not found."));
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 테스트 요청입니다."));
 
         List<UiTestStep> steps = uiTestStepRepository.findByUiTestOrderByStepAsc(uiTest);
         List<UiTestStepDTO> stepDtos = steps.stream()
@@ -164,10 +158,14 @@ public class UiTestService {
                 .build();
     }
 
+    /**
+     * AI 에이전트(FastAPI)가 탐색 과정에서 한 스텝을 수행할 때마다 호출하여 결과를 기록합니다.
+     * 첫 스텝 도착 시 테스트 상태를 PENDING에서 RUNNING으로 변경합니다.
+     */
     @Transactional
     public void addStep(UUID requestId, UiTestStepSubmitRequest request) {
         UiTest uiTest = uiTestRepository.findById(requestId)
-                .orElseThrow(() -> new IllegalArgumentException("Test request not found."));
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 테스트 요청입니다."));
 
         // 첫 번째 스텝이 오거나 PENDING 상태이면 RUNNING 상태로 업데이트
         if ("PENDING".equals(uiTest.getStatus())) {
@@ -189,10 +187,14 @@ public class UiTestService {
         log.info("Saved step {} for requestId: {}", request.getStep(), requestId);
     }
 
+    /**
+     * AI 에이전트가 탐색을 모두 마치고 최종 마크다운 분석 보고서를 제출할 때 호출됩니다.
+     * 보고서를 저장하고 테스트 상태를 COMPLETED로 변경하여 테스트를 공식적으로 종료합니다.
+     */
     @Transactional
     public void saveReport(UUID requestId, UiTestReportSubmitRequest request) {
         UiTest uiTest = uiTestRepository.findById(requestId)
-                .orElseThrow(() -> new IllegalArgumentException("Test request not found."));
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 테스트 요청입니다."));
 
         uiTest.setReport(request.getReportMarkdown());
 
@@ -204,10 +206,14 @@ public class UiTestService {
         log.info("Saved final report and completed UI test for requestId: {}", requestId);
     }
 
+    /**
+     * AI 서버에서 치명적인 오류가 발생하여 탐색을 지속할 수 없을 때 호출됩니다.
+     * 테스트를 즉시 FAILED 상태로 마킹하고, 실패 사유를 리포트에 남깁니다.
+     */
     @Transactional
     public void markAsFailed(UUID requestId, String reason) {
         UiTest uiTest = uiTestRepository.findById(requestId)
-                .orElseThrow(() -> new IllegalArgumentException("Test request not found."));
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 테스트 요청입니다."));
 
         uiTest.changeStatus("FAILED");
         if (uiTest.getReport() == null) {
