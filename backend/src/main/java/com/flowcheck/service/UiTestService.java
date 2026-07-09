@@ -55,6 +55,13 @@ public class UiTestService {
                     return userRepository.save(newUser);
                 });
 
+        // ✅ 동일 유저가 이미 PENDING/RUNNING 테스트를 가지고 있으면 중복 실행 차단
+        boolean hasActiveTest = uiTestRepository.existsByUserAndStatusIn(
+                user, List.of("PENDING", "RUNNING"));
+        if (hasActiveTest) {
+            throw new IllegalStateException("이미 진행 중인 UI 테스트가 있습니다. 완료 후 다시 시도해 주세요.");
+        }
+
         // 계정당 최대 10개의 UI 테스트 동영상/이력만 유지하도록 제한 (10개 초과 시 오래된 항목 및 동영상 삭제)
         List<UiTest> userTests = uiTestRepository.findByUserOrderByCreatedAtAsc(user);
         if (userTests.size() >= 10) {

@@ -13,4 +13,7 @@ public interface UiTestRepository extends JpaRepository<UiTest, UUID> {
     long countByUser_UserId(UUID userId);
 
     List<UiTest> findByUser_UserIdOrderByCreatedAtDesc(UUID userId);
+
+    /** 진행 중(PENDING 또는 RUNNING)인 테스트 존재 여부 확인 */
+    boolean existsByUserAndStatusIn(User user, List<String> statuses);
 }
