@@ -48,26 +48,22 @@ const phaseLabels: Record<string, string> = {
   FAILED: '실패',
 };
 
+import { useUserStore } from '../store/userStore';
+import { useAlertStore } from '../store/alertStore';
+
+import { useDomains } from '../hooks/useDomains';
+
 interface LoadPageProps {
-  domains: Domain[];
-  currentUser: {
-    id: string;
-    coupons: number;
-    loadTestCoupons: number;
-    balance: number;
-  };
-  onUserUpdate: (updatedUser: { coupons: number; balance: number; loadTestCoupons?: number }) => void;
   onAddLedger: (ledgerItem: any) => void;
-  showAlert: (message: string, type?: string) => void;
 }
 
 export default function LoadPage({
-  domains,
-  currentUser,
-  onUserUpdate,
-  onAddLedger,
-  showAlert
+  onAddLedger
 }: LoadPageProps) {
+  const currentUser = useUserStore((state) => state.currentUser);
+  const onUserUpdate = useUserStore((state) => state.updateUserBalanceAndCoupons);
+  const showAlert = useAlertStore((state) => state.showAlert);
+  const { domains } = useDomains();
 
   const [selectedLoadDomain, setSelectedLoadDomain] = useState<number>(0);
   const [vusers, setVusers] = useState<number>(100);

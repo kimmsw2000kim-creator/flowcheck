@@ -13,31 +13,26 @@ interface Domain {
   verified: boolean;
 }
 
+import { useUserStore } from '../store/userStore';
+import { useAlertStore } from '../store/alertStore';
+
+import { useDomains } from '../hooks/useDomains';
+
 interface UiTestPageProps {
-  domains: Domain[];
   selectedUiTestDomain: number;
   setSelectedUiTestDomain: (id: number) => void;
-  currentUser: {
-    id: string;
-    coupons: number;
-    loadTestCoupons: number;
-    uiUxTestCoupons: number;
-    balance: number;
-  };
-  onUserUpdate: (updatedUser: { coupons: number; balance: number; loadTestCoupons?: number; uiUxTestCoupons?: number }) => void;
   onAddLedger: (ledgerItem: any) => void;
-  showAlert: (message: string, type?: string) => void;
 }
 
 export default function UiTestPage({
-  domains,
   selectedUiTestDomain,
   setSelectedUiTestDomain,
-  currentUser,
-  onUserUpdate,
   onAddLedger,
-  showAlert
 }: UiTestPageProps) {
+  const currentUser = useUserStore((state) => state.currentUser);
+  const onUserUpdate = useUserStore((state) => state.updateUserBalanceAndCoupons);
+  const showAlert = useAlertStore((state) => state.showAlert);
+  const { domains } = useDomains();
   const [targetUrl, setTargetUrl] = useState<string>('');
   const [uiTestStatus, setUiTestStatus] = useState<string>('idle'); // idle, running, success, error
   const [uiTestSteps, setUiTestSteps] = useState<UiTestStepData[]>([]);

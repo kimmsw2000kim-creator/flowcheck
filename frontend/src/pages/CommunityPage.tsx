@@ -31,28 +31,23 @@ interface LedgerItem {
   createdAt: string;
 }
 
+import { useUserStore } from '../store/userStore';
+import { useAlertStore } from '../store/alertStore';
+
 interface CommunityPageProps {
-  currentUser: {
-    id: string;
-    email: string;
-    balance: number;
-    coupons: number;
-  };
-  onUserUpdate: (updatedUser: { balance: number; coupons: number }) => void;
   ledger: LedgerItem[];
   onAddLedger: (ledgerItem: LedgerItem) => void;
-  showAlert: (message: string, type?: string) => void;
   handleSubmitReport: (type: string, id: number) => void;
 }
 
 export default function CommunityPage({
-  currentUser,
-  onUserUpdate,
   ledger,
   onAddLedger,
-  showAlert,
   handleSubmitReport
 }: CommunityPageProps) {
+  const currentUser = useUserStore((state) => state.currentUser);
+  const onUserUpdate = useUserStore((state) => state.updateUserBalanceAndCoupons);
+  const showAlert = useAlertStore((state) => state.showAlert);
   const [posts, setPosts] = useState<Post[]>([
     { id: 1, title: 'AI 이커머스 결제 프로세스 최적화 피드백을 부탁드립니다!', content: 'Gemini 추천 엔진을 바탕으로 장바구니 결제 프로세스를 리뉴얼했습니다. 고부하 상황에서의 응답 지연이나 UI/UX 측면에서의 개선 아이디어에 대해 부하 테스트 결과 및 피드백을 남겨주시면 감사하겠습니다.', promoUrl: '', userId: 'f87a32d1-921c-4b9b-90f3-cb2071850123', email: 'corp-user@flowcheck.com', likes: 12, shares: 4, createdAt: '2026-06-29' }
   ]);

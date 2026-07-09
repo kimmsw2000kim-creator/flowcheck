@@ -1,5 +1,7 @@
-import React from 'react';
 import { CreditCard, PlusCircle, Shield } from 'lucide-react';
+import { useUserStore } from '../store/userStore';
+
+import { useDomains } from '../hooks/useDomains';
 
 interface Domain {
   id: number;
@@ -9,18 +11,13 @@ interface Domain {
 }
 
 interface DashboardPageProps {
-  currentUser: {
-    balance: number;
-    coupons: number;
-    loadTestCoupons?: number;
-    uiUxTestCoupons?: number;
-  };
-  domains: Domain[];
   setActiveTab: (tab: string) => void;
   setSelectedUiTestDomain: (id: number) => void;
 }
 
-export default function DashboardPage({ currentUser, domains, setActiveTab, setSelectedUiTestDomain }: DashboardPageProps) {
+export default function DashboardPage({ setActiveTab, setSelectedUiTestDomain }: DashboardPageProps) {
+  const currentUser = useUserStore((state) => state.currentUser);
+  const { domains } = useDomains();
   return (
     <div>
       <div style={{ textAlign: 'left', marginBottom: '2rem' }}>
