@@ -10,6 +10,7 @@ COPY requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt \
     && python -m playwright install --with-deps chromium
+    playwright install --with-deps
 
 COPY . .
 
