@@ -1,15 +1,16 @@
 import React from 'react';
 import { CreditCard, Check, Shield } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import styles from '../../styles/landing.module.css';
 
 export default function PricingSection() {
   const navigate = useNavigate();
 
   return (
-    <section className="landing-section">
-      <div className="landing-section-header">
-        <span className="landing-section-subtitle">Flexible Pricing</span>
-        <h2 className="landing-section-title">요금제 안내</h2>
+    <section className={styles['landing-section']}>
+      <div className={styles['landing-section-header']}>
+        <span className={styles['landing-section-subtitle']}>Flexible Pricing</span>
+        <h2 className={styles['landing-section-title']}>요금제 안내</h2>
         <p style={{ color: 'var(--text-secondary)', marginTop: '0.75rem', fontSize: '1.05rem' }}>
           매월 청구되는 고정 비용 없이, 사용한 만큼만 차감되는 합리적인 크레딧 충전 방식입니다.
         </p>
@@ -24,7 +25,7 @@ export default function PricingSection() {
         margin: '0 auto'
       }}>
         {/* Left Card: Credit usage guide */}
-        <div className="pricing-card" style={{ padding: '3rem 2.5rem', justifyContent: 'space-between', border: '1px solid var(--border)' }}>
+        <div className={styles['pricing-card']} style={{ padding: '3rem 2.5rem', justifyContent: 'space-between', border: '1px solid var(--border)' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
               <div style={{
@@ -40,7 +41,7 @@ export default function PricingSection() {
                 <CreditCard size={24} />
               </div>
               <div>
-                <h3 className="pricing-plan" style={{ margin: 0 }}>크레딧 소모 요금</h3>
+                <h3 className={styles['pricing-plan']} style={{ margin: 0 }}>크레딧 소모 요금</h3>
                 <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>성능 / UX 자동화 테스트</span>
               </div>
             </div>
@@ -52,20 +53,20 @@ export default function PricingSection() {
               </div>
             </div>
 
-            <ul className="pricing-features-list" style={{ margin: '2rem 0' }}>
-              <li className="pricing-feature-item">
+            <ul className={styles['pricing-features-list']} style={{ margin: '2rem 0' }}>
+              <li className={styles['pricing-feature-item']}>
                 <Check size={16} style={{ color: 'var(--success)' }} />
                 <span>AI 자율 부하 테스트 (1회 작동)</span>
               </li>
-              <li className="pricing-feature-item">
+              <li className={styles['pricing-feature-item']}>
                 <Check size={16} style={{ color: 'var(--success)' }} />
                 <span>AI 멀티모달 자율 탐색 UX 감사 (1회 작동)</span>
               </li>
-              <li className="pricing-feature-item">
+              <li className={styles['pricing-feature-item']}>
                 <Check size={16} style={{ color: 'var(--success)' }} />
                 <span>수천 명 가상 VU 동시 시뮬레이션 지원</span>
               </li>
-              <li className="pricing-feature-item">
+              <li className={styles['pricing-feature-item']}>
                 <Check size={16} style={{ color: 'var(--success)' }} />
                 <span>실시간 모니터링 대시보드 및 상세 분석 리포트</span>
               </li>
@@ -88,21 +89,21 @@ export default function PricingSection() {
             <span><strong>토스페이먼츠</strong> 안전 간편 결제 완벽 지원</span>
           </div>
 
-          <button className="btn-secondary" style={{ width: '100%' }} onClick={() => navigate('/billing')}>
+          <button className={styles['btn-secondary']} style={{ width: '100%' }} onClick={() => navigate('/billing')}>
             크레딧 충전하러 가기
           </button>
         </div>
 
         {/* Right Card: Discount Packages */}
-        <div className="pricing-card popular" style={{ padding: '3rem 2.5rem', justifyContent: 'space-between' }}>
+        <div className={`${styles['pricing-card']} ${styles.popular}`} style={{ padding: '3rem 2.5rem', justifyContent: 'space-between' }}>
           {/* Highlight Badge */}
-          <div className="popular-badge" style={{ whiteSpace: 'nowrap', padding: '0.4rem 1.2rem', fontSize: '0.8rem' }}>
+          <div className={styles['popular-badge']} style={{ whiteSpace: 'nowrap', padding: '0.4rem 1.2rem', fontSize: '0.8rem' }}>
             🔥 최대 30% 파격 할인가 적용 패키지 판매 중
           </div>
 
           <div>
-            <h3 className="pricing-plan" style={{ fontSize: '1.4rem', marginBottom: '0.5rem', marginTop: '0.5rem' }}>코인 패키지 충전</h3>
-            <p className="pricing-desc" style={{ marginBottom: '2rem' }}>
+            <h3 className={styles['pricing-plan']} style={{ fontSize: '1.4rem', marginBottom: '0.5rem', marginTop: '0.5rem' }}>코인 패키지 충전</h3>
+            <p className={styles['pricing-desc']} style={{ marginBottom: '2rem' }}>
               크레딧을 묶음으로 한 번에 충전하고 최대 30% 할인 혜택을 받아보세요. 충전된 크레딧은 유효기간 없이 무제한으로 사용 가능합니다.
             </p>
 
@@ -141,7 +142,7 @@ export default function PricingSection() {
             </div>
           </div>
 
-          <button className="btn-primary" style={{ width: '100%' }} onClick={() => navigate('/billing')}>
+          <button className={styles['btn-primary']} style={{ width: '100%' }} onClick={() => navigate('/billing')}>
             보너스 패키지 구매하기
           </button>
         </div>

@@ -10,6 +10,8 @@ import boto3
 from botocore.exceptions import ClientError
 from pydantic import BaseModel
 
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8080")
+
 AWS_REGION = os.environ.get("AWS_REGION", "ap-northeast-2")
 
 try:
@@ -151,7 +153,7 @@ async def publish_progress(request_id: Optional[str], payload: LoadTestProgressU
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             await client.post(
-                f"http://localhost:8080/api/load-tests/{request_id}/progress",
+                f"{BACKEND_URL}/api/load-tests/{request_id}/progress",
                 json=payload.model_dump(),
             )
     except Exception:

@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { TrendingUp, RefreshCw } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import axios from 'axios';
+import Button from '../components/common/Button';
+import EmptyState from '../components/common/EmptyState';
 
 interface Domain {
   id: number;
@@ -333,26 +335,27 @@ export default function LoadPage({
               </div>
             </div>
 
-            <button
-              className="btn btn-primary"
+            <Button
+              variant="primary"
               style={{ width: '100%', marginTop: '1rem' }}
               onClick={handleRunLoadTest}
-              disabled={loadStatus === 'running'}
+              isLoading={loadStatus === 'running'}
+              loadingText="부하 테스트 실행 중..."
             >
-              {loadStatus === 'running' ? '부하 테스트 실행 중...' : '테스트 시나리오 생성 및 실행'}
-            </button>
+              <span>테스트 시나리오 생성 및 실행</span>
+            </Button>
           </div>
         </div>
 
         <div>
-          <div className="card" style={{ minHeight: '400px' }}>
+          <div className="card" style={{ minHeight: '400px', display: 'flex', flexDirection: 'column' }}>
             <h3 style={{ marginBottom: '1.25rem' }}>테스트 분석 지표 및 실시간 차트</h3>
 
             {loadStatus === 'idle' && (
-              <div style={{ color: 'var(--text-muted)', textAlign: 'center', paddingTop: '6rem' }}>
-                <TrendingUp size={48} style={{ margin: '0 auto 1rem', opacity: 0.3 }} />
-                <p>Gemini AI가 k6 테스트 스크립트를 동적으로 설계하고 헤드리스로 구동합니다.</p>
-              </div>
+              <EmptyState
+                title="부하 테스트 대기 중"
+                description="Gemini AI가 k6 테스트 스크립트를 동적으로 설계하고 헤드리스로 구동합니다."
+              />
             )}
 
             {loadStatus === 'running' && (

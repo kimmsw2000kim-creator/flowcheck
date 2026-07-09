@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowRight, Check, ExternalLink, Award } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import styles from '../../styles/landing.module.css';
 
 interface MockProject {
   id: number;
@@ -46,18 +47,18 @@ export default function CommunitySection() {
   ];
 
   return (
-    <section className="landing-section" style={{ background: 'rgba(255, 255, 255, 0.45)', borderRadius: '2rem', padding: '5rem 2rem' }}>
-      <div className="landing-section-header">
-        <span className="landing-section-subtitle">FlowCheck Verified Showcase</span>
-        <h2 className="landing-section-title">검증된 프로젝트를 만나보세요</h2>
+    <section className={styles['landing-section']} style={{ background: 'rgba(255, 255, 255, 0.45)', borderRadius: '2rem', padding: '5rem 2rem' }}>
+      <div className={styles['landing-section-header']}>
+        <span className={styles['landing-section-subtitle']}>FlowCheck Verified Showcase</span>
+        <h2 className={styles['landing-section-title']}>검증된 프로젝트를 만나보세요</h2>
         <p style={{ color: 'var(--text-secondary)', marginTop: '0.75rem', fontSize: '1.05rem' }}>
           FlowCheck 자율 AI 테스트를 성공적으로 통과하고 안전성을 입증한 우수 웹 서비스들을 소개합니다.
         </p>
       </div>
 
-      <div className="community-grid">
+      <div className={styles['community-grid']}>
         {mockProjects.map((project) => (
-          <div key={project.id} className="project-card" style={{ position: 'relative', overflow: 'hidden', border: '1px solid var(--accent-border)' }}>
+          <div key={project.id} className={styles['project-card']} style={{ position: 'relative', overflow: 'hidden', border: '1px solid var(--accent-border)' }}>
             
             {/* Prominent FlowCheck Verified Green Badge */}
             <div style={{
@@ -79,11 +80,11 @@ export default function CommunitySection() {
               <span>FlowCheck Verified</span>
             </div>
 
-            <div className="project-header">
-              <h3 className="project-title" style={{ fontSize: '1.1rem', fontWeight: 700 }}>{project.title}</h3>
+            <div className={styles['project-header']}>
+              <h3 className={styles['project-title']} style={{ fontSize: '1.1rem', fontWeight: 700 }}>{project.title}</h3>
             </div>
             
-            <div className="project-url">
+            <div className={styles['project-url']}>
               <a 
                 href={project.url} 
                 target="_blank" 
@@ -95,29 +96,29 @@ export default function CommunitySection() {
               </a>
             </div>
 
-            <div className="project-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', marginTop: '1rem' }}>
-              <div className="stat-item">
-                <span className="stat-label">테스트 점수</span>
-                <span className="stat-value" style={{ color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>
+            <div className={styles['project-stats']} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', marginTop: '1rem' }}>
+              <div className={styles['stat-item']}>
+                <span className={styles['stat-label']}>테스트 점수</span>
+                <span className={styles['stat-value']} style={{ color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>
                   <Award size={14} />
                   {project.score}점
                 </span>
               </div>
-              <div className="stat-item">
-                <span className="stat-label">응답 속도</span>
-                <span className="stat-value">{project.responseTime}</span>
+              <div className={styles['stat-item']}>
+                <span className={styles['stat-label']}>응답 속도</span>
+                <span className={styles['stat-value']}>{project.responseTime}</span>
               </div>
-              <div className="stat-item">
-                <span className="stat-label">업타임</span>
-                <span className="stat-value stat-success">{project.uptime}</span>
+              <div className={styles['stat-item']}>
+                <span className={styles['stat-label']}>업타임</span>
+                <span className={`${styles['stat-value']} ${styles['stat-success']}`}>{project.uptime}</span>
               </div>
             </div>
           </div>
         ))}
       </div>
 
-      <div className="community-cta">
-        <button className="btn-primary" onClick={() => navigate('/community')}>
+      <div className={styles['community-cta']}>
+        <button className={styles['btn-primary']} onClick={() => navigate('/community')}>
           내 서비스 등록하고 검증 받기
           <ArrowRight size={16} />
         </button>
