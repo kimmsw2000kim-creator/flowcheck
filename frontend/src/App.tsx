@@ -14,7 +14,7 @@ import CommunityPage from './pages/CommunityPage';
 import PostWritePage from "./pages/PostWritePage";
 import PostDetailPage from "./pages/PostDetailPage";
 import PostEditPage from "./pages/PostEditPage";
-import AdminPage from './pages/AdminPage';
+import AdminPage from './pages/admin/AdminPage';
 import Mypage from './pages/Mypage';
 import AuthPage from './pages/AuthPage';
 import AuthCallback from './pages/AuthCallback';

@@ -93,4 +93,12 @@ public class User {
         this.status = UserStatus.ACTIVE;
         this.suspendedUntil = null;
     }
+
+    /*
+    user 룰 변경
+     */
+    public void changeRole(Role newRole) {
+        this.role = newRole;
+    }
+
 }
