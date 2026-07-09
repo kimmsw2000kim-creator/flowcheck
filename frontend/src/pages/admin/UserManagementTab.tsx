@@ -1,14 +1,5 @@
-import React, { useState } from 'react';
-
-interface AdminUser {
-    userId: string;
-    email: string;
-    role: 'USER' | 'ADMIN';
-    status: 'ACTIVE' | 'SUSPENDED';
-    balance: number;
-    createdAt: string;
-    suspendedUntil: string | null;
-}
+import React, { useState, useEffect } from 'react';
+import { fetchAdminUsers, changeUserRole, suspendUser, activateUser, AdminUser } from '../../api/adminApi';
 
 interface UserManagementTabProps {
     currentUser: {
@@ -19,27 +10,32 @@ interface UserManagementTabProps {
 }
 
 export default function UserManagementTab({ currentUser }: UserManagementTabProps) {
-    const [users, setUsers] = useState<AdminUser[]>([
-        { userId: '1', email: 'user1@test.com', role: 'USER', status: 'ACTIVE', balance: 10000, createdAt: '2026-06-01', suspendedUntil: null },
-        { userId: '2', email: 'user2@test.com', role: 'USER', status: 'SUSPENDED', balance: 5000, createdAt: '2026-06-15', suspendedUntil: '2026-07-15' },
-        { userId: '3', email: 'admin@test.com', role: 'ADMIN', status: 'ACTIVE', balance: 0, createdAt: '2026-05-20', suspendedUntil: null },
-    ]);
+    const [users, setUsers] = useState<AdminUser[]>([]);
+    useEffect(() => {
+        fetchAdminUsers().then(setUsers);
+    }, []);
+
+
 
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
+
     const selectedUser = users.find(u => u.userId === selectedUserId) || null;
 
-    const handleChangeRole = (userId: string, newRole: 'USER' | 'ADMIN') => {
-        setUsers(prev => prev.map(u => u.userId === userId ? { ...u, role: newRole } : u));
+    const handleChangeRole = async (userId: string, newRole: 'USER' | 'ADMIN') => {
+        const updated = await changeUserRole(userId, newRole);
+        setUsers(prev => prev.map(u => u.userId === userId ? updated : u));
     };
 
-    const handleToggleStatus = (userId: string) => {
-        setUsers(prev => prev.map(u =>
-            u.userId === userId
-                ? { ...u, status: u.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE' }
-                : u
-        ));
+    const handleToggleStatus = async (userId: string) => {
+        const target = users.find(u => u.userId === userId);
+        if (!target) return;
+        const updated = target.status === 'ACTIVE'
+            ? await suspendUser(userId)
+            : await activateUser(userId);
+        setUsers(prev => prev.map(u => u.userId === userId ? updated : u));
     };
+
 
     return (
         <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '2rem' }}>
@@ -81,6 +77,7 @@ export default function UserManagementTab({ currentUser }: UserManagementTabProp
                         <p>이메일: {selectedUser.email}</p>
                         <p>가입일: {selectedUser.createdAt}</p>
                         <p>잔액: {selectedUser.balance}</p>
+                        <p>쿠폰: {selectedUser.couponCount}</p>
                         <p>상태: {selectedUser.status}</p>
 
                         <div style={{ marginTop: '1rem' }}>
