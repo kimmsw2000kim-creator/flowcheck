@@ -16,3 +16,4 @@ google-genai
 playwright
 python-dotenv
 httpx
+boto3==1.43.44
