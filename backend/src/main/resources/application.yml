@@ -11,7 +11,7 @@ spring:
     password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
     hikari:
-      maximum-pool-size: 3 # 개발환경에서는 3개면 충분하답니다.
+      maximum-pool-size: 3 # 개발환경에서는 3개면 충분
   jpa:
     hibernate:
       ddl-auto: update
@@ -39,3 +39,22 @@ external:
 
 fastapi:
   url: ${FASTAPI_URL:http://localhost:8000}
+
+---
+# ✅ 배포 환경(prod) 오버라이드: 개발 설정과 분리
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    hikari:
+      maximum-pool-size: 10       # 배포 환경에서는 커넥션 풀 확대
+      minimum-idle: 3
+      connection-timeout: 20000   # 20초 내 커넥션 획득 못하면 예외
+      idle-timeout: 600000        # 10분 유휴 시 반환
+      max-lifetime: 1800000       # 30분 최대 수명
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: false
