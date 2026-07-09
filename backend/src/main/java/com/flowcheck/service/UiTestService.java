@@ -40,14 +40,14 @@ public class UiTestService {
     private static final int TEST_COST = 1_000;
 
     @Transactional
-    public UUID submitUiTest(UUID userId, UiTestStartRequest request) {
+    public UUID submitUiTest(String email, UiTestStartRequest request) {
         // 1. 유저 조회 또는 자동 생성 (로컬 테스트 및 빠른 수동 검증의 편의를 위해 없을 경우 생성)
-        User user = userRepository.findById(userId)
+        User user = userRepository.findByEmail(email)
                 .orElseGet(() -> {
-                    log.info("User {} not found, creating dynamic mock user.", userId);
+                    log.info("User {} not found, creating dynamic mock user.", email);
                     User newUser = User.builder()
-                            .userId(userId)
-                            .email("corp-user@flowcheck.com")
+                            .userId(UUID.randomUUID())
+                            .email(email)
                             .balance(100_000)
                             .role(Role.USER)
                             .status(UserStatus.ACTIVE)
@@ -75,7 +75,7 @@ public class UiTestService {
                 // DB에서 레코드 삭제 (Cascade 설정에 의해 ui_test_steps도 자동 삭제됨)
                 uiTestRepository.delete(oldestTest);
                 log.info("Deleted oldest UI test record {} for user {} due to 10-test limit", oldestTest.getId(),
-                        userId);
+                        email);
             }
         }
 
