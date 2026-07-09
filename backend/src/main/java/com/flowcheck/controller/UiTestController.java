@@ -18,7 +18,7 @@ import java.util.UUID;
 @RequestMapping("/api/ui-tests")
 @RequiredArgsConstructor
 @Slf4j
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = {"http://localhost:5173", "https://flow-check.duckdns.org"})
 public class UiTestController {
 
     private final UiTestService uiTestService;
