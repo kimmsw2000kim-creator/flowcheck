@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpHeaders;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -62,8 +63,11 @@ public class LoadTestController {
 
     @Operation(summary = "부하 테스트 실시간 상태 스트림", description = "특정 요청 ID의 진행 상태를 SSE로 스트리밍합니다.")
     @GetMapping(value = "/{requestId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter streamTestStatus(@PathVariable UUID requestId) {
-        return loadTestStreamService.register(requestId);
+    public ResponseEntity<SseEmitter> streamTestStatus(@PathVariable UUID requestId) {
+        SseEmitter emitter = loadTestStreamService.register(requestId);
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-Accel-Buffering", "no");
+        return new ResponseEntity<>(emitter, headers, HttpStatus.OK);
     }
 
     @Operation(summary = "부하 테스트 진행 상태 접수", description = "FastAPI 서버가 요청 ID별 진행 상태를 Spring에 전달합니다.")
