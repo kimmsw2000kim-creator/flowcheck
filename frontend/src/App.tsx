@@ -19,6 +19,7 @@ import Mypage from './pages/Mypage';
 import AuthPage from './pages/AuthPage';
 import AuthCallback from './pages/AuthCallback';
 import LandingPage from './pages/LandingPage';
+import CommentPage from "./pages/CommentPage";
 
 // Types & Utils
 import axios from 'axios';
@@ -65,11 +66,12 @@ function App() {
     admin: '/admin',
     login: '/login',
     signup: '/signup',
+    comment: "/comment",
   };
 
   // Supports sub-paths for active tab checking (e.g., /community/write)
   const activeTab =
-    Object.entries(tabRoutes).find(([ , path]) =>
+    Object.entries(tabRoutes).find(([, path]) =>
       location.pathname === path || location.pathname.startsWith(`${path}/`)
     )?.[0] ?? 'dashboard';
 
@@ -158,7 +160,7 @@ function App() {
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/login" element={<Navigate to="/dashboard" replace />} />
               <Route path="/signup" element={<Navigate to="/dashboard" replace />} />
-              
+
               <Route
                 path="/dashboard"
                 element={
@@ -222,6 +224,16 @@ function App() {
               <Route path="/community/write" element={<PostWritePage />} />
               <Route path="/community/:postId" element={<PostDetailPage />} />
               <Route path="/community/:postId/edit" element={<PostEditPage />} />
+
+              <Route
+                path="/comment"
+                element={
+                  <CommentPage
+                    currentUser={currentUser}
+                    showAlert={showAlert}
+                  />
+                }
+              />
 
               <Route
                 path="/admin"
