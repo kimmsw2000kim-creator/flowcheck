@@ -156,6 +156,7 @@ export default function LoadPage({
       }
 
       if (data.status === 'COMPLETED') {
+        eventSource.close();
         axios.get(`/api/load-tests/${requestId}`)
           .then((resultResponse) => {
             const resultData = resultResponse.data;
@@ -178,9 +179,6 @@ export default function LoadPage({
             console.error('Failed to load final result:', resultError);
             setLoadStatus('error');
             showAlert('최종 결과를 불러오지 못했습니다.', 'error');
-          })
-          .finally(() => {
-            eventSource.close();
           });
       }
     };
