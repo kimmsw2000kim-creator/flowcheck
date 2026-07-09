@@ -51,10 +51,17 @@ export async function createPost({
     content: string;
     promoUrl?: string;
 }) {
+    const email = localStorage.getItem("email");
+
     const response = await fetch(`${API_BASE_URL}/api/posts`, {
         method: "POST",
         headers: authHeaders(),
-        body: JSON.stringify({ title, content, promoUrl }),
+        body: JSON.stringify({
+            title,
+            content,
+            promoUrl,
+            email,
+        }),
     });
 
     if (!response.ok) {

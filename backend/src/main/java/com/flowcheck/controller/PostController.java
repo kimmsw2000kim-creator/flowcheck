@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.Authentication;
 
 import java.util.List;
 
@@ -55,12 +56,11 @@ public class PostController {
         public PostListResponse createPost(@RequestBody PostRequest request) {
                 Post post = new Post();
 
+                String email = request.getEmail();
+
                 post.setTitle(request.getTitle());
                 post.setContent(request.getContent());
-
-                String email = "user@gmail.com";
-
-                post.setEmail("user@gmail.com");
+                post.setEmail(email);
                 post.setWriterEmail(email);
                 post.setUserId(email);
 
@@ -115,17 +115,30 @@ public class PostController {
         }
 
         @PostMapping("/{postId}/comments")
-        public void createComment(
+        public CommentResponse createComment(
                         @PathVariable Long postId,
-                        @RequestBody CommentRequest request) {
+                        @RequestBody CommentRequest request,
+                        Authentication authentication) {
                 Comment comment = new Comment();
+
                 comment.setPostId(postId);
                 comment.setParentId(request.getParentId());
                 comment.setContent(request.getContent());
 
-                // 나중에 JWT 로그인 유저 이메일로 바꾸면 됨
-                comment.setWriterEmail("jin1000066@gmail.com");
+                String email = authentication != null
+                                ? authentication.getName()
+                                : "unknown@flowcheck.com";
 
-                commentRepository.save(comment);
+                comment.setWriterEmail(email);
+
+                Comment saved = commentRepository.save(comment);
+
+                return new CommentResponse(
+                                saved.getId(),
+                                saved.getContent(),
+                                saved.getWriterEmail(),
+                                saved.getCreatedAt(),
+                                saved.getParentId(),
+                                List.of());
         }
 }
