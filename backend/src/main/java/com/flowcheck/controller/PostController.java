@@ -58,9 +58,9 @@ public class PostController {
                 post.setTitle(request.getTitle());
                 post.setContent(request.getContent());
 
-                String email = "jin1000066@gmail.com";
+                String email = "user@gmail.com";
 
-                post.setEmail("jin1000066@gmail.com");
+                post.setEmail("user@gmail.com");
                 post.setWriterEmail(email);
                 post.setUserId(email);
 
