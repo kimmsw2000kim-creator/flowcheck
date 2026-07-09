@@ -1,5 +1,6 @@
 import type { MypageData } from '../../types/mypage';
 import styles from '../../styles/mypage.module.css';
+import EmptyState from '../../components/common/EmptyState';
 
 interface MypagePointSectionProps {
   data: MypageData;
@@ -27,10 +28,10 @@ function MypagePointSection({ data }: MypagePointSectionProps) {
       </div>
 
       {data.couponCount === 0 && (
-        <div className={styles['empty-state']}>
-          <strong>보유한 쿠폰이 없습니다.</strong>
-          <p>쿠폰을 구매하거나 이벤트 쿠폰을 등록하면 여기에 표시됩니다.</p>
-        </div>
+        <EmptyState
+          title="보유한 쿠폰이 없습니다."
+          description="쿠폰을 구매하거나 이벤트 쿠폰을 등록하면 여기에 표시됩니다."
+        />
       )}
     </section>
   );

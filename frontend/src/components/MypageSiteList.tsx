@@ -1,5 +1,7 @@
 import type { SiteSummary } from '../types/mypage';
 import styles from '../styles/mypage.module.css';
+import EmptyState from './common/EmptyState';
+import StatusBadge from './common/StatusBadge';
 
 interface MypageSiteListProps {
   sites: SiteSummary[];
@@ -11,10 +13,10 @@ function MypageSiteList({ sites }: MypageSiteListProps) {
       <h2>등록 사이트</h2>
 
       {sites.length === 0 ? (
-        <div className={styles['empty-state']}>
-          <strong>등록된 사이트가 없습니다.</strong>
-          <p>도메인 관리에서 사이트를 등록하면 여기에 표시됩니다.</p>
-        </div>
+        <EmptyState
+          title="등록된 사이트가 없습니다."
+          description="도메인 관리에서 사이트를 등록하면 여기에 표시됩니다."
+        />
       ) : (
         <div className={styles['site-list']}>
           {sites.map((site) => (
@@ -24,9 +26,10 @@ function MypageSiteList({ sites }: MypageSiteListProps) {
                 <p>{site.domainURL}</p>
               </div>
 
-              <span className={`${styles['status-badge']} ${site.isVerified ? '' : styles.pending}`}>
-                {site.isVerified ? '인증 완료' : '인증 대기'}
-              </span>
+              <StatusBadge
+                status={site.isVerified ? 'SUCCESS' : 'PENDING'}
+                label={site.isVerified ? '인증 완료' : '인증 대기'}
+              />
             </div>
           ))}
         </div>

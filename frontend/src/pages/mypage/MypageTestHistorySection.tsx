@@ -5,6 +5,8 @@ import { getAccessToken } from '../../api/authApi';
 import { fetchMypageTestHistory } from '../../api/mypageApi';
 import type { MypageTestHistoryItem } from '../../types/mypage';
 import styles from '../../styles/mypage.module.css';
+import EmptyState from '../../components/common/EmptyState';
+import StatusBadge from '../../components/common/StatusBadge';
 
 const statusLabels: Record<string, string> = {
     PENDING: '대기 중',
@@ -67,24 +69,24 @@ function MypageTestHistorySection() {
             <p>실행한 테스트 목록과 결과 상태를 확인할 수 있습니다.</p>
 
             {loading && (
-                <div className={styles['empty-state']}>
-                    <strong>테스트 이력을 불러오는 중입니다.</strong>
-                    <p>잠시만 기다려 주세요.</p>
-                </div>
+                <EmptyState
+                    title="테스트 이력을 불러오는 중입니다."
+                    description="잠시만 기다려 주세요."
+                />
             )}
 
             {!loading && errorMessage && (
-                <div className={styles['empty-state']}>
-                    <strong>{errorMessage}</strong>
-                    <p>로그인 상태를 확인한 뒤 다시 시도해 주세요.</p>
-                </div>
+                <EmptyState
+                    title={errorMessage}
+                    description="로그인 상태를 확인한 뒤 다시 시도해 주세요."
+                />
             )}
 
             {!loading && !errorMessage && tests.length === 0 && (
-                <div className={styles['empty-state']}>
-                    <strong>실행한 테스트가 없습니다.</strong>
-                    <p>AI UI 테스트나 부하 테스트를 실행하면 이곳에 기록됩니다.</p>
-                </div>
+                <EmptyState
+                    title="실행한 테스트가 없습니다."
+                    description="AI UI 테스트나 부하 테스트를 실행하면 이곳에 기록됩니다."
+                />
             )}
 
             {!loading && !errorMessage && tests.length > 0 && (
@@ -108,9 +110,10 @@ function MypageTestHistorySection() {
                                             <p>{test.targetUrl}</p>
                                         </div>
 
-                                        <span className={`${styles['status-badge']} ${isDone ? '' : isFailed ? styles.failed : styles.pending}`}>
-                                            {statusLabels[test.status] || test.status}
-                                        </span>
+                                        <StatusBadge
+                                            status={test.status}
+                                            label={statusLabels[test.status] || test.status}
+                                        />
                                     </div>
 
                                     <div className={styles['test-history-meta']}>
