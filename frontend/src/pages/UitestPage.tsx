@@ -46,6 +46,16 @@ export default function UiTestPage({
   // ✅ 제출 중 중복 클릭 방지 (React state보다 빠르게 동기적으로 차단)
   const isSubmittingRef = React.useRef(false);
 
+  // ✅ 새로운 스텝 추가 시 자동 스크롤을 위한 Ref
+  const stepsEndRef = React.useRef<HTMLDivElement>(null);
+
+  // 스텝 배열이 갱신될 때마다 자동으로 스크롤 하단으로 이동
+  useEffect(() => {
+    if (stepsEndRef.current) {
+      stepsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [uiTestSteps]);
+
   /** interval을 완전히 정지하는 헬퍼 함수 */
   const stopPolling = React.useCallback(() => {
     if (intervalRef.current !== null) {
@@ -380,6 +390,7 @@ export default function UiTestPage({
                       </div>
                     </div>
                   ))}
+                  <div ref={stepsEndRef} />
                 </div>
 
                 {uiTestStatus === 'success' && (
