@@ -3,19 +3,20 @@ import type { Session } from "@supabase/supabase-js";
 import { login, signup } from "../api/authApi";
 import { supabase } from "../lib/supabaseClient";
 
+import { useAlertStore } from "../store/alertStore";
+import { useUserStore } from "../store/userStore";
+
 interface AuthPageProps {
   setActiveTab: (tab: string) => void;
-  onLoginSuccess: (email: string, token: string, userId: string) => void;
-  showAlert: (message: string, type?: string) => void;
   initialMode?: "login" | "signup";
 }
 
 export default function AuthPage({
   setActiveTab,
-  onLoginSuccess,
-  showAlert,
   initialMode = "login",
 }: AuthPageProps) {
+  const showAlert = useAlertStore((state) => state.showAlert);
+  const loginSuccess = useUserStore((state) => state.loginSuccess);
   const [mode, setMode] = useState<"login" | "signup">(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -70,14 +71,14 @@ export default function AuthPage({
       localStorage.setItem("email", user.email);
       localStorage.setItem("userId", user.id);
 
-      onLoginSuccess(user.email, session.access_token, user.id);
+      loginSuccess(user.email, session.access_token, user.id);
       showAlert("Google 계정으로 로그인되었습니다!", "success");
       setActiveTab("dashboard");
 
       // OAuth redirect 후 URL에 남은 code/hash 제거
       window.history.replaceState({}, document.title, window.location.origin);
     },
-    [onLoginSuccess, setActiveTab, showAlert]
+    [loginSuccess, setActiveTab, showAlert]
   );
 
   useEffect(() => {
@@ -127,7 +128,7 @@ export default function AuthPage({
         localStorage.setItem("refreshToken", data.refreshToken);
         localStorage.setItem("email", data.email);
 
-        onLoginSuccess(data.email, data.accessToken, data.userId);
+        loginSuccess(data.email, data.accessToken, data.userId);
         showAlert("로그인에 성공했습니다!", "success");
         setActiveTab("dashboard");
       } catch (error) {

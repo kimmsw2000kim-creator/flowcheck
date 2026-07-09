@@ -5,25 +5,21 @@ import Button from '../components/common/Button';
 import TextField from '../components/common/TextField';
 import StatusBadge from '../components/common/StatusBadge';
 
+import { useDomains } from '../hooks/useDomains';
+
 interface DomainsPageProps {
-  domains: Domain[];
-  newDomainUrl: string;
-  setNewDomainUrl: (url: string) => void;
-  handleAddDomain: (e: React.FormEvent) => void;
-  handleVerifyDomain: (id: number) => void;
-  handleDeleteDomain: (id: number) => void;
-  verificationLoading: boolean;
 }
 
-export default function DomainsPage({
-  domains,
-  newDomainUrl,
-  setNewDomainUrl,
-  handleAddDomain,
-  handleVerifyDomain,
-  handleDeleteDomain,
-  verificationLoading
-}: DomainsPageProps) {
+export default function DomainsPage({}: DomainsPageProps) {
+  const {
+    domains,
+    newDomainUrl,
+    setNewDomainUrl,
+    handleAddDomain,
+    handleVerifyDomain,
+    handleDeleteDomain,
+    verificationLoading,
+  } = useDomains();
   return (
     <div style={{ textAlign: 'left' }}>
       <h2 style={{ fontSize: '1.75rem', marginBottom: '1.5rem' }}>도메인 소유권 검증 및 관리</h2>

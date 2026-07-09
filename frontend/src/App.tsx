@@ -25,7 +25,8 @@ import CommentPage from "./pages/CommentPage";
 import axios from 'axios';
 import './api/client';
 import type { Domain } from './types/domain';
-import { fetchDomains, registerDomain, verifyDomain, deleteDomain } from './api/domainApi';
+import { useUserStore } from './store/userStore';
+import { useAlertStore } from './store/alertStore';
 
 interface LedgerItem {
   id: number;
@@ -78,16 +79,13 @@ function App() {
     navigate(tabRoutes[tab] ?? '/dashboard');
   };
 
-  const [currentUser, setCurrentUser] = useState({
-    id: localStorage.getItem("userId") ?? '',
-    email: localStorage.getItem("email") ?? '',
-    role: 'USER', // USER or ADMIN
-    balance: 0,
-    status: 'ACTIVE',
-    coupons: 0,
-    loadTestCoupons: 0,
-    uiUxTestCoupons: 0
-  });
+  const currentUser = useUserStore((state) => state.currentUser);
+  const setCurrentUser = useUserStore((state) => state.setCurrentUser);
+  const alertMsg = useAlertStore((state) => state.alertMsg);
+  const showAlert = useAlertStore((state) => state.showAlert);
+
+  const [ledger, setLedger] = useState<LedgerItem[]>([]);
+  const [reports, setReports] = useState<Report[]>([]);
 
   const isLoggedIn = !!currentUser.email;
   const isLandingPage = !isLoggedIn && location.pathname === '/';
@@ -99,14 +97,13 @@ function App() {
       axios.get('/api/mypage')
         .then((res) => {
           const data = res.data;
-          setCurrentUser(prev => ({
-            ...prev,
+          setCurrentUser({
             email: data.email,
             balance: data.balance,
             coupons: data.couponCount,
             loadTestCoupons: data.loadTestCouponCount,
             uiUxTestCoupons: data.uiUxTestCouponCount
-          }));
+          });
         })
         .catch((err) => {
           console.error("Failed to load user profile session:", err);
@@ -120,131 +117,9 @@ function App() {
           console.error("Failed to load ledger history:", err);
         });
     }
-  }, [currentUser.email]);
-
-  // Fetch Verified Domain List
-  const [domains, setDomains] = useState<Domain[]>([]);
-  const [newDomainUrl, setNewDomainUrl] = useState<string>('');
-  const [verificationLoading, setVerificationLoading] = useState<boolean>(false);
-
-  useEffect(() => {
-    const accessToken = localStorage.getItem("accessToken");
-    if (accessToken) {
-      fetchDomains()
-        .then((data) => {
-          setDomains(data);
-        })
-        .catch((err) => {
-          console.error("Failed to load domains:", err.message);
-        });
-    }
-  }, [currentUser.email]);
+  }, [currentUser.email, setCurrentUser]);
 
   const [selectedUiTestDomain, setSelectedUiTestDomain] = useState<number>(1);
-  const [ledger, setLedger] = useState<LedgerItem[]>([]);
-  const [reports, setReports] = useState<Report[]>([]);
-  const [alertMsg, setAlertMsg] = useState<AlertMsg | null>(null);
-
-  const showAlert = (message: string, type: string = 'success') => {
-    setAlertMsg({ message, type });
-    setTimeout(() => setAlertMsg(null), 5000);
-  };
-
-  const toggleRole = () => {
-    const nextRole = currentUser.role === 'USER' ? 'ADMIN' : 'USER';
-    setCurrentUser(prev => ({ ...prev, role: nextRole }));
-    showAlert(`시뮬레이션 역할을 ${nextRole === 'ADMIN' ? '관리자' : '일반 사용자'}(으)로 전환했습니다.`, 'info');
-  };
-
-  const handleLogout = () => {
-    localStorage.clear();
-    setCurrentUser({
-      id: '',
-      email: '',
-      role: 'USER',
-      balance: 0,
-      status: 'ACTIVE',
-      coupons: 0,
-      loadTestCoupons: 0,
-      uiUxTestCoupons: 0
-    });
-    navigate('/login');
-  };
-
-  const handleLoginSuccess = (email: string, _token?: string, userId?: string) => {
-    if (email) localStorage.setItem("email", email);
-    if (userId) localStorage.setItem("userId", userId);
-
-    setCurrentUser(prev => ({
-      ...prev,
-      id: userId ?? prev.id,
-      email
-    }));
-    navigate("/dashboard");
-  };
-
-  const handleAddDomain = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newDomainUrl) return;
-    if (!currentUser.email) {
-      showAlert('로그인이 필요합니다.', 'error');
-      return;
-    }
-    registerDomain(newDomainUrl)
-      .then((data) => {
-        setDomains(prev => [data, ...prev]);
-        setNewDomainUrl('');
-        showAlert('도메인이 등록되었습니다. 소유권 검증 토큰을 적용한 후 지금 검증하기를 클릭하세요.');
-      })
-      .catch((err) => {
-        showAlert(err.message, 'error');
-      });
-  };
-
-  const handleVerifyDomain = (id: number) => {
-    setVerificationLoading(true);
-    if (!currentUser.email) {
-      showAlert('로그인이 필요합니다.', 'error');
-      setVerificationLoading(false);
-      return;
-    }
-    verifyDomain(id)
-      .then(() => {
-        setDomains(prev => prev.map(d => d.id === id ? { ...d, verified: true } : d));
-        setVerificationLoading(false);
-        showAlert('도메인 소유권 검증이 완료되었습니다!');
-      })
-      .catch((err) => {
-        setVerificationLoading(false);
-        showAlert(err.message, 'error');
-      });
-  };
-
-  const handleDeleteDomain = (id: number) => {
-    if (!window.confirm("정말로 이 도메인을 삭제하시겠습니까?")) return;
-    if (!currentUser.email) {
-      showAlert('로그인이 필요합니다.', 'error');
-      return;
-    }
-    deleteDomain(id)
-      .then(() => {
-        setDomains(prev => prev.filter(d => d.id !== id));
-        showAlert('도메인이 정상적으로 삭제되었습니다.');
-      })
-      .catch((err) => {
-        showAlert(err.message, 'error');
-      });
-  };
-
-  const handleUserUpdate = (updatedUser: { balance: number; coupons: number; loadTestCoupons?: number; uiUxTestCoupons?: number }) => {
-    setCurrentUser(prev => ({
-      ...prev,
-      balance: updatedUser.balance,
-      coupons: updatedUser.coupons,
-      loadTestCoupons: updatedUser.loadTestCoupons !== undefined ? updatedUser.loadTestCoupons : prev.loadTestCoupons,
-      uiUxTestCoupons: updatedUser.uiUxTestCoupons !== undefined ? updatedUser.uiUxTestCoupons : prev.uiUxTestCoupons
-    }));
-  };
 
   const handleAddLedger = (ledgerItem: LedgerItem) => {
     setLedger(prev => [ledgerItem, ...prev]);
@@ -275,8 +150,6 @@ function App() {
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        currentUser={currentUser}
-        toggleRole={toggleRole}
       />
 
       <main className={isLandingPage ? "landing-main" : "main-content"}>
@@ -292,8 +165,6 @@ function App() {
                 path="/dashboard"
                 element={
                   <DashboardPage
-                    currentUser={currentUser}
-                    domains={domains}
                     setActiveTab={setActiveTab}
                     setSelectedUiTestDomain={setSelectedUiTestDomain}
                   />
@@ -305,15 +176,7 @@ function App() {
               <Route
                 path="/domains"
                 element={
-                  <DomainsPage
-                    domains={domains}
-                    newDomainUrl={newDomainUrl}
-                    setNewDomainUrl={setNewDomainUrl}
-                    handleAddDomain={handleAddDomain}
-                    handleVerifyDomain={handleVerifyDomain}
-                    handleDeleteDomain={handleDeleteDomain}
-                    verificationLoading={verificationLoading}
-                  />
+                  <DomainsPage />
                 }
               />
 
@@ -321,13 +184,9 @@ function App() {
                 path="/uitest"
                 element={
                   <UiTestPage
-                    domains={domains}
                     selectedUiTestDomain={selectedUiTestDomain}
                     setSelectedUiTestDomain={setSelectedUiTestDomain}
-                    currentUser={currentUser}
-                    onUserUpdate={handleUserUpdate}
                     onAddLedger={handleAddLedger}
-                    showAlert={showAlert}
                   />
                 }
               />
@@ -336,11 +195,7 @@ function App() {
                 path="/load"
                 element={
                   <LoadPage
-                    domains={domains}
-                    currentUser={currentUser}
-                    onUserUpdate={handleUserUpdate}
                     onAddLedger={handleAddLedger}
-                    showAlert={showAlert}
                   />
                 }
               />
@@ -349,11 +204,8 @@ function App() {
                 path="/billing"
                 element={
                   <PaymentPage
-                    currentUser={currentUser}
-                    onUserUpdate={handleUserUpdate}
                     ledger={ledger}
                     onAddLedger={handleAddLedger}
-                    showAlert={showAlert}
                   />
                 }
               />
@@ -363,11 +215,8 @@ function App() {
                 path="/community"
                 element={
                   <CommunityPage
-                    currentUser={currentUser}
-                    onUserUpdate={handleUserUpdate}
                     ledger={ledger}
                     onAddLedger={handleAddLedger}
-                    showAlert={showAlert}
                     handleSubmitReport={handleSubmitReport}
                   />
                 }
@@ -390,11 +239,9 @@ function App() {
                 path="/admin"
                 element={
                   <AdminPage
-                    currentUser={currentUser}
                     reports={reports}
                     setReports={setReports}
                     handleSuspendUser={handleSuspendUser}
-                    showAlert={showAlert}
                   />
                 }
               />
@@ -410,8 +257,6 @@ function App() {
                 element={
                   <AuthPage
                     setActiveTab={setActiveTab}
-                    onLoginSuccess={handleLoginSuccess}
-                    showAlert={showAlert}
                     initialMode="login"
                   />
                 }
@@ -421,8 +266,6 @@ function App() {
                 element={
                   <AuthPage
                     setActiveTab={setActiveTab}
-                    onLoginSuccess={handleLoginSuccess}
-                    showAlert={showAlert}
                     initialMode="signup"
                   />
                 }

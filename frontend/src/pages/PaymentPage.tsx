@@ -21,18 +21,12 @@ interface VirtualAccountDetails {
   orderId: string;
 }
 
+import { useUserStore } from '../store/userStore';
+import { useAlertStore } from '../store/alertStore';
+
 interface PaymentPageProps {
-  currentUser: {
-    email: string;
-    balance: number;
-    coupons: number;
-    loadTestCoupons?: number;
-    uiUxTestCoupons?: number;
-  };
-  onUserUpdate: (updatedUser: { balance: number; coupons: number; loadTestCoupons?: number; uiUxTestCoupons?: number }) => void;
   ledger: LedgerItem[];
   onAddLedger: (ledgerItem: LedgerItem) => void;
-  showAlert: (message: string, type?: string) => void;
 }
 
 const creditOptions = [
@@ -66,12 +60,12 @@ const creditOptions = [
 ];
 
 export default function PaymentPage({
-  currentUser,
-  onUserUpdate,
   ledger,
-  onAddLedger,
-  showAlert
+  onAddLedger
 }: PaymentPageProps) {
+  const currentUser = useUserStore((state) => state.currentUser);
+  const onUserUpdate = useUserStore((state) => state.updateUserBalanceAndCoupons);
+  const showAlert = useAlertStore((state) => state.showAlert);
   // Coin pack selection state
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
 

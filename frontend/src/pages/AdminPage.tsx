@@ -32,25 +32,22 @@ interface DailyStat {
   retentionRate7d: number;
 }
 
+import { useUserStore } from '../store/userStore';
+import { useAlertStore } from '../store/alertStore';
+
 interface AdminPageProps {
-  currentUser: {
-    role: string;
-    id: string;
-    email: string;
-  };
   reports: Report[];
   setReports: (reps: Report[]) => void;
   handleSuspendUser: (targetId: string) => void;
-  showAlert: (msg: string, type?: string) => void;
 }
 
 export default function AdminPage({
-  currentUser,
   reports,
   setReports,
-  handleSuspendUser,
-  showAlert
+  handleSuspendUser
 }: AdminPageProps) {
+  const currentUser = useUserStore((state) => state.currentUser);
+  const showAlert = useAlertStore((state) => state.showAlert);
   const [inquiries, setInquiries] = useState<Inquiry[]>([
     { id: 1, userId: 'f87a32d1-921c-4b9b-90f3-cb2071850123', title: 'Payment Webhook Delay', content: 'I deposited 50,000 KRW to the virtual account, but it took 10 minutes to update.', status: 'PENDING', answer: null, createdAt: '2026-06-30' }
   ]);

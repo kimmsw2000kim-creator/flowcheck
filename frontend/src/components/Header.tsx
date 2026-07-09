@@ -1,17 +1,14 @@
 import React from 'react';
 import { Activity } from 'lucide-react';
+import { useUserStore } from '../store/userStore';
 
 interface HeaderProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
-  currentUser: {
-    email: string;
-    role: string;
-  };
-  toggleRole: () => void;
 }
 
-export default function Header({ activeTab, setActiveTab, currentUser, toggleRole }: HeaderProps) {
+export default function Header({ activeTab, setActiveTab }: HeaderProps) {
+  const { currentUser, toggleRole } = useUserStore();
   const handleNavClick = (tab: string) => {
     setActiveTab(tab);
   };
