@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Play, CheckCircle, AlertCircle, RefreshCw, Globe, Monitor, Terminal, FileText } from 'lucide-react';
 import axios from 'axios';
 import { startUiTest, getUiTestStatus, UiTestStepData } from '../api/uiTestApi';
+import Button from '../components/common/Button';
+import TextField from '../components/common/TextField';
 
 interface Domain {
   id: number;
@@ -213,21 +215,16 @@ export default function UiTestPage({
               </select>
             </div>
 
-            <div className="form-group" style={{ marginTop: '1rem' }}>
-              <label className="form-label">테스트 대상 URL 주소</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', position: 'relative' }}>
-                <Globe size={18} style={{ position: 'absolute', left: '0.75rem', color: 'var(--text-muted)' }} />
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  style={{ paddingLeft: '2.25rem', width: '100%' }}
-                  placeholder="https://example.com"
-                  value={targetUrl}
-                  onChange={(e) => setTargetUrl(e.target.value)}
-                  disabled={uiTestStatus === 'running'}
-                />
-              </div>
-            </div>
+            <TextField
+              label="테스트 대상 URL 주소"
+              type="text"
+              placeholder="https://example.com"
+              value={targetUrl}
+              onChange={(e) => setTargetUrl(e.target.value)}
+              disabled={uiTestStatus === 'running'}
+              leftIcon={Globe}
+              style={{ marginTop: '0.25rem' }}
+            />
 
             {/* 쿠폰 및 크레딧 현황 카드 */}
             <div style={{
@@ -274,24 +271,16 @@ export default function UiTestPage({
               </div>
             </div>
 
-            <button 
-              className="btn btn-primary" 
-              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+            <Button 
+              variant="primary" 
+              style={{ width: '100%' }}
               onClick={handleRunUiTest}
-              disabled={uiTestStatus === 'running'}
+              isLoading={uiTestStatus === 'running'}
+              loadingText="탐색 에이전트 구동 중..."
+              icon={Play}
             >
-              {uiTestStatus === 'running' ? (
-                <>
-                  <RefreshCw className="animate-spin" size={16} />
-                  <span>탐색 에이전트 구동 중...</span>
-                </>
-              ) : (
-                <>
-                  <Play size={16} fill="currentColor" />
-                  <span>UI 테스트 시작</span>
-                </>
-              )}
-            </button>
+              <span>UI 테스트 시작</span>
+            </Button>
           </div>
         </div>
 

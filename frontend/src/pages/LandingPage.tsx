@@ -6,11 +6,11 @@ import PricingSection from '../components/landing/PricingSection';
 import Footer from '../components/landing/Footer';
 
 // Load CSS styles for the landing page
-import '../styles/landing.css';
+import styles from '../styles/landing.module.css';
 
 export default function LandingPage() {
   return (
-    <div className="landing-container">
+    <div className={styles['landing-container']}>
       {/* 1. HeroSection (메인 상단) */}
       <HeroSection />
 

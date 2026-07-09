@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import { getAccessToken } from '../../api/authApi';
 import { fetchMypagePointHistory } from '../../api/mypageApi';
 import type { MypagePointHistoryItem } from '../../types/mypage';
+import styles from '../../styles/mypage.module.css';
+import EmptyState from '../../components/common/EmptyState';
 
 const typeLabels: Record<string, string> = {
     CHARGE: '크레딧 충전',
@@ -45,35 +47,35 @@ function MypagePointHistorySection() {
     }, []);
 
     return (
-        <section className="mypage-section">
+        <section className={styles['mypage-section']}>
             <h1>포인트 내역</h1>
             <p>충전, 사용, 보상 지급 내역을 확인할 수 있습니다.</p>
 
             {loading && (
-                <div className="empty-state">
-                    <strong>포인트 내역을 불러오는 중입니다.</strong>
-                    <p>잠시만 기다려 주세요.</p>
-                </div>
+                <EmptyState
+                    title="포인트 내역을 불러오는 중입니다."
+                    description="잠시만 기다려 주세요."
+                />
             )}
 
             {!loading && errorMessage && (
-                <div className="empty-state">
-                    <strong>{errorMessage}</strong>
-                    <p>로그인 상태를 확인한 뒤 다시 시도해 주세요.</p>
-                </div>
+                <EmptyState
+                    title={errorMessage}
+                    description="로그인 상태를 확인한 뒤 다시 시도해 주세요."
+                />
             )}
 
             {!loading && !errorMessage && histories.length === 0 && (
-                <div className="empty-state">
-                    <strong>포인트 내역이 없습니다.</strong>
-                    <p>포인트 충전, 테스트 사용, 커뮤니티 보상 내역이 이곳에 표시됩니다.</p>
-                </div>
+                <EmptyState
+                    title="포인트 내역이 없습니다."
+                    description="포인트 충전, 테스트 사용, 커뮤니티 보상 내역이 이곳에 표시됩니다."
+                />
             )}
 
             {!loading && !errorMessage && histories.length > 0 && (
                 <div className="point-history-list">
                     {histories.map((item) => (
-                        <article className="mypage-section-card" key={item.ledgerId}>
+                        <article className={styles['mypage-section-card']} key={item.ledgerId}>
                             <div>
                                 <strong>{typeLabels[item.transactionType] || '기타'}</strong>
                                 <p>{item.description}</p>

@@ -33,6 +33,18 @@ services:
       - ./.env
     environment:
       SPRING_PROFILES_ACTIVE: prod
+      FASTAPI_URL: http://ai:8000
+    depends_on:
+      - ai
+    networks:
+      - flowcheck-network
+
+  ai:
+    container_name: flowcheck-ai
+    image: ${DOCKER_USERNAME}/${AI_IMAGE:-flowcheck-ai}:latest
+    restart: on-failure:3
+    env_file:
+      - ./.env
     networks:
       - flowcheck-network
 
