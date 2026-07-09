@@ -81,7 +81,7 @@ public class LoadTestStreamService {
 
         return switch (phase) {
             case "GENERATING_SCRIPT" -> "k6 스크립트를 생성하는 중입니다.";
-            case "RUNNING_K6" -> "k6 테스트를 실행하는 중입니다.";
+            case "PROVISIONING_INFRA" -> "클라우드 부하 테스트 인프라를 프로비저닝하고 실행 중입니다. (약 1분 소요)";
             case "PROCESSING_RESULTS" -> "실행 결과를 해석하는 중입니다.";
             case "RESULT_READY" -> "결과가 준비되었습니다.";
             case "DISPATCHED_TO_FASTAPI" -> "FastAPI에 부하 테스트 실행을 전달하는 중입니다.";

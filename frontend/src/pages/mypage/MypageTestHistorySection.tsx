@@ -4,6 +4,9 @@ import { Activity, Monitor } from 'lucide-react';
 import { getAccessToken } from '../../api/authApi';
 import { fetchMypageTestHistory } from '../../api/mypageApi';
 import type { MypageTestHistoryItem } from '../../types/mypage';
+import styles from '../../styles/mypage.module.css';
+import EmptyState from '../../components/common/EmptyState';
+import StatusBadge from '../../components/common/StatusBadge';
 
 const statusLabels: Record<string, string> = {
     PENDING: '대기 중',
@@ -61,33 +64,33 @@ function MypageTestHistorySection() {
     }, []);
 
     return (
-        <section className="mypage-section">
+        <section className={styles['mypage-section']}>
             <h1>테스트 이력</h1>
             <p>실행한 테스트 목록과 결과 상태를 확인할 수 있습니다.</p>
 
             {loading && (
-                <div className="empty-state">
-                    <strong>테스트 이력을 불러오는 중입니다.</strong>
-                    <p>잠시만 기다려 주세요.</p>
-                </div>
+                <EmptyState
+                    title="테스트 이력을 불러오는 중입니다."
+                    description="잠시만 기다려 주세요."
+                />
             )}
 
             {!loading && errorMessage && (
-                <div className="empty-state">
-                    <strong>{errorMessage}</strong>
-                    <p>로그인 상태를 확인한 뒤 다시 시도해 주세요.</p>
-                </div>
+                <EmptyState
+                    title={errorMessage}
+                    description="로그인 상태를 확인한 뒤 다시 시도해 주세요."
+                />
             )}
 
             {!loading && !errorMessage && tests.length === 0 && (
-                <div className="empty-state">
-                    <strong>실행한 테스트가 없습니다.</strong>
-                    <p>AI UI 테스트나 부하 테스트를 실행하면 이곳에 기록됩니다.</p>
-                </div>
+                <EmptyState
+                    title="실행한 테스트가 없습니다."
+                    description="AI UI 테스트나 부하 테스트를 실행하면 이곳에 기록됩니다."
+                />
             )}
 
             {!loading && !errorMessage && tests.length > 0 && (
-                <div className="test-history-list">
+                <div className={styles['test-history-list']}>
                     {tests.map((test) => {
                         const progress = test.progress ?? 0;
                         const isFailed = test.status === 'FAILED';
@@ -95,35 +98,36 @@ function MypageTestHistorySection() {
                         const phase = test.phase ? phaseLabels[test.phase] || test.phase : null;
 
                         return (
-                            <article className="test-history-item" key={`${test.testType}-${test.requestId}`}>
-                                <div className="test-history-icon">
+                            <article className={styles['test-history-item']} key={`${test.testType}-${test.requestId}`}>
+                                <div className={styles['test-history-icon']}>
                                     {test.testType === 'UI' ? <Monitor size={20} /> : <Activity size={20} />}
                                 </div>
 
-                                <div className="test-history-main">
-                                    <div className="test-history-title-row">
+                                <div className={styles['test-history-main']}>
+                                    <div className={styles['test-history-title-row']}>
                                         <div>
                                             <strong>{test.testName}</strong>
                                             <p>{test.targetUrl}</p>
                                         </div>
 
-                                        <span className={`status-badge ${isDone ? '' : isFailed ? 'failed' : 'pending'}`}>
-                                            {statusLabels[test.status] || test.status}
-                                        </span>
+                                        <StatusBadge
+                                            status={test.status}
+                                            label={statusLabels[test.status] || test.status}
+                                        />
                                     </div>
 
-                                    <div className="test-history-meta">
+                                    <div className={styles['test-history-meta']}>
                                         <span>{formatDate(test.createdAt)}</span>
                                         {phase && <span>{phase}</span>}
                                         <span>진행률 {progress}%</span>
                                     </div>
 
-                                    <div className="test-history-progress">
+                                    <div className={styles['test-history-progress']}>
                                         <div style={{ width: `${Math.min(Math.max(progress, 0), 100)}%` }} />
                                     </div>
 
                                     {test.description && (
-                                        <p className="test-history-description">{test.description}</p>
+                                        <p className={styles['test-history-description']}>{test.description}</p>
                                     )}
                                 </div>
                             </article>

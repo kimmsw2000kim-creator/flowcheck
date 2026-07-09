@@ -33,6 +33,26 @@ services:
       - ./.env
     environment:
       SPRING_PROFILES_ACTIVE: prod
+      FASTAPI_URL: http://ai:8000
+    depends_on:
+      - ai
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - flowcheck-network
+
+  ai:
+    container_name: flowcheck-ai
+    image: ${DOCKER_USERNAME}/${AI_IMAGE:-flowcheck-ai}:latest
+    restart: on-failure:3
+    env_file:
+      - ./.env
+    environment:
+      BACKEND_URL: http://backend:8080
     networks:
       - flowcheck-network
 

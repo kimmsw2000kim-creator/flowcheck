@@ -20,10 +20,10 @@ export default function Header({ activeTab, setActiveTab, currentUser, toggleRol
 
   return (
     <nav className="navbar">
-      <div 
-        className="logo" 
-        style={{ cursor: 'pointer' }} 
-        onClick={() => handleNavClick(isLoggedIn ? 'dashboard' : 'login')}
+      <div
+        className="logo"
+        style={{ cursor: 'pointer' }}
+        onClick={() => handleNavClick('dashboard')}
       >
         <Activity size={24} style={{ color: 'var(--accent)' }} />
         <span>FlowCheck</span>
@@ -54,6 +54,16 @@ export default function Header({ activeTab, setActiveTab, currentUser, toggleRol
                 역할 전환
               </button>
             </div>
+            {currentUser.role === 'ADMIN' && (
+              <div className="admin">
+                <button
+                  onClick={() => handleNavClick('admin')}
+                  className={`nav-item ${activeTab === 'admin' ? 'active' : ''}`}
+                >
+                  관리자
+                </button>
+              </div>
+            )}
             <button
               onClick={() => handleNavClick('mypage')}
               className={`nav-item ${activeTab === 'mypage' ? 'active' : ''}`}

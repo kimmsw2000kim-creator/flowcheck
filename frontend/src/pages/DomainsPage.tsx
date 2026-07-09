@@ -1,6 +1,9 @@
 import React from 'react';
 import { CheckCircle, RefreshCw, Trash2 } from 'lucide-react';
 import { Domain } from '../types/domain';
+import Button from '../components/common/Button';
+import TextField from '../components/common/TextField';
+import StatusBadge from '../components/common/StatusBadge';
 
 interface DomainsPageProps {
   domains: Domain[];
@@ -27,16 +30,16 @@ export default function DomainsPage({
       
       <div className="card" style={{ marginBottom: '2rem' }}>
         <h3 style={{ marginBottom: '1rem' }}>새로운 사이트 등록</h3>
-        <form onSubmit={handleAddDomain} style={{ display: 'flex', gap: '1rem' }}>
-          <input 
+        <form onSubmit={handleAddDomain} style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <TextField 
             type="url" 
-            className="form-input" 
             placeholder="https://mybusiness.com" 
             value={newDomainUrl} 
             onChange={(e) => setNewDomainUrl(e.target.value)} 
             required 
+            containerStyle={{ flex: 1, marginBottom: 0 }}
           />
-          <button type="submit" className="btn btn-primary">도메인 추가</button>
+          <Button type="submit" variant="primary">도메인 추가</Button>
         </form>
       </div>
  
@@ -79,16 +82,17 @@ export default function DomainsPage({
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       {d.verified ? (
-                        <span className="badge badge-success">인증 완료</span>
+                        <StatusBadge status="SUCCESS" label="인증 완료" />
                       ) : (
-                        <button 
-                          className="btn btn-primary" 
+                        <Button 
+                          variant="primary" 
                           style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
                           onClick={() => handleVerifyDomain(d.id)}
-                          disabled={verificationLoading}
+                          isLoading={verificationLoading}
+                          loadingText="검증 중..."
                         >
-                          {verificationLoading ? <RefreshCw className="animate-spin" size={16} /> : '지금 검증하기'}
-                        </button>
+                          지금 검증하기
+                        </Button>
                       )}
                       <button 
                         className="btn" 

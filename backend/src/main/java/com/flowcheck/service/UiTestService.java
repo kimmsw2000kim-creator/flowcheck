@@ -40,20 +40,27 @@ public class UiTestService {
     private static final int TEST_COST = 1_000;
 
     @Transactional
-    public UUID submitUiTest(UUID userId, UiTestStartRequest request) {
+    public UUID submitUiTest(String email, UiTestStartRequest request) {
         // 1. 유저 조회 또는 자동 생성 (로컬 테스트 및 빠른 수동 검증의 편의를 위해 없을 경우 생성)
-        User user = userRepository.findById(userId)
+        User user = userRepository.findByEmail(email)
                 .orElseGet(() -> {
-                    log.info("User {} not found, creating dynamic mock user.", userId);
+                    log.info("User {} not found, creating dynamic mock user.", email);
                     User newUser = User.builder()
-                            .userId(userId)
-                            .email("corp-user@flowcheck.com")
+                            .userId(UUID.randomUUID())
+                            .email(email)
                             .balance(100_000)
                             .role(Role.USER)
                             .status(UserStatus.ACTIVE)
                             .build();
                     return userRepository.save(newUser);
                 });
+
+        // ✅ 동일 유저가 이미 PENDING/RUNNING 테스트를 가지고 있으면 중복 실행 차단
+        boolean hasActiveTest = uiTestRepository.existsByUserAndStatusIn(
+                user, List.of("PENDING", "RUNNING"));
+        if (hasActiveTest) {
+            throw new IllegalStateException("이미 진행 중인 UI 테스트가 있습니다. 완료 후 다시 시도해 주세요.");
+        }
 
         // 계정당 최대 10개의 UI 테스트 동영상/이력만 유지하도록 제한 (10개 초과 시 오래된 항목 및 동영상 삭제)
         List<UiTest> userTests = uiTestRepository.findByUserOrderByCreatedAtAsc(user);
@@ -68,7 +75,7 @@ public class UiTestService {
                 // DB에서 레코드 삭제 (Cascade 설정에 의해 ui_test_steps도 자동 삭제됨)
                 uiTestRepository.delete(oldestTest);
                 log.info("Deleted oldest UI test record {} for user {} due to 10-test limit", oldestTest.getId(),
-                        userId);
+                        email);
             }
         }
 

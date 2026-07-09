@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Play, CheckCircle, AlertCircle, RefreshCw, Globe, Monitor, Terminal, FileText } from 'lucide-react';
+import { Play, CheckCircle, AlertCircle, RefreshCw, Globe, Monitor, Terminal, FileText, Ticket, Video } from 'lucide-react';
 import axios from 'axios';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { startUiTest, getUiTestStatus, UiTestStepData } from '../api/uiTestApi';
+import Button from '../components/common/Button';
+import TextField from '../components/common/TextField';
 
 interface Domain {
   id: number;
@@ -38,7 +42,22 @@ export default function UiTestPage({
   const [uiTestStatus, setUiTestStatus] = useState<string>('idle'); // idle, running, success, error
   const [uiTestSteps, setUiTestSteps] = useState<UiTestStepData[]>([]);
   const [uiTestReportMarkdown, setUiTestReportMarkdown] = useState<string>('');
-  const [pollingId, setPollingId] = useState<any>(null);
+
+  // ✅ interval ID를 useRef로 관리 — React 비동기 state와 무관하게 즉시 clearInterval 가능
+  const intervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollErrorCountRef = React.useRef(0);
+  const pollCountRef = React.useRef(0);
+
+  // ✅ 제출 중 중복 클릭 방지 (React state보다 빠르게 동기적으로 차단)
+  const isSubmittingRef = React.useRef(false);
+
+  /** interval을 완전히 정지하는 헬퍼 함수 */
+  const stopPolling = React.useCallback(() => {
+    if (intervalRef.current !== null) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  }, []);
 
   // 도메인 선택 변경 시 URL 입력창 자동 반영
   useEffect(() => {
@@ -50,14 +69,21 @@ export default function UiTestPage({
 
   // 언마운트 시 폴링 리소스 정리
   useEffect(() => {
-    return () => {
-      if (pollingId) {
-        clearInterval(pollingId);
-      }
-    };
-  }, [pollingId]);
+    return () => { stopPolling(); };
+  }, [stopPolling]);
 
   const handleRunUiTest = async () => {
+    // ✅ 이중 가드 1: 이미 제출 중이면 즉시 차단 (비동기 중복 클릭 방지)
+    if (isSubmittingRef.current) {
+      showAlert('이미 테스트 요청이 처리 중입니다. 잠시 기다려 주세요.', 'error');
+      return;
+    }
+    // ✅ 이중 가드 2: 이미 running 상태면 추가 시작 불가
+    if (uiTestStatus === 'running') {
+      showAlert('테스트가 이미 실행 중입니다.', 'error');
+      return;
+    }
+
     if (!targetUrl.trim()) {
       showAlert('테스트할 웹사이트 URL을 입력해 주세요.', 'error');
       return;
@@ -78,6 +104,7 @@ export default function UiTestPage({
     setUiTestStatus('running');
     setUiTestSteps([]);
     setUiTestReportMarkdown('');
+    isSubmittingRef.current = true; // ✅ 제출 잠금
 
     try {
       // 2. 백엔드 호출
@@ -100,35 +127,63 @@ export default function UiTestPage({
       }
 
       // 3. 폴링 시작 (1.5초 주기)
-      const interval = setInterval(async () => {
+      // ✅ 기존 interval이 살아있으면 먼저 정지
+      stopPolling();
+      pollErrorCountRef.current = 0;
+      pollCountRef.current = 0;
+      const MAX_POLL_ERRORS = 5;  // 연속 에러 5회 → 중단
+      const MAX_POLL_COUNT = 480; // 최대 12분 (480 * 1.5s)
+
+      intervalRef.current = setInterval(async () => {
+        pollCountRef.current += 1;
+
+        // 최대 폴링 횟수 초과 시 강제 중단
+        if (pollCountRef.current > MAX_POLL_COUNT) {
+          console.warn('Max polling count exceeded. Stopping polling.');
+          stopPolling();
+          setUiTestStatus('error');
+          setUiTestReportMarkdown('# 타임아웃\n\n테스트가 12분 이상 응답이 없어 자동으로 중단되었습니다.');
+          showAlert('테스트 응답 대기 시간이 초과되었습니다.', 'error');
+          return;
+        }
+
         try {
           const statusRes = await getUiTestStatus(requestId);
+          pollErrorCountRef.current = 0; // 성공 시 에러 카운터 리셋
           setUiTestSteps(statusRes.steps);
 
           if (statusRes.status === 'COMPLETED') {
+            stopPolling(); // ✅ ref 기반으로 즉시 중단
             setUiTestStatus('success');
             setUiTestReportMarkdown(statusRes.report || '');
-            clearInterval(interval);
-            setPollingId(null);
             showAlert('자율형 AI UI 테스트가 완료되었습니다!', 'success');
           } else if (statusRes.status === 'FAILED') {
+            stopPolling(); // ✅ ref 기반으로 즉시 중단
             setUiTestStatus('error');
             setUiTestReportMarkdown(statusRes.report || '# 테스트 실패\n\nAI 에이전트 탐색 중 비정상 종료되거나 에러가 발생했습니다.');
-            clearInterval(interval);
-            setPollingId(null);
             showAlert('AI UI 테스트 도중 에러가 발생하였습니다.', 'error');
           }
         } catch (pollErr) {
-          console.error('Status polling error:', pollErr);
+          pollErrorCountRef.current += 1;
+          console.error(`Status polling error (${pollErrorCountRef.current}/${MAX_POLL_ERRORS}):`, pollErr);
+
+          // 연속 에러가 한도 초과 시 폴링 중단
+          if (pollErrorCountRef.current >= MAX_POLL_ERRORS) {
+            console.error('Too many consecutive polling errors. Stopping polling.');
+            stopPolling(); // ✅ ref 기반으로 즉시 중단
+            setUiTestStatus('error');
+            setUiTestReportMarkdown('# 연결 오류\n\n서버와의 통신이 반복적으로 실패하여 테스트 상태 조회를 중단하였습니다.');
+            showAlert('서버 통신 오류로 상태 조회가 중단되었습니다.', 'error');
+          }
         }
       }, 1500);
-
-      setPollingId(interval);
 
     } catch (err: any) {
       console.error('Failed to start UI Test:', err);
       setUiTestStatus('error');
       showAlert(err.message || 'AI 서버를 호출하지 못했습니다.', 'error');
+    } finally {
+      isSubmittingRef.current = false; // ✅ 성공/실패 모두 잠금 해제
     }
   };
 
@@ -139,9 +194,17 @@ export default function UiTestPage({
 
   if (hasVideoUrl) {
     const parts = uiTestReportMarkdown.split('[VIDEO_URL]:');
-    cleanReportMarkdown = parts[0].trim();
-    // URL 라인 추출
-    videoUrl = parts[1].trim().split('\n')[0].trim();
+    const afterTag = parts[1];
+    const firstNewlineIdx = afterTag.indexOf('\n');
+    
+    if (firstNewlineIdx !== -1) {
+      videoUrl = afterTag.substring(0, firstNewlineIdx).trim();
+      // VIDEO_URL 태그 이후 첫 줄바꿈 다음부터가 실제 보고서 내용
+      cleanReportMarkdown = (parts[0] + afterTag.substring(firstNewlineIdx)).trim();
+    } else {
+      videoUrl = afterTag.trim();
+      cleanReportMarkdown = parts[0].trim();
+    }
   }
 
   return (
@@ -150,7 +213,7 @@ export default function UiTestPage({
         <h2 style={{ fontSize: '1.75rem', margin: 0 }}>AI 자율형 UI 테스트 익스플로러 (Playwright + Gemini)</h2>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', fontSize: '0.85rem', backgroundColor: 'var(--bg-secondary)', padding: '0.5rem 0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
           <Monitor size={14} style={{ color: 'var(--accent-hover)' }} />
-          <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>💻 로컬 브라우저 구동 모드 (headless=False)</span>
+          <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>로컬 브라우저 구동 모드 (headless=False)</span>
         </div>
       </div>
 
@@ -181,21 +244,16 @@ export default function UiTestPage({
               </select>
             </div>
 
-            <div className="form-group" style={{ marginTop: '1rem' }}>
-              <label className="form-label">테스트 대상 URL 주소</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', position: 'relative' }}>
-                <Globe size={18} style={{ position: 'absolute', left: '0.75rem', color: 'var(--text-muted)' }} />
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  style={{ paddingLeft: '2.25rem', width: '100%' }}
-                  placeholder="https://example.com"
-                  value={targetUrl}
-                  onChange={(e) => setTargetUrl(e.target.value)}
-                  disabled={uiTestStatus === 'running'}
-                />
-              </div>
-            </div>
+            <TextField
+              label="테스트 대상 URL 주소"
+              type="text"
+              placeholder="https://example.com"
+              value={targetUrl}
+              onChange={(e) => setTargetUrl(e.target.value)}
+              disabled={uiTestStatus === 'running'}
+              leftIcon={Globe}
+              style={{ marginTop: '0.25rem' }}
+            />
 
             {/* 쿠폰 및 크레딧 현황 카드 */}
             <div style={{
@@ -206,7 +264,9 @@ export default function UiTestPage({
               marginBottom: '1.25rem',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)' }}>🎟️ 보유 현황</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+                  <Ticket size={16} /> 보유 현황
+                </span>
                 <span style={{
                   fontSize: '0.75rem',
                   fontWeight: 600,
@@ -242,24 +302,16 @@ export default function UiTestPage({
               </div>
             </div>
 
-            <button 
-              className="btn btn-primary" 
-              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+            <Button 
+              variant="primary" 
+              style={{ width: '100%' }}
               onClick={handleRunUiTest}
-              disabled={uiTestStatus === 'running'}
+              isLoading={uiTestStatus === 'running'}
+              loadingText="탐색 에이전트 구동 중..."
+              icon={Play}
             >
-              {uiTestStatus === 'running' ? (
-                <>
-                  <RefreshCw className="animate-spin" size={16} />
-                  <span>탐색 에이전트 구동 중...</span>
-                </>
-              ) : (
-                <>
-                  <Play size={16} fill="currentColor" />
-                  <span>UI 테스트 시작</span>
-                </>
-              )}
-            </button>
+              <span>UI 테스트 시작</span>
+            </Button>
           </div>
         </div>
 
@@ -349,16 +401,22 @@ export default function UiTestPage({
                       
                       {videoUrl && (
                         <div style={{ marginBottom: '1.5rem', border: '1px solid var(--border)', borderRadius: '0.5rem', overflow: 'hidden', backgroundColor: '#000000' }}>
-                          <div style={{ padding: '0.5rem 1rem', backgroundColor: 'var(--bg-tertiary)', borderBottom: '1px solid var(--border)', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                            🎥 AI 탐색 테스트 녹화 비디오 (Supabase Storage)
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', backgroundColor: 'var(--bg-tertiary)', borderBottom: '1px solid var(--border)', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                            <Video size={16} /> AI 탐색 테스트 녹화 비디오 (Supabase Storage)
                           </div>
                           <video src={videoUrl} controls width="100%" style={{ display: 'block', maxHeight: '500px', margin: '0 auto' }} />
                         </div>
                       )}
 
-                      <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
-                        {cleanReportMarkdown}
-                      </pre>
+                      <div style={{
+                        fontSize: '0.9rem',
+                        color: 'var(--text-secondary)',
+                        lineHeight: '1.8',
+                      }} className="report-markdown">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {cleanReportMarkdown}
+                        </ReactMarkdown>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -370,9 +428,15 @@ export default function UiTestPage({
                       <span>테스트 실행에 실패하였습니다.</span>
                     </div>
                     <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.5rem', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
-                      <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
-                        {cleanReportMarkdown}
-                      </pre>
+                      <div style={{
+                        fontSize: '0.9rem',
+                        color: 'var(--text-secondary)',
+                        lineHeight: '1.8',
+                      }} className="report-markdown">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {cleanReportMarkdown}
+                        </ReactMarkdown>
+                      </div>
                     </div>
                   </div>
                 )}

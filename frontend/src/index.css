@@ -544,3 +544,88 @@ body {
   margin-bottom: 1rem;
 }
 
+/* ── UI 테스트 보고서 마크다운 렌더링 스타일 ── */
+.report-markdown h1 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 1rem 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--border);
+}
+
+.report-markdown h2 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 1.5rem 0 0.6rem 0;
+}
+
+.report-markdown h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--accent-hover);
+  margin: 1rem 0 0.4rem 0;
+}
+
+.report-markdown p {
+  margin: 0 0 0.75rem 0;
+  line-height: 1.7;
+}
+
+.report-markdown ul, .report-markdown ol {
+  margin: 0.4rem 0 0.75rem 1.4rem;
+  padding: 0;
+}
+
+.report-markdown li {
+  margin-bottom: 0.3rem;
+  line-height: 1.6;
+}
+
+.report-markdown strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.report-markdown hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1.25rem 0;
+}
+
+.report-markdown blockquote {
+  border-left: 3px solid var(--accent);
+  margin: 0.75rem 0;
+  padding: 0.4rem 0.9rem;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  border-radius: 0 0.25rem 0.25rem 0;
+}
+
+.report-markdown code {
+  background: rgba(0,0,0,0.07);
+  padding: 0.15rem 0.35rem;
+  border-radius: 0.25rem;
+  font-size: 0.85em;
+  font-family: 'Fira Mono', monospace;
+}
+
+.report-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  font-size: 0.88rem;
+}
+
+.report-markdown th, .report-markdown td {
+  border: 1px solid var(--border);
+  padding: 0.4rem 0.75rem;
+  text-align: left;
+}
+
+.report-markdown th {
+  background: var(--bg-tertiary);
+  font-weight: 600;
+}
+

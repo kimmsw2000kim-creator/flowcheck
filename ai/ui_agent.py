@@ -409,37 +409,67 @@ def run_ui_agent(request_id: str, target_url: str):
             report_md = None
             if not is_simulated_mode and client:
                 history_str = json.dumps(steps_history, ensure_ascii=False, indent=2)
-                # [번역 주석]
-                # 당신은 전문 UI 테스팅 및 UX 디자이너입니다.
-                # 대상 URL: {target_url}에서 AI 자율 탐색 로봇의 다음 실행 경로를 분석하십시오.
-                # 
-                # 탐색 경로 단계:
-                # {history_str}
-                # 
-                # 한국어로 된 전문적이고 가독성이 높은 UX 감사 보고서를 작성해 주십시오.
-                # 보고서에는 다음이 포함되어야 합니다:
-                # 1. 탐색 요약 (Exploration Summary)
-                # 2. 주요 탐색 성과 및 정상 작동 확인 요소
-                # 3. 보완점 및 UI/UX 피드백 (예: 레이아웃, 사용성 개선 가능 부분)
-                # 4. 종합 평가 점수 (예: 5점 만점 중 몇 점)
-                # 
-                # 마크다운 콘텐츠로만 응답하십시오. 출력 보고서 자체 주위에 마크다운 블록 코드(```)를 포함하지 마십시오 (원시 마크다운 텍스트만 작성).
-                report_prompt = f"""
-                You are an expert UI testing and UX designer.
-                Analyze the following execution path of an AI autonomous exploration robot on target URL: {target_url}.
-                
-                Exploration Path Steps:
-                {history_str}
-                
-                Please write a professional, highly readable UX audit report in Korean.
-                The report must include:
-                1. 탐색 요약 (Exploration Summary)
-                2. 주요 탐색 성과 및 정상 작동 확인 요소
-                3. 보완점 및 UI/UX 피드백 (예: 레이아웃, 사용성 개선 가능 부분)
-                4. 종합 평가 점수 (예: 5점 만점 중 몇 점)
-                
-                Respond only with the markdown content. Do not include markdown block codes around the output report itself (just write raw markdown text).
-                """
+                report_prompt = f"""You are a professional UI/UX auditor and web quality analyst.
+Analyze the following AI autonomous exploration session on: {target_url}
+
+Exploration Steps (JSON):
+{history_str}
+
+Write a comprehensive UX audit report IN KOREAN using the exact markdown structure below.
+Be specific, actionable, and honest. Fill in all the ? marks with real assessments based on the exploration data. Do NOT pad with generic statements.
+
+# AI 자율 UI/UX 감사 보고서
+
+## 탐색 개요
+- **테스트 대상**: {target_url}
+- **수행 단계 수**: (실제 단계 수)
+- **탐색 종료 이유**: (FINISH 명령 또는 오류 등)
+
+---
+
+## 정상 작동 확인 요소
+(각 항목을 불릿으로 구체적으로 서술)
+
+---
+
+## 발견된 문제점 및 개선 제안
+(각 항목마다 **문제 → 원인 추정 → 구체적 개선 방법** 형식으로 서술)
+
+---
+
+## 항목별 평가 점수
+
+| 평가 항목 | 점수 (5점 만점) | 등급 | 한줄 평가 |
+|-----------|:--------------:|:----:|-----------|
+| 초기 로딩 속도 | ? / 5 | 상/중/하 | |
+| 내비게이션 직관성 | ? / 5 | 상/중/하 | |
+| UI 요소 접근성 | ? / 5 | 상/중/하 | |
+| 상호작용 반응성 | ? / 5 | 상/중/하 | |
+| 오류 처리 수준 | ? / 5 | 상/중/하 | |
+
+---
+
+## 종합 평가
+
+- **종합 점수**: ? / 5.0
+- **종합 등급**: 상 / 중 / 하 (하나만 선택)
+- **한줄 총평**: (간결하게 1~2문장)
+
+---
+
+## 우선순위별 개선 과제
+
+### 즉시 개선 필요 (High Priority)
+(심각한 사용성 문제)
+
+### 단기 개선 권장 (Medium Priority)
+(개선하면 UX 향상에 도움이 되는 항목)
+
+### 장기 개선 고려 (Low Priority)
+(있으면 좋은 항목)
+
+Respond ONLY with the filled-in markdown content above. Do not wrap in code fences.
+"""
                 
                 try:
                     report_resp = client.models.generate_content(

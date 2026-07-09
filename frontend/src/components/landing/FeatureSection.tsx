@@ -1,5 +1,6 @@
 import React from 'react';
 import { Zap, Bot, BadgeCheck } from 'lucide-react';
+import styles from '../../styles/landing.module.css';
 
 interface FeatureItem {
   icon: React.ReactNode;
@@ -27,24 +28,24 @@ export default function FeatureSection() {
   ];
 
   return (
-    <section className="landing-section">
-      <div className="landing-section-header">
-        <span className="landing-section-subtitle">Core Capabilities</span>
-        <h2 className="landing-section-title">FlowCheck 핵심 기능</h2>
+    <section className={styles['landing-section']}>
+      <div className={styles['landing-section-header']}>
+        <span className={styles['landing-section-subtitle']}>Core Capabilities</span>
+        <h2 className={styles['landing-section-title']}>FlowCheck 핵심 기능</h2>
       </div>
 
-      <div className="features-grid">
+      <div className={styles['features-grid']}>
         {features.map((feature, idx) => (
           <div 
             key={idx} 
-            className="feature-card animate-fade-in-up" 
+            className={`${styles['feature-card']} ${styles['animate-fade-in-up']}`} 
             style={{ animationDelay: `${(idx + 1) * 150}ms` }}
           >
-            <div className="feature-icon-wrapper">
+            <div className={styles['feature-icon-wrapper']}>
               {feature.icon}
             </div>
-            <h3 className="feature-title">{feature.title}</h3>
-            <p className="feature-desc">{feature.description}</p>
+            <h3 className={styles['feature-title']}>{feature.title}</h3>
+            <p className={styles['feature-desc']}>{feature.description}</p>
           </div>
         ))}
       </div>

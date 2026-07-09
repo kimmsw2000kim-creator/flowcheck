@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 
-import '../styles/mypage.css';
+import styles from '../styles/mypage.module.css';
 
 import type { MypageData } from '../types/mypage';
 
 import MypageSidebar from '../components/MypageSidebar';
+import EmptyState from '../components/common/EmptyState';
+import Button from '../components/common/Button';
 
 import MypageProfileSection from './mypage/MypageProfileSection';
 import MypageVerifiedSitesSection from './mypage/MypageVerifiedSitesSection';
@@ -64,30 +66,27 @@ function Mypage() {
   }, []);
 
   return (
-    <div className="mypage-layout">
+    <div className={styles['mypage-layout']}>
       <MypageSidebar />
 
-      <main className="mypage-main">
+      <main className={styles['mypage-main']}>
         {loading && (
-          <div className="empty-state">
-            <strong>마이페이지 정보를 불러오는 중입니다.</strong>
-            <p>잠시만 기다려 주세요.</p>
-          </div>
+          <EmptyState
+            title="마이페이지 정보를 불러오는 중입니다."
+            description="잠시만 기다려 주세요."
+          />
         )}
 
         {!loading && errorMessage && (
-          <div className="empty-state">
-            <strong>{errorMessage}</strong>
-            <p>로그인 후 다시 마이페이지를 확인할 수 있습니다.</p>
-
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => navigate('/login')}
-            >
-              로그인하러 가기
-            </button>
-          </div>
+          <EmptyState
+            title={errorMessage}
+            description="로그인 후 다시 마이페이지를 확인할 수 있습니다."
+            actionButton={
+              <Button onClick={() => navigate('/login')}>
+                로그인하러 가기
+              </Button>
+            }
+          />
         )}
 
         {!loading && !errorMessage && (

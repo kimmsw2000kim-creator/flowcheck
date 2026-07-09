@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { TrendingUp, RefreshCw } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import axios from 'axios';
+import Button from '../components/common/Button';
+import EmptyState from '../components/common/EmptyState';
 
 interface Domain {
   id: number;
@@ -51,9 +53,10 @@ interface LoadPageProps {
   currentUser: {
     id: string;
     coupons: number;
+    loadTestCoupons: number;
     balance: number;
   };
-  onUserUpdate: (updatedUser: { coupons: number; balance: number }) => void;
+  onUserUpdate: (updatedUser: { coupons: number; balance: number; loadTestCoupons?: number }) => void;
   onAddLedger: (ledgerItem: any) => void;
   showAlert: (message: string, type?: string) => void;
 }
@@ -65,10 +68,8 @@ export default function LoadPage({
   onAddLedger,
   showAlert
 }: LoadPageProps) {
-  const verifiedDomains = domains.filter(d => d.verified);
-  const initialDomainId = verifiedDomains.length > 0 ? verifiedDomains[0].id : 1;
 
-  const [selectedLoadDomain, setSelectedLoadDomain] = useState<number>(initialDomainId);
+  const [selectedLoadDomain, setSelectedLoadDomain] = useState<number>(0);
   const [vusers, setVusers] = useState<number>(100);
   const [duration, setDuration] = useState<number>(30);
   const [loadPrompt, setLoadPrompt] = useState<string>('');
@@ -87,12 +88,17 @@ export default function LoadPage({
   }, []);
 
   const handleRunLoadTest = async () => {
+    const targetUrl = domains.find(d => d.id === selectedLoadDomain)?.domainUrl;
+
+    if (!targetUrl?.trim()) {
+      showAlert('테스트할 웹사이트 URL을 입력해 주세요.', 'error');
+      return;
+    }
+
     if (currentUser.coupons <= 0 && currentUser.balance < 10000) {
       showAlert('쿠폰 또는 크레딧 잔액이 부족합니다.', 'error');
       return;
     }
-
-    const targetUrl = domains.find(d => d.id === selectedLoadDomain)?.domainUrl;
 
     const payload = {
       requestId: crypto.randomUUID(),
@@ -240,6 +246,7 @@ export default function LoadPage({
                 value={selectedLoadDomain}
                 onChange={(e) => setSelectedLoadDomain(parseInt(e.target.value))}
               >
+                <option value="">-- 주소 선택하기 --</option>
                 {domains.filter(d => d.verified).map(d => (
                   <option key={d.id} value={d.id}>{d.domainUrl}</option>
                 ))}
@@ -283,26 +290,71 @@ export default function LoadPage({
               ></textarea>
             </div>
 
-            <button
-              className="btn btn-primary"
+            <div style={{
+              background: 'var(--bg-tertiary)',
+              border: `1.5px solid ${currentUser.loadTestCoupons > 0 ? 'var(--accent)' : currentUser.balance >= 10000 ? '#f59e0b' : '#ef4444'}`,
+              borderRadius: '0.75rem',
+              padding: '1rem 1.25rem',
+              marginBottom: '1.25rem',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)' }}>🎟️ 보유 현황</span>
+                <span style={{
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  padding: '0.2rem 0.6rem',
+                  borderRadius: '999px',
+                  background: currentUser.loadTestCoupons > 0 ? 'rgba(99,102,241,0.15)' : currentUser.balance >= 10000 ? 'rgba(245,158,11,0.15)' : 'rgba(239,68,68,0.15)',
+                  color: currentUser.loadTestCoupons > 0 ? 'var(--accent)' : currentUser.balance >= 10000 ? '#f59e0b' : '#ef4444',
+                }}>
+                  {currentUser.loadTestCoupons > 0 ? '쿠폰으로 차감' : currentUser.balance >= 10000 ? '크레딧으로 차감' : '잔액 부족'}
+                </span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '0.75rem' }}>
+                <div style={{ background: 'var(--bg-secondary)', borderRadius: '0.5rem', padding: '0.6rem 0.8rem' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>부하 테스트 쿠폰</div>
+                  <div style={{ fontWeight: 800, fontSize: '1.1rem', color: currentUser.loadTestCoupons > 0 ? 'var(--accent)' : 'var(--text-muted)' }}>
+                    {currentUser.loadTestCoupons}회
+                  </div>
+                </div>
+                <div style={{ background: 'var(--bg-secondary)', borderRadius: '0.5rem', padding: '0.6rem 0.8rem' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>크레딧 잔액</div>
+                  <div style={{ fontWeight: 800, fontSize: '1.1rem', color: currentUser.balance >= 10000 ? 'var(--text-primary)' : '#ef4444' }}>
+                    {currentUser.balance.toLocaleString()}P
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', borderTop: '1px solid var(--border)', paddingTop: '0.6rem' }}>
+                {currentUser.loadTestCoupons > 0
+                  ? <>이번 테스트에 <strong style={{ color: 'var(--accent)' }}>부하 테스트 쿠폰 1회</strong>가 소모됩니다. (잔여 {currentUser.loadTestCoupons - 1}회)</>
+                  : <>이번 테스트에 <strong style={{ color: '#f59e0b' }}>10,000 크레딧</strong>이 소모됩니다.</>
+                }
+              </div>
+            </div>
+
+            <Button
+              variant="primary"
               style={{ width: '100%', marginTop: '1rem' }}
               onClick={handleRunLoadTest}
-              disabled={loadStatus === 'running'}
+              isLoading={loadStatus === 'running'}
+              loadingText="부하 테스트 실행 중..."
             >
-              {loadStatus === 'running' ? '부하 테스트 실행 중...' : '테스트 시나리오 생성 및 실행'}
-            </button>
+              <span>테스트 시나리오 생성 및 실행</span>
+            </Button>
           </div>
         </div>
 
         <div>
-          <div className="card" style={{ minHeight: '400px' }}>
+          <div className="card" style={{ minHeight: '400px', display: 'flex', flexDirection: 'column' }}>
             <h3 style={{ marginBottom: '1.25rem' }}>테스트 분석 지표 및 실시간 차트</h3>
 
             {loadStatus === 'idle' && (
-              <div style={{ color: 'var(--text-muted)', textAlign: 'center', paddingTop: '6rem' }}>
-                <TrendingUp size={48} style={{ margin: '0 auto 1rem', opacity: 0.3 }} />
-                <p>Gemini AI가 k6 테스트 스크립트를 동적으로 설계하고 헤드리스로 구동합니다.</p>
-              </div>
+              <EmptyState
+                title="부하 테스트 대기 중"
+                description="Gemini AI가 k6 테스트 스크립트를 동적으로 설계하고 헤드리스로 구동합니다."
+              />
             )}
 
             {loadStatus === 'running' && (

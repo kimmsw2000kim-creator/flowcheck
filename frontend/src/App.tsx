@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, AlertCircle } from 'lucide-react';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import Toast from './components/common/Toast';
 
 // Pages
 import DashboardPage from './pages/DashboardPage';
@@ -23,31 +23,9 @@ import CommentPage from "./pages/CommentPage";
 
 // Types & Utils
 import axios from 'axios';
-import ApiURL from './api/ApiURL';
+import './api/client';
 import type { Domain } from './types/domain';
 import { fetchDomains, registerDomain, verifyDomain, deleteDomain } from './api/domainApi';
-
-axios.defaults.baseURL = ApiURL;
-
-// Axios Request Interceptor: Automatically attach Authorization header
-axios.interceptors.request.use((config) => {
-  const token = localStorage.getItem('accessToken');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-}, (error) => {
-  return Promise.reject(error);
-});
-
-// Axios Response Interceptor: Global 401 Unauthorized Handler
-axios.interceptors.response.use((response) => response, (error) => {
-  if (error.response && error.response.status === 401) {
-    localStorage.clear();
-    window.location.href = '/login';
-  }
-  return Promise.reject(error);
-});
 
 interface LedgerItem {
   id: number;
@@ -292,29 +270,7 @@ function App() {
 
   return (
     <div className="app-container">
-      {alertMsg && (
-        <div style={{
-          position: 'fixed',
-          top: '20px',
-          right: '20px',
-          backgroundColor: alertMsg.type === 'error' ? 'var(--error-bg)' :
-            alertMsg.type === 'warning' ? 'var(--warning-bg)' : 'var(--bg-secondary)',
-          color: alertMsg.type === 'error' ? 'var(--error)' :
-            alertMsg.type === 'warning' ? 'var(--warning)' : 'var(--success)',
-          padding: '1rem 1.5rem',
-          borderRadius: '0.5rem',
-          border: `1px solid ${alertMsg.type === 'error' ? 'var(--error)' : 'var(--success)'}`,
-          zIndex: 9999,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.75rem',
-          boxShadow: 'var(--card-shadow)',
-          backdropFilter: 'blur(8px)'
-        }}>
-          {alertMsg.type === 'error' ? <AlertCircle size={20} /> : <CheckCircle size={20} />}
-          <span>{alertMsg.message}</span>
-        </div>
-      )}
+      {alertMsg && <Toast message={alertMsg.message} type={alertMsg.type} />}
 
       <Header
         activeTab={activeTab}
