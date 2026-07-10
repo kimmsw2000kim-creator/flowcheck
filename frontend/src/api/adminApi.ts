@@ -26,7 +26,13 @@ export const suspendUser = async (userId: string): Promise<AdminUser> => {
     return response.data;
 };
 
+export const withdrawUser = async (userId: string): Promise<AdminUser> => {
+    const response = await axios.patch<AdminUser>(`/api/admin/users/${userId}/withdraw`);
+    return response.data;
+};
+
 export const activateUser = async (userId: string): Promise<AdminUser> => {
     const response = await axios.patch<AdminUser>(`/api/admin/users/${userId}/activate`);
     return response.data;
 };
+

@@ -2,5 +2,6 @@ package com.flowcheck.domain;
 
 public enum UserStatus {
     ACTIVE,
-    SUSPENDED
+    SUSPENDED,
+    WITHDRAWN
 }

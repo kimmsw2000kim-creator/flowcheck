@@ -60,6 +60,15 @@ public class AdminUserController {
         return UserSummaryResponse.from(user, userCouponRepository.sumRemainingChancesByUserId(userId));
     }
 
+    @Operation(summary = "회원 탈퇴 처리")
+    @PatchMapping("/{userId}/withdraw")
+    public  UserSummaryResponse withdrawUser(@PathVariable UUID userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
+        user.withdraw();
+        return UserSummaryResponse.from(user, userCouponRepository.sumRemainingChancesByUserId(userId));
+    }
+
     record ChangeRoleRequest(Role role) {}
 
     record UserSummaryResponse(

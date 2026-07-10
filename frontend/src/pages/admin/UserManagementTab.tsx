@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fetchAdminUsers, changeUserRole, suspendUser, activateUser, AdminUser } from '../../api/adminApi';
+import { fetchAdminUsers, changeUserRole, suspendUser, activateUser, AdminUser, withdrawUser } from '../../api/adminApi';
 
 interface UserManagementTabProps {
     currentUser: {
@@ -27,14 +27,21 @@ export default function UserManagementTab({ currentUser }: UserManagementTabProp
         setUsers(prev => prev.map(u => u.userId === userId ? updated : u));
     };
 
-    const handleToggleStatus = async (userId: string) => {
-        const target = users.find(u => u.userId === userId);
-        if (!target) return;
-        const updated = target.status === 'ACTIVE'
-            ? await suspendUser(userId)
-            : await activateUser(userId);
+    const handleSuspend = async (userId: string) => {
+        const updated = await suspendUser(userId);
         setUsers(prev => prev.map(u => u.userId === userId ? updated : u));
     };
+
+    const handleActivate = async (userId: string) => {
+        const updated = await activateUser(userId);
+        setUsers(prev => prev.map(u => u.userId === userId ? updated : u));
+    };
+
+    const handleWithdraw = async (userId: string) => {
+        const updated = await withdrawUser(userId);
+        setUsers(prev => prev.map(u => u.userId === userId ? updated : u));
+    };
+
 
 
     return (
@@ -91,13 +98,45 @@ export default function UserManagementTab({ currentUser }: UserManagementTabProp
                             </select>
                         </div>
 
-                        <button
-                            className="btn btn-secondary"
-                            style={{ marginTop: '1rem' }}
-                            onClick={() => handleToggleStatus(selectedUser.userId)}
-                        >
-                            {selectedUser.status === 'ACTIVE' ? '정지 처리' : '정지 해제'}
-                        </button>
+                        {selectedUser.status === 'ACTIVE' && (
+                            <button
+                                className="btn btn-secondary"
+                                style={{ marginTop: '1rem' }}
+                                onClick={() => handleSuspend(selectedUser.userId)}
+                            >
+                                정지 처리
+                            </button>
+                        )}
+
+                        {selectedUser.status === 'SUSPENDED' && (
+                            <button
+                                className="btn btn-secondary"
+                                style={{ marginTop: '1rem' }}
+                                onClick={() => handleActivate(selectedUser.userId)}
+                            >
+                                정지 해제
+                            </button>
+                        )}
+
+                        {selectedUser.status !== 'WITHDRAWN' && (
+                            <button
+                                className="btn btn-secondary"
+                                style={{ marginTop: '1rem' }}
+                                onClick={() => handleWithdraw(selectedUser.userId)}
+                            >
+                                탈퇴 처리
+                            </button>
+                        )}
+
+                        {selectedUser.status === 'WITHDRAWN' && (
+                            <button
+                                className="btn btn-secondary"
+                                style={{ marginTop: '1rem' }}
+                                onClick={() => handleActivate(selectedUser.userId)}
+                            >
+                                탈퇴 해제
+                            </button>
+                        )}
 
                         <button
                             className="btn"
