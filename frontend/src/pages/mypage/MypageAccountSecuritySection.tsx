@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
-import { logout } from '../../api/authApi';
 import styles from '../../styles/mypage.module.css';
+import { useUserStore } from '../../store/userStore';
 
 interface MypageAccountSecuritySectionProps {
     email: string;
@@ -8,10 +8,11 @@ interface MypageAccountSecuritySectionProps {
 
 function MypageAccountSecuritySection({ email }: MypageAccountSecuritySectionProps) {
     const navigate = useNavigate();
+    const logout = useUserStore((state) => state.logout);
 
-    const handleLogout = () => {
-        logout();
-        navigate('/login');
+    const handleLogout = async () => {
+        await logout();
+        navigate('/login', { replace: true });
     };
 
     return (

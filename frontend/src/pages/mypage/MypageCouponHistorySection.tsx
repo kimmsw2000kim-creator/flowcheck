@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 
-import { getAccessToken } from '../../api/authApi';
 import { fetchMypageCouponHistory } from '../../api/mypageApi';
 import type { MypageCouponHistoryItem } from '../../types/mypage';
 import styles from '../../styles/mypage.module.css';
 import EmptyState from '../../components/common/EmptyState';
+import { supabase } from '../../lib/supabaseClient';
 
 const couponTypeLabels: Record<string, string> = {
     LOAD_TEST: '부하 테스트 쿠폰',
@@ -27,22 +27,29 @@ function MypageCouponHistorySection() {
     const [errorMessage, setErrorMessage] = useState('');
 
     useEffect(() => {
-        const accessToken = getAccessToken();
+        const checkAuthAndFetch = async () => {
+            try {
+                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-        if (!accessToken) {
-            setErrorMessage('로그인이 필요합니다.');
-            setLoading(false);
-            return;
-        }
+                // 세션이 없거나 에러가 발생한 경우
+                if (sessionError || !session) {
+                    setErrorMessage('로그인이 필요합니다.');
+                    setLoading(false);
+                    return;
+                }
 
-        fetchMypageCouponHistory()
-            .then(setHistories)
-            .catch((error) => {
+                // 세션이 유효하면 API 호출 (인터셉터가 알아서 헤더에 토큰을 넣어줍니다)
+                const data = await fetchMypageCouponHistory();
+                setHistories(data);
+
+            } catch (error: any) {
                 setErrorMessage(error.message || '쿠폰 사용 내역을 불러오지 못했습니다.');
-            })
-            .finally(() => {
+            } finally {
                 setLoading(false);
-            });
+            }
+        };
+
+        checkAuthAndFetch();
     }, []);
 
     return (

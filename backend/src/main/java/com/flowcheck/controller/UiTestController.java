@@ -1,5 +1,6 @@
 package com.flowcheck.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowcheck.dto.uitest.*;
 import com.flowcheck.service.UiTestService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -9,14 +10,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
-import java.util.Base64;
-import java.nio.charset.StandardCharsets;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.JsonNode;
-import org.springframework.web.server.ResponseStatusException;
 
 @Tag(name = "UI Test Explorer", description = "자율형 UI 탐색 API")
 @RestController
@@ -32,10 +30,10 @@ public class UiTestController {
     @Operation(summary = "UI 탐색 테스트 시작", description = "자율형 AI 크롤링 및 UX 분석 테스트를 생성하고 시작 요청을 보냅니다.")
     @PostMapping
     public ResponseEntity<?> startUiTest(
-            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody UiTestStartRequest request) {
         try {
-            String email = extractEmailFromToken(authorization);
+            String email = jwt.getClaimAsString("email");
             UUID requestId = uiTestService.submitUiTest(email, request);
             return ResponseEntity.status(HttpStatus.ACCEPTED).body(
                     UiTestStartResponse.builder()
@@ -124,27 +122,6 @@ public class UiTestController {
         } catch (Exception e) {
             log.error("Error reporting failure", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
-        }
-    }
-
-    private String extractEmailFromToken(String authorization) {
-        // Authorization 헤더 존재 및 Bearer 토큰 형식인지 검사
-        if (authorization == null || !authorization.startsWith("Bearer ")) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing or invalid Authorization header");
-        }
-        String token = authorization.substring(7);
-        try {
-            // JWT 토큰 분해 (header.payload.signature)
-            String[] parts = token.split("\\.");
-            if (parts.length < 2) {
-                throw new IllegalArgumentException("Invalid JWT format");
-            }
-            // Base64Url 디코딩 후 email 클레임(Claim) 추출
-            String payloadJson = new String(Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8);
-            JsonNode payloadNode = objectMapper.readTree(payloadJson);
-            return payloadNode.get("email").asText();
-        } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Failed to parse token");
         }
     }
 }

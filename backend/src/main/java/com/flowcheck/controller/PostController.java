@@ -5,14 +5,15 @@ import com.flowcheck.domain.Post;
 import com.flowcheck.dto.CommentRequest;
 import com.flowcheck.dto.CommentResponse;
 import com.flowcheck.dto.PostListResponse;
+import com.flowcheck.dto.PostRequest;
 import com.flowcheck.repository.CommentRepository;
 import com.flowcheck.repository.PostRepository;
-import com.flowcheck.dto.PostRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.security.core.Authentication;
 
 import java.util.List;
 
@@ -21,124 +22,124 @@ import java.util.List;
 @RequiredArgsConstructor
 public class PostController {
 
-        private final PostRepository postRepository;
-        private final CommentRepository commentRepository;
+    private final PostRepository postRepository;
+    private final CommentRepository commentRepository;
 
-        @GetMapping
-        public Page<PostListResponse> getPosts(Pageable pageable) {
-                return postRepository.findAll(pageable)
-                                .map(post -> new PostListResponse(
-                                                post.getId(),
-                                                post.getTitle(),
-                                                post.getContent(),
-                                                post.getWriterEmail(),
-                                                post.getCreatedAt(),
-                                                post.getLikeCount(),
-                                                commentRepository.countByPostId(post.getId())));
-        }
+    @GetMapping
+    public Page<PostListResponse> getPosts(Pageable pageable) {
+        return postRepository.findAll(pageable)
+                .map(post -> new PostListResponse(
+                        post.getId(),
+                        post.getTitle(),
+                        post.getContent(),
+                        post.getWriterEmail(),
+                        post.getCreatedAt(),
+                        post.getLikeCount(),
+                        commentRepository.countByPostId(post.getId())));
+    }
 
-        @GetMapping("/{postId}")
-        public PostListResponse getPost(@PathVariable Long postId) {
-                Post post = postRepository.findById(postId)
-                                .orElseThrow(() -> new RuntimeException("게시글을 찾을 수 없습니다."));
+    @GetMapping("/{postId}")
+    public PostListResponse getPost(@PathVariable Long postId) {
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new RuntimeException("게시글을 찾을 수 없습니다."));
 
-                return new PostListResponse(
-                                post.getId(),
-                                post.getTitle(),
-                                post.getContent(),
-                                post.getWriterEmail(),
-                                post.getCreatedAt(),
-                                post.getLikeCount(),
-                                commentRepository.countByPostId(post.getId()));
-        }
+        return new PostListResponse(
+                post.getId(),
+                post.getTitle(),
+                post.getContent(),
+                post.getWriterEmail(),
+                post.getCreatedAt(),
+                post.getLikeCount(),
+                commentRepository.countByPostId(post.getId()));
+    }
 
-        @PostMapping
-        public PostListResponse createPost(@RequestBody PostRequest request) {
-                Post post = new Post();
+    @PostMapping
+    public PostListResponse createPost(@RequestBody PostRequest request) {
+        Post post = new Post();
 
-                String email = request.getEmail();
+        String email = request.getEmail();
 
-                post.setTitle(request.getTitle());
-                post.setContent(request.getContent());
-                post.setEmail(email);
-                post.setWriterEmail(email);
-                post.setUserId(email);
+        post.setTitle(request.getTitle());
+        post.setContent(request.getContent());
+        post.setEmail(email);
+        post.setWriterEmail(email);
+        post.setUserId(email);
 
-                Post savedPost = postRepository.save(post);
+        Post savedPost = postRepository.save(post);
 
-                return new PostListResponse(
-                                savedPost.getId(),
-                                savedPost.getTitle(),
-                                savedPost.getContent(),
-                                savedPost.getWriterEmail(),
-                                savedPost.getCreatedAt(),
-                                savedPost.getLikeCount(),
-                                0);
-        }
+        return new PostListResponse(
+                savedPost.getId(),
+                savedPost.getTitle(),
+                savedPost.getContent(),
+                savedPost.getWriterEmail(),
+                savedPost.getCreatedAt(),
+                savedPost.getLikeCount(),
+                0);
+    }
 
-        @PostMapping("/{postId}/like")
-        public void likePost(@PathVariable Long postId) {
-                Post post = postRepository.findById(postId)
-                                .orElseThrow(() -> new RuntimeException("게시글을 찾을 수 없습니다."));
+    @PostMapping("/{postId}/like")
+    public void likePost(@PathVariable Long postId) {
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new RuntimeException("게시글을 찾을 수 없습니다."));
 
-                post.setLikeCount(post.getLikeCount() + 1);
-                postRepository.save(post);
-        }
+        post.setLikeCount(post.getLikeCount() + 1);
+        postRepository.save(post);
+    }
 
-        @GetMapping("/{postId}/comments")
-        public List<CommentResponse> getComments(@PathVariable Long postId) {
-                List<Comment> comments = commentRepository.findByPostIdOrderByCreatedAtAsc(postId);
+    @GetMapping("/{postId}/comments")
+    public List<CommentResponse> getComments(@PathVariable Long postId) {
+        List<Comment> comments = commentRepository.findByPostIdOrderByCreatedAtAsc(postId);
 
-                List<Comment> parents = comments.stream()
-                                .filter(comment -> comment.getParentId() == null)
-                                .toList();
+        List<Comment> parents = comments.stream()
+                .filter(comment -> comment.getParentId() == null)
+                .toList();
 
-                return parents.stream()
-                                .map(parent -> new CommentResponse(
-                                                parent.getId(),
-                                                parent.getContent(),
-                                                parent.getWriterEmail(),
-                                                parent.getCreatedAt(),
-                                                parent.getParentId(),
-                                                comments.stream()
-                                                                .filter(reply -> parent.getId()
-                                                                                .equals(reply.getParentId()))
-                                                                .map(reply -> new CommentResponse(
-                                                                                reply.getId(),
-                                                                                reply.getContent(),
-                                                                                reply.getWriterEmail(),
-                                                                                reply.getCreatedAt(),
-                                                                                reply.getParentId(),
-                                                                                List.of()))
-                                                                .toList()))
-                                .toList();
-        }
+        return parents.stream()
+                .map(parent -> new CommentResponse(
+                        parent.getId(),
+                        parent.getContent(),
+                        parent.getWriterEmail(),
+                        parent.getCreatedAt(),
+                        parent.getParentId(),
+                        comments.stream()
+                                .filter(reply -> parent.getId()
+                                        .equals(reply.getParentId()))
+                                .map(reply -> new CommentResponse(
+                                        reply.getId(),
+                                        reply.getContent(),
+                                        reply.getWriterEmail(),
+                                        reply.getCreatedAt(),
+                                        reply.getParentId(),
+                                        List.of()))
+                                .toList()))
+                .toList();
+    }
 
-        @PostMapping("/{postId}/comments")
-        public CommentResponse createComment(
-                        @PathVariable Long postId,
-                        @RequestBody CommentRequest request,
-                        Authentication authentication) {
-                Comment comment = new Comment();
+    @PostMapping("/{postId}/comments")
+    public CommentResponse createComment(
+            @PathVariable Long postId,
+            @RequestBody CommentRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
+        Comment comment = new Comment();
 
-                comment.setPostId(postId);
-                comment.setParentId(request.getParentId());
-                comment.setContent(request.getContent());
+        comment.setPostId(postId);
+        comment.setParentId(request.getParentId());
+        comment.setContent(request.getContent());
 
-                String email = authentication != null
-                                ? authentication.getName()
-                                : "unknown@flowcheck.com";
+        String email = (jwt != null && jwt.getClaimAsString("email") != null)
+                ? jwt.getClaimAsString("email")
+                : "unknown@flowcheck.com";
 
-                comment.setWriterEmail(email);
+        comment.setWriterEmail(email);
 
-                Comment saved = commentRepository.save(comment);
+        Comment saved = commentRepository.save(comment);
 
-                return new CommentResponse(
-                                saved.getId(),
-                                saved.getContent(),
-                                saved.getWriterEmail(),
-                                saved.getCreatedAt(),
-                                saved.getParentId(),
-                                List.of());
-        }
+        return new CommentResponse(
+                saved.getId(),
+                saved.getContent(),
+                saved.getWriterEmail(),
+                saved.getCreatedAt(),
+                saved.getParentId(),
+                List.of());
+    }
 }
