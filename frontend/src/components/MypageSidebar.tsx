@@ -29,6 +29,10 @@ function MypageSidebar() {
           포인트 내역
         </NavLink>
 
+        <NavLink className={styles['sidebar-item']} to="/mypage/coupon-history">
+          쿠폰 사용 내역
+        </NavLink>
+
       </nav>
 
       <div className={styles['sidebar-section-title']}>커뮤니티 · 설정</div>

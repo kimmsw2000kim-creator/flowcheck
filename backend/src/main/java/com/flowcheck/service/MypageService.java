@@ -1,10 +1,7 @@
 package com.flowcheck.service;
 
 import com.flowcheck.domain.*;
-import com.flowcheck.dto.mypage.MypagePointHistoryResponseDTO;
-import com.flowcheck.dto.mypage.MypageResponseDTO;
-import com.flowcheck.dto.mypage.MypageTestHistoryResponseDTO;
-import com.flowcheck.dto.mypage.SiteSummaryResponseDTO;
+import com.flowcheck.dto.mypage.*;
 import com.flowcheck.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -23,6 +20,7 @@ public class MypageService {
         private final UserCouponRepository userCouponRepository;
         private final UserRepository userRepository;
         private final CreditsLedgerRepository creditsLedgerRepository;
+        private final CouponUsageLogRepository couponUsageLogRepository;
 
         public MypageResponseDTO getMyPage(String email) {
                 User user = userRepository.findByEmail(email)
@@ -140,5 +138,23 @@ public class MypageService {
                                                 ledger.getDescription(),
                                                 ledger.getCreatedAt()))
                                 .toList();
+        }
+
+        public List<MypageCouponHistoryResponseDTO> getCouponUsageHistory(String email) {
+                User user = userRepository.findByEmail(email)
+                        .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+
+                UUID userId = user.getUserId();
+
+                List<CouponUsageLog> logs = couponUsageLogRepository.findByUser_UserIdOrderByUsedAtDesc(userId);
+
+                return logs.stream()
+                        .map(log -> new MypageCouponHistoryResponseDTO(
+                                log.getId(),
+                                log.getCouponType().name(),
+                                log.getDescription(),
+                                log.getUsedAt()))
+                        .toList();
         }
 }
