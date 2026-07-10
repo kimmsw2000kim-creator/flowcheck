@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabaseClient";
+import { useUserStore } from "../store/userStore";
 
 export interface AuthParams {
     email: string;
@@ -35,8 +36,6 @@ export async function login({ email, password }: AuthParams): Promise<any> {
     return data;
 }
 
-export async function logout(): Promise<any> {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw new Error(error.message);
-    return;
+export async function logout(): Promise<void> {
+    await useUserStore.getState().logout();
 }

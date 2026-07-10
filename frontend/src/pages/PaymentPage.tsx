@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { CreditCard, RefreshCw, ShoppingBag, ShieldCheck, Coins, Ticket, Sparkles, History, Gift } from 'lucide-react';
 import { loadTossPayments } from '@tosspayments/tosspayments-sdk';
-import { getAccessToken } from '../api/authApi';
-import axios from 'axios';
+import apiClient from '../api/client';
 
 interface LedgerItem {
   id: number;
@@ -23,6 +22,7 @@ interface VirtualAccountDetails {
 
 import { useUserStore } from '../store/userStore';
 import { useAlertStore } from '../store/alertStore';
+import { supabase } from '../lib/supabaseClient';
 
 interface PaymentPageProps {
   ledger: LedgerItem[];
@@ -97,84 +97,85 @@ export default function PaymentPage({
     }
 
     if (paymentKey && orderId && amount) {
-      const accessToken = getAccessToken();
-      if (!accessToken) {
-        showAlert('결제 승인을 위해 로그인이 필요합니다.', 'error');
-        return;
-      }
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (!session) {
+          showAlert('결제 승인을 위해 로그인이 필요합니다.', 'error');
+          return;
+        }
 
-      setConfirmLoading(true);
+        setConfirmLoading(true);
 
-      axios.post('/api/payment/confirm', {
-        paymentKey,
-        orderId,
-        amount: parseInt(amount)
-      })
-        .then((response) => {
-          const data = response.data;
-          const status = data.status; // DONE, WAITING_FOR_DEPOSIT
-
-          if (status === 'DONE') {
-            // 결제 완료 (카드 등 즉시 충전) - 결제 금액(KRW)에 맞는 크레딧(C) 매핑 지급
-            let creditsAwarded = parseInt(amount);
-            if (creditsAwarded === 45000) {
-              creditsAwarded = 50000;
-            } else if (creditsAwarded === 70000) {
-              creditsAwarded = 100000;
-            }
-
-            // 백엔드 DB의 최신 정보(이전 잔액 + 충전액)를 동기화하여 레이스 컨디션 방지
-            axios.get('/api/mypage')
-              .then((res) => {
-                const mypageData = res.data;
-                onUserUpdate({
-                  balance: mypageData.balance,
-                  coupons: mypageData.couponCount
-                });
-                onAddLedger({
-                  id: ledger.length + 1,
-                  amount: creditsAwarded,
-                  type: 'CHARGE',
-                  description: `토스페이먼츠 결제 완료 - 주문번호: ${orderId}`,
-                  createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
-                });
-                showAlert('결제가 성공적으로 완료되었습니다! 크레딧이 충전되었습니다.', 'success');
-              })
-              .catch((err) => {
-                console.error('Failed to sync updated balance:', err);
-                // 폴백: 로컬 계산값으로 우선 세팅
-                onUserUpdate({
-                  balance: currentUser.balance + creditsAwarded,
-                  coupons: currentUser.coupons
-                });
-                showAlert('결제가 완료되었습니다! (잔액 동기화 실패, 새로고침 필요)', 'warning');
-              });
-          } else if (status === 'WAITING_FOR_DEPOSIT') {
-            // 가상계좌 발급 성공 (입금 대기)
-            const va = data.virtualAccount;
-            if (va) {
-              setConfirmedVirtualAccount({
-                bank: va.bank || va.bankCode || '가상은행',
-                accountNumber: va.accountNumber,
-                customerName: va.customerName || '고객',
-                amount: parseInt(amount),
-                dueDate: va.dueDate ? new Date(va.dueDate).toISOString().substring(0, 10) : '',
-                orderId: orderId
-              });
-              showAlert('가상계좌가 발급되었습니다. 지정된 계좌로 입금해 주세요.', 'success');
-            } else {
-              showAlert('가상계좌 정보가 없습니다.', 'error');
-            }
-          }
+        apiClient.post('/api/payment/confirm', {
+          paymentKey,
+          orderId,
+          amount: parseInt(amount)
         })
-        .catch((err) => {
-          console.error('Confirm payment failed:', err);
-          const errMsg = err?.response?.data?.message || err.message;
-          showAlert('결제 승인 처리에 실패했습니다: ' + errMsg, 'error');
-        })
-        .finally(() => {
-          setConfirmLoading(false);
-        });
+          .then((response) => {
+            const data = response.data;
+            const status = data.status; // DONE, WAITING_FOR_DEPOSIT
+
+            if (status === 'DONE') {
+              // 결제 완료 (카드 등 즉시 충전) - 결제 금액(KRW)에 맞는 크레딧(C) 매핑 지급
+              let creditsAwarded = parseInt(amount);
+              if (creditsAwarded === 45000) {
+                creditsAwarded = 50000;
+              } else if (creditsAwarded === 70000) {
+                creditsAwarded = 100000;
+              }
+
+              // 백엔드 DB의 최신 정보(이전 잔액 + 충전액)를 동기화하여 레이스 컨디션 방지
+              apiClient.get('/api/mypage')
+                .then((res) => {
+                  const mypageData = res.data;
+                  onUserUpdate({
+                    balance: mypageData.balance,
+                    coupons: mypageData.couponCount
+                  });
+                  onAddLedger({
+                    id: ledger.length + 1,
+                    amount: creditsAwarded,
+                    type: 'CHARGE',
+                    description: `토스페이먼츠 결제 완료 - 주문번호: ${orderId}`,
+                    createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
+                  });
+                  showAlert('결제가 성공적으로 완료되었습니다! 크레딧이 충전되었습니다.', 'success');
+                })
+                .catch((err) => {
+                  console.error('Failed to sync updated balance:', err);
+                  // 폴백: 로컬 계산값으로 우선 세팅
+                  onUserUpdate({
+                    balance: currentUser.balance + creditsAwarded,
+                    coupons: currentUser.coupons
+                  });
+                  showAlert('결제가 완료되었습니다! (잔액 동기화 실패, 새로고침 필요)', 'warning');
+                });
+            } else if (status === 'WAITING_FOR_DEPOSIT') {
+              // 가상계좌 발급 성공 (입금 대기)
+              const va = data.virtualAccount;
+              if (va) {
+                setConfirmedVirtualAccount({
+                  bank: va.bank || va.bankCode || '가상은행',
+                  accountNumber: va.accountNumber,
+                  customerName: va.customerName || '고객',
+                  amount: parseInt(amount),
+                  dueDate: va.dueDate ? new Date(va.dueDate).toISOString().substring(0, 10) : '',
+                  orderId: orderId
+                });
+                showAlert('가상계좌가 발급되었습니다. 지정된 계좌로 입금해 주세요.', 'success');
+              } else {
+                showAlert('가상계좌 정보가 없습니다.', 'error');
+              }
+            }
+          })
+          .catch((err) => {
+            console.error('Confirm payment failed:', err);
+            const errMsg = err?.response?.data?.message || err.message;
+            showAlert('결제 승인 처리에 실패했습니다: ' + errMsg, 'error');
+          })
+          .finally(() => {
+            setConfirmLoading(false);
+          });
+      });
     }
   }, []);
 
@@ -188,33 +189,35 @@ export default function PaymentPage({
       return;
     }
 
-    const accessToken = getAccessToken();
-    if (!accessToken) {
-      showAlert('결제를 진행하려면 로그인이 필요합니다.', 'error');
-      setSelectedProduct(null);
-      return;
-    }
-
-    setConfirmLoading(true);
-
-    axios.post('/api/payment/initiate',
-      { amount: selectedProduct.price }
-    )
-      .then((response) => {
-        const data = response.data;
-        setPaymentInitiateResponse(data);
-        setShowTossWidget(true);
-        setWidgetReady(false);
-      })
-      .catch((err) => {
-        console.error('Initiate payment failed:', err);
-        const errMsg = err?.response?.data?.message || err.message;
-        showAlert('결제 정보를 생성하는 중 오류가 발생했습니다: ' + errMsg, 'error');
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        showAlert('결제를 진행하려면 로그인이 필요합니다.', 'error');
         setSelectedProduct(null);
-      })
-      .finally(() => {
-        setConfirmLoading(false);
-      });
+        return;
+      }
+
+      setConfirmLoading(true);
+
+      apiClient.post('/api/payment/initiate',
+        { amount: selectedProduct.price }
+      )
+        .then((response) => {
+          const data = response.data;
+          setPaymentInitiateResponse(data);
+          setShowTossWidget(true);
+          setWidgetReady(false);
+        })
+        .catch((err) => {
+          console.error('Initiate payment failed:', err);
+          const errMsg = err?.response?.data?.message || err.message;
+          showAlert('결제 정보를 생성하는 중 오류가 발생했습니다: ' + errMsg, 'error');
+          setSelectedProduct(null);
+        })
+        .finally(() => {
+          setConfirmLoading(false);
+        });
+    });
+
   }, [selectedProduct]);
 
   // 3. 결제 요청 정보가 성공적으로 준비되면 Toss Widgets 렌더링
@@ -284,24 +287,25 @@ export default function PaymentPage({
     setSelectedProduct(null);
   };
 
-  const handleBuyCoupons = (count: number, couponType: 'LOAD_TEST' | 'UI_UX_TEST') => {
+  const handleBuyCoupons = async (count: number, couponType: 'LOAD_TEST' | 'UI_UX_TEST') => {
     const unitPrice = couponType === 'UI_UX_TEST' ? 1000 : 10000;
     const cost = count * unitPrice;
+
     if (currentUser.balance < cost) {
       showAlert('크레딧 잔액이 부족합니다.', 'error');
       return;
     }
 
-    const accessToken = getAccessToken();
-    if (!accessToken) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
       showAlert('쿠폰 구매를 위해 로그인이 필요합니다.', 'error');
       return;
     }
 
-    axios.post('/api/payment/buy-coupons', { count, couponType })
+    apiClient.post('/api/payment/buy-coupons', { count, couponType })
       .then(() => {
         // 구매 완료 시 백엔드 DB 최신 정보를 동기화
-        axios.get('/api/mypage')
+        apiClient.get('/api/mypage')
           .then((res) => {
             const mypageData = res.data;
             onUserUpdate({
@@ -662,7 +666,7 @@ export default function PaymentPage({
               <Gift size={18} style={{ color: 'var(--accent)' }} />
               <span>선결제 테스트 쿠폰 패키지 구매</span>
             </h3>
-            
+
             <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.95rem', color: 'var(--text-secondary)' }}>📊 부하 테스트 쿠폰 패키지</h4>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginBottom: '1.5rem' }}>
               <div className="card" style={{ background: 'var(--bg-tertiary)', textAlign: 'center', border: '1px dashed var(--border)', borderRadius: '0.75rem', padding: '1.25rem' }}>

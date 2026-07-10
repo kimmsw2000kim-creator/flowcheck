@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 
-import { getAccessToken } from '../../api/authApi';
 import { fetchMypagePointHistory } from '../../api/mypageApi';
 import type { MypagePointHistoryItem } from '../../types/mypage';
 import styles from '../../styles/mypage.module.css';
 import EmptyState from '../../components/common/EmptyState';
+import { supabase } from '../../lib/supabaseClient';
 
 const typeLabels: Record<string, string> = {
     CHARGE: '크레딧 충전',
@@ -28,22 +28,27 @@ function MypagePointHistorySection() {
     const [errorMessage, setErrorMessage] = useState('');
 
     useEffect(() => {
-        const accessToken = getAccessToken();
+        const checkAuthAndFetch = async () => {
+            try {
+                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-        if (!accessToken) {
-            setErrorMessage('로그인이 필요합니다.');
-            setLoading(false);
-            return;
-        }
+                if (sessionError || !session) {
+                    setErrorMessage('로그인이 필요합니다.');
+                    setLoading(false);
+                    return;
+                }
 
-        fetchMypagePointHistory()
-            .then(setHistories)
-            .catch((error) => {
+                const data = await fetchMypagePointHistory();
+                setHistories(data);
+
+            } catch (error: any) {
                 setErrorMessage(error.message || '포인트 내역을 불러오지 못했습니다.');
-            })
-            .finally(() => {
+            } finally {
                 setLoading(false);
-            });
+            }
+        };
+
+        checkAuthAndFetch();
     }, []);
 
     return (

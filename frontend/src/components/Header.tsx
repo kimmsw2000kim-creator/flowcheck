@@ -8,12 +8,12 @@ interface HeaderProps {
 }
 
 export default function Header({ activeTab, setActiveTab }: HeaderProps) {
-  const { currentUser, toggleRole } = useUserStore();
+  const { currentUser, authStatus, toggleRole } = useUserStore();
   const handleNavClick = (tab: string) => {
     setActiveTab(tab);
   };
 
-  const isLoggedIn = !!currentUser.email;
+  const isLoggedIn = authStatus === 'authenticated';
 
   return (
     <nav className="navbar">

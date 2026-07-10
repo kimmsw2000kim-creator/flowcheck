@@ -1,8 +1,8 @@
 package com.flowcheck.controller;
 
+import com.flowcheck.dto.LoadTest.LoadTestProgressUpdateRequest;
 import com.flowcheck.dto.LoadTest.LoadTestRequest;
 import com.flowcheck.dto.LoadTest.LoadTestResponse;
-import com.flowcheck.dto.LoadTest.LoadTestProgressUpdateRequest;
 import com.flowcheck.dto.LoadTest.LoadTestSubmitResponse;
 import com.flowcheck.service.LoadTestService;
 import com.flowcheck.service.LoadTestStreamService;
@@ -11,10 +11,12 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.http.MediaType;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -33,10 +35,12 @@ public class LoadTestController {
     @Operation(summary = "부하 테스트 실행 요청", description = "새로운 부하 테스트를 큐에 등록하고 요청 ID를 반환받습니다.")
     @PostMapping()
     public ResponseEntity<?> runTest(
-            @RequestHeader(value = "X-User-Id") UUID userId,
+            @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody LoadTestRequest request) {
 
         try {
+            UUID userId = UUID.fromString(jwt.getSubject());
+
             UUID requestId = loadTestService.submitLoadTest(userId, request);
 
             return ResponseEntity.status(HttpStatus.ACCEPTED).body(
