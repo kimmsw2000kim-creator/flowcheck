@@ -37,3 +37,10 @@ export interface MypagePointHistoryItem {
   description: string;
   createdAt: string;
 }
+
+export interface MypageCouponHistoryItem {
+    logId: number;
+    couponType: string;
+    description: string;
+    usedAt: string;
+}

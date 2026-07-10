@@ -22,6 +22,7 @@ import MypageTestDetailSection from './mypage/MypageTestDetailSection';
 
 import { getAccessToken, getCurrentEmail } from '../api/authApi';
 import { fetchMypage } from '../api/mypageApi';
+import MypageCouponHistorySection from './mypage/MypageCouponHistorySection';
 
 const emptyData: MypageData = {
   email: '',
@@ -124,6 +125,10 @@ function Mypage() {
               element={<MypagePointHistorySection />}
             />
 
+            <Route
+              path="coupon-history"
+              element={<MypageCouponHistorySection />}
+            />
 
             <Route
               path="posts"

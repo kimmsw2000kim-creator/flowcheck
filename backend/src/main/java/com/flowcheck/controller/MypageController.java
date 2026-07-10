@@ -2,6 +2,7 @@ package com.flowcheck.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.flowcheck.dto.mypage.MypageCouponHistoryResponseDTO;
 import com.flowcheck.dto.mypage.MypagePointHistoryResponseDTO;
 import com.flowcheck.dto.mypage.MypageResponseDTO;
 import com.flowcheck.dto.mypage.MypageTestHistoryResponseDTO;
@@ -52,6 +53,16 @@ public class MypageController {
     ) {
         String email = extractEmailFromToken(authorization);
         List<MypagePointHistoryResponseDTO> response = myPageService.getPointHistory(email);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/api/mypage/coupons/history")
+    public ResponseEntity<List<MypageCouponHistoryResponseDTO>> getMypageCouponHistory (
+            @RequestHeader(value = "Authorization", required = false) String authorization
+    ) {
+        String email = extractEmailFromToken(authorization);
+        List<MypageCouponHistoryResponseDTO> response = myPageService.getCouponUsageHistory(email);
 
         return ResponseEntity.ok(response);
     }

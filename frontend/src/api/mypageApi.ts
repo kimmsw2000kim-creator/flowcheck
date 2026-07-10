@@ -1,5 +1,6 @@
 import axios from 'axios';
-import type { MypageData, MypagePointHistoryItem, MypageTestHistoryItem } from '../types/mypage';
+import type { MypageData, MypagePointHistoryItem, MypageTestHistoryItem, MypageCouponHistoryItem } from '../types/mypage';
+
 
 export async function fetchMypage(): Promise<MypageData> {
     try {
@@ -31,3 +32,10 @@ export async function fetchMypagePointHistory(): Promise<MypagePointHistoryItem[
     const response = await axios.get<MypagePointHistoryItem[]>('/api/mypage/points/history');
     return response.data;
 }
+
+
+export async function fetchMypageCouponHistory(): Promise<MypageCouponHistoryItem[]> {
+    const response = await axios.get<MypageCouponHistoryItem[]>('/api/mypage/coupons/history');
+    return response.data;
+}
+

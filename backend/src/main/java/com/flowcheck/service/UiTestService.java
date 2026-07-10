@@ -11,7 +11,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
 
-import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -27,6 +26,7 @@ public class UiTestService {
     private final UiTestRepository uiTestRepository;
     private final UiTestStepRepository uiTestStepRepository;
     private final RestClient restClient;
+    private final CouponUsageLogRepository couponUsageLogRepository;
 
     @Value("${fastapi.url}")
     private String fastApiUrl;
@@ -77,6 +77,12 @@ public class UiTestService {
             // 쿠폰 사용
             UserCoupon couponToUse = availableCoupons.getFirst();
             couponToUse.useChance();
+
+            couponUsageLogRepository.save(CouponUsageLog.builder()
+                .user(user)
+                .couponType(CouponType.UI_UX_TEST)
+                .description("UI/UX 테스트 실행 (" + request.getTargetUrl() + ")")
+                .build());
         } else if (user.getBalance() >= TEST_COST) {
             // 잔액 사용
             user.deductBalance(TEST_COST);
