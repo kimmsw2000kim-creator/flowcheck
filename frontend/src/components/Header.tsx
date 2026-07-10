@@ -1,4 +1,3 @@
-import React from 'react';
 import { Activity } from 'lucide-react';
 import { useUserStore } from '../store/userStore';
 
@@ -9,11 +8,11 @@ interface HeaderProps {
 
 export default function Header({ activeTab, setActiveTab }: HeaderProps) {
   const { currentUser, authStatus, toggleRole } = useUserStore();
+  const isLoggedIn = authStatus === 'authenticated';
+
   const handleNavClick = (tab: string) => {
     setActiveTab(tab);
   };
-
-  const isLoggedIn = authStatus === 'authenticated';
 
   return (
     <nav className="navbar">
@@ -30,11 +29,11 @@ export default function Header({ activeTab, setActiveTab }: HeaderProps) {
         <div className="nav-links">
           <button className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => handleNavClick('dashboard')}>대시보드</button>
           <button className={`nav-item ${activeTab === 'domains' ? 'active' : ''}`} onClick={() => handleNavClick('domains')}>도메인 관리</button>
-          <button className={`nav-item ${activeTab === 'uitest' ? 'active' : ''}`} onClick={() => handleNavClick('uitest')}>ui/ux테스트</button>
+          <button className={`nav-item ${activeTab === 'uiUxTest' ? 'active' : ''}`} onClick={() => handleNavClick('uiUxTest')}>UI/UX 테스트</button>
           <button className={`nav-item ${activeTab === 'load' ? 'active' : ''}`} onClick={() => handleNavClick('load')}>부하 테스트</button>
           <button className={`nav-item ${activeTab === 'billing' ? 'active' : ''}`} onClick={() => handleNavClick('billing')}>크레딧 상점</button>
-          <button className={`nav-item ${activeTab === 'community' ? 'active' : ''}`} onClick={() => setActiveTab('community')}>커뮤니티</button>
-          <button className={`nav-item ${activeTab === 'comment' ? 'active' : ''}`} onClick={() => setActiveTab('comment')}>게시판</button>
+          <button className={`nav-item ${activeTab === 'community' ? 'active' : ''}`} onClick={() => handleNavClick('community')}>커뮤니티</button>
+          <button className={`nav-item ${activeTab === 'comment' ? 'active' : ''}`} onClick={() => handleNavClick('comment')}>게시판</button>
           <button className={`nav-item ${activeTab === 'support' ? 'active' : ''}`} onClick={() => handleNavClick('support')}>문의글 남기기</button>
           {/* {currentUser.role === 'ADMIN' && (
             <button className={`nav-item ${activeTab === 'admin' ? 'active' : ''}`} onClick={() => handleNavClick('admin')}>관리자 및 고객지원</button>

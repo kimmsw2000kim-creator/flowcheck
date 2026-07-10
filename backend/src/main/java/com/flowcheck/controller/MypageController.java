@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequiredArgsConstructor
@@ -25,9 +26,9 @@ public class MypageController {
     @GetMapping("/api/mypage")
     public ResponseEntity<MypageResponseDTO> getMyPage(
             @AuthenticationPrincipal Jwt jwt) {
-        String email = jwt.getClaimAsString("email");
+        UUID userId = UUID.fromString(jwt.getSubject());
 
-        MypageResponseDTO responseDTO = myPageService.getMyPage(email);
+        MypageResponseDTO responseDTO = myPageService.getMyPage(userId);
 
         return ResponseEntity.ok(responseDTO);
     }
@@ -35,8 +36,8 @@ public class MypageController {
     @GetMapping("/api/mypage/tests")
     public ResponseEntity<List<MypageTestHistoryResponseDTO>> getMyTestHistory(
             @AuthenticationPrincipal Jwt jwt) {
-        String email = jwt.getClaimAsString("email");
-        List<MypageTestHistoryResponseDTO> response = myPageService.getTestHistory(email);
+        UUID userId = UUID.fromString(jwt.getSubject());
+        List<MypageTestHistoryResponseDTO> response = myPageService.getTestHistory(userId);
 
         return ResponseEntity.ok(response);
     }
@@ -44,8 +45,8 @@ public class MypageController {
     @GetMapping("/api/mypage/points/history")
     public ResponseEntity<List<MypagePointHistoryResponseDTO>> getMypagePointHistory(
             @AuthenticationPrincipal Jwt jwt) {
-        String email = jwt.getClaimAsString("email");
-        List<MypagePointHistoryResponseDTO> response = myPageService.getPointHistory(email);
+        UUID userId = UUID.fromString(jwt.getSubject());
+        List<MypagePointHistoryResponseDTO> response = myPageService.getPointHistory(userId);
 
         return ResponseEntity.ok(response);
     }
@@ -53,8 +54,8 @@ public class MypageController {
     @GetMapping("/api/mypage/coupons/history")
     public ResponseEntity<List<MypageCouponHistoryResponseDTO>> getMypageCouponHistory(
             @AuthenticationPrincipal Jwt jwt) {
-        String email = jwt.getClaimAsString("email");
-        List<MypageCouponHistoryResponseDTO> response = myPageService.getCouponUsageHistory(email);
+        UUID userId = UUID.fromString(jwt.getSubject());
+        List<MypageCouponHistoryResponseDTO> response = myPageService.getCouponUsageHistory(userId);
 
         return ResponseEntity.ok(response);
     }

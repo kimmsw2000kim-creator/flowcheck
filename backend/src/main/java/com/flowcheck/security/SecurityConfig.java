@@ -31,6 +31,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/health").permitAll()
                 .requestMatchers("/api/billing/webhook", "/api/payment/webhook").permitAll() // Toss payments webhook does not require token
+                .requestMatchers("/api/ui-tests/*/report", "/api/ui-tests/*/fail", "/api/ui-tests/*/steps").permitAll()
                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                 .anyRequest().authenticated()
             )

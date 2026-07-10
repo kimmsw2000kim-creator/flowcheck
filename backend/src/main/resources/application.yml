@@ -48,7 +48,7 @@ fastapi:
   url: ${FASTAPI_URL:http://localhost:8000}
 
 ---
-# ✅ 배포 환경(prod) 오버라이드: 개발 설정과 분리
+# 배포 환경(prod) 오버라이드: 개발 설정과 분리
 spring:
   config:
     activate:

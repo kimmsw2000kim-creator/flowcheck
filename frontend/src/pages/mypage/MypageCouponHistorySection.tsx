@@ -8,7 +8,8 @@ import { supabase } from '../../lib/supabaseClient';
 
 const couponTypeLabels: Record<string, string> = {
     LOAD_TEST: '부하 테스트 쿠폰',
-    UI_UX_TEST: 'UI/UX 테스트 쿠폰',
+    UIUX_TEST: 'UI/UX 테스트 쿠폰',
+    UNKNOWN: '알 수 없는 쿠폰',
 };
 
 function formatDate(value: string) {
@@ -31,17 +32,13 @@ function MypageCouponHistorySection() {
             try {
                 const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-                // 세션이 없거나 에러가 발생한 경우
                 if (sessionError || !session) {
                     setErrorMessage('로그인이 필요합니다.');
-                    setLoading(false);
                     return;
                 }
 
-                // 세션이 유효하면 API 호출 (인터셉터가 알아서 헤더에 토큰을 넣어줍니다)
                 const data = await fetchMypageCouponHistory();
                 setHistories(data);
-
             } catch (error: any) {
                 setErrorMessage(error.message || '쿠폰 사용 내역을 불러오지 못했습니다.');
             } finally {
@@ -55,7 +52,7 @@ function MypageCouponHistorySection() {
     return (
         <section className={styles['mypage-section']}>
             <h1>쿠폰 사용 내역</h1>
-            <p>테스트 실행 시 사용한 쿠폰 내역을 확인할 수 있습니다.</p>
+            <p>테스트 실행에 사용한 쿠폰 내역을 확인할 수 있습니다.</p>
 
             {loading && (
                 <EmptyState
@@ -84,7 +81,7 @@ function MypageCouponHistorySection() {
                         <article className={styles['mypage-section-card']} key={item.logId}>
                             <div>
                                 <strong>{couponTypeLabels[item.couponType] || item.couponType}</strong>
-                                <p>{item.description}</p>
+                                <p>{item.description || '설명 없음'}</p>
                                 <p>{formatDate(item.usedAt)}</p>
                             </div>
                         </article>

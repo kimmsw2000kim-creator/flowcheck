@@ -1,4 +1,4 @@
-package com.flowcheck.dto.uitest;
+package com.flowcheck.dto.uiuxtest;
 
 import lombok.*;
 import java.util.UUID;
@@ -8,7 +8,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class UiTestStartResponse {
+public class UiUxTestStartResponse {
     private UUID requestId;
     private String status;
     private String message;

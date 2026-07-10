@@ -5,6 +5,7 @@ import com.flowcheck.dto.mypage.*;
 import com.flowcheck.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -13,27 +14,27 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class MypageService {
         private final RegisteredSiteRepository registeredSiteRepository;
         private final TestRequestRepository testRequestRepository;
-        private final UiTestRepository uiTestRepository;
+        private final UiUxTestReportRepository uiUxTestReportRepository;
         private final UserCouponRepository userCouponRepository;
         private final UserRepository userRepository;
         private final CreditsLedgerRepository creditsLedgerRepository;
         private final CouponUsageLogRepository couponUsageLogRepository;
 
-        public MypageResponseDTO getMyPage(String email) {
-                User user = userRepository.findByEmail(email)
+        public MypageResponseDTO getMyPage(UUID userId) {
+                User user = userRepository.findById(userId)
                                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
-
-                UUID userId = user.getUserId();
 
                 int couponCount = userCouponRepository.sumRemainingChancesByUserId(userId);
                 int loadTestCouponCount = userCouponRepository.sumRemainingChancesByUserIdAndCouponType(userId, CouponType.LOAD_TEST);
-                int uiUxTestCouponCount = userCouponRepository.sumRemainingChancesByUserIdAndCouponType(userId, CouponType.UI_UX_TEST);
+                int uiUxTestCouponCount = userCouponRepository.sumRemainingChancesByUserIdAndCouponType(userId, CouponType.UIUX_TEST);
                 long registeredSiteCount = registeredSiteRepository.countByUser_UserId(userId);
-                long testRunCount = testRequestRepository.countByUser_UserId(userId)
-                                + uiTestRepository.countByUser_UserId(userId);
+                
+                // 마스터 테이블인 test_requests 단일 개수로 총 실행 횟수 계산 변경
+                long testRunCount = testRequestRepository.countByUser_UserId(userId);
 
                 List<RegisteredSite> registeredSites = registeredSiteRepository
                                 .findByUser_UserIdOrderByCreatedAtDesc(userId);
@@ -49,7 +50,6 @@ public class MypageService {
 
                 return new MypageResponseDTO(
                                 user.getEmail(),
-                                // user.getCompanyName(),
                                 user.getBalance(),
                                 couponCount,
                                 loadTestCouponCount,
@@ -59,15 +59,14 @@ public class MypageService {
                                 sites);
         }
 
-        public List<MypageTestHistoryResponseDTO> getTestHistory(String email) {
-                User user = userRepository.findByEmail(email)
+        public List<MypageTestHistoryResponseDTO> getTestHistory(UUID userId) {
+                User user = userRepository.findById(userId)
                                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-                UUID userId = user.getUserId();
                 List<MypageTestHistoryResponseDTO> histories = new ArrayList<>();
 
-                List<TestRequest> loadTests = testRequestRepository.findByUser_UserIdOrderByCreatedAtDesc(userId);
-
+                // 1. 부하 테스트(LOAD) 이력 추출
+                List<TestRequest> loadTests = testRequestRepository.findByUserAndTestTypeOrderByCreatedAtAsc(user, "LOAD");
                 loadTests.forEach(test -> histories.add(new MypageTestHistoryResponseDTO(
                                 test.getId(),
                                 "LOAD",
@@ -80,37 +79,32 @@ public class MypageService {
                                 test.getCreatedAt(),
                                 test.getUpdatedAt())));
 
-                List<UiTest> uiTests = uiTestRepository.findByUser_UserIdOrderByCreatedAtDesc(userId);
+                // 2. UI/UX 테스트(UI) 이력 추출 (test_requests 테이블 내에서 UI 타입 필터링)
+                List<TestRequest> uiRequests = testRequestRepository.findByUserAndTestTypeOrderByCreatedAtAsc(user, "UIUX");
+                uiRequests.forEach(test -> {
+                        // 세부 분석 보고서 텍스트 추출 매핑 조정
+                        String reportMarkdown = uiUxTestReportRepository.findByTestRequestId(test.getId())
+                                        .map(UiUxTestReport::getAiUxReview)
+                                        .orElse("");
 
-                uiTests.forEach(test -> histories.add(new MypageTestHistoryResponseDTO(
-                                test.getId(),
-                                "UI",
-                                "UI/UX 테스트",
-                                test.getTargetUrl(),
-                                test.getStatus(),
-                                null,
-                                resolveUiTestProgress(test.getStatus()),
-                                summarizeReport(test.getReport()),
-                                test.getCreatedAt(),
-                                test.getUpdatedAt())));
+                        histories.add(new MypageTestHistoryResponseDTO(
+                                        test.getId(),
+                                        "UI",
+                                        "UI/UX 테스트",
+                                        test.getTargetUrl(),
+                                        test.getTestStatus(),
+                                        test.getTestPhase(),
+                                        test.getTestProgress(),
+                                        test.getPromptInput(),
+                                        test.getCreatedAt(),
+                                        test.getUpdatedAt()));
+                });
 
                 histories.sort(Comparator.comparing(
                                 MypageTestHistoryResponseDTO::createdAt,
                                 Comparator.nullsLast(Comparator.reverseOrder())));
 
                 return histories;
-        }
-
-        private Integer resolveUiTestProgress(String status) {
-                if ("COMPLETED".equals(status) || "FAILED".equals(status)) {
-                        return 100;
-                }
-
-                if ("RUNNING".equals(status)) {
-                        return 50;
-                }
-
-                return 0;
         }
 
         private String summarizeReport(String report) {
@@ -122,12 +116,7 @@ public class MypageService {
                 return firstLine.length() > 120 ? firstLine.substring(0, 120) + "..." : firstLine;
         }
 
-        public List<MypagePointHistoryResponseDTO> getPointHistory(String email) {
-                User user = userRepository.findByEmail(email)
-                                .orElseThrow(() -> new IllegalArgumentException("User not found"));
-
-                UUID userId = user.getUserId();
-
+        public List<MypagePointHistoryResponseDTO> getPointHistory(UUID userId) {
                 List<CreditsLedger> ledgers = creditsLedgerRepository.findByUser_UserIdOrderByCreatedAtDesc(userId);
 
                 return ledgers.stream()
@@ -140,21 +129,19 @@ public class MypageService {
                                 .toList();
         }
 
-        public List<MypageCouponHistoryResponseDTO> getCouponUsageHistory(String email) {
-                User user = userRepository.findByEmail(email)
-                        .orElseThrow(() -> new IllegalArgumentException("User not found"));
-
-
-                UUID userId = user.getUserId();
+        public List<MypageCouponHistoryResponseDTO> getCouponUsageHistory(UUID userId) {
+                if (!userRepository.existsById(userId)) {
+                        throw new IllegalArgumentException("User not found");
+                }
 
                 List<CouponUsageLog> logs = couponUsageLogRepository.findByUser_UserIdOrderByUsedAtDesc(userId);
 
                 return logs.stream()
-                        .map(log -> new MypageCouponHistoryResponseDTO(
-                                log.getId(),
-                                log.getCouponType().name(),
-                                log.getDescription(),
-                                log.getUsedAt()))
-                        .toList();
+                                .map(log -> new MypageCouponHistoryResponseDTO(
+                                                log.getId(),
+                                                log.getCouponType() != null ? log.getCouponType().name() : "UNKNOWN",
+                                                log.getDescription(),
+                                                log.getUsedAt()))
+                                .toList();
         }
 }
