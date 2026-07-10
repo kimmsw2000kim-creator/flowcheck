@@ -1,8 +1,11 @@
 package com.flowcheck.controller;
 
-import com.flowcheck.dto.uitest.*;
-import com.flowcheck.service.UiTestService;
+import com.flowcheck.dto.uiuxtest.*;
+import com.flowcheck.service.UiUxTestService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -26,19 +29,26 @@ import org.springframework.web.server.ResponseStatusException;
 @CrossOrigin(origins = {"http://localhost:5173", "https://flow-check.duckdns.org"})
 public class UiTestController {
 
-    private final UiTestService uiTestService;
+    private final UiUxTestService uiTestService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Operation(summary = "UI 탐색 테스트 시작", description = "자율형 AI 크롤링 및 UX 분석 테스트를 생성하고 시작 요청을 보냅니다.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "202", description = "테스트 시작 성공 (PENDING)"),
+            @ApiResponse(responseCode = "400", description = "잘못된 요청 또는 활성화된 테스트 중복"),
+            @ApiResponse(responseCode = "401", description = "인증 실패 (유효하지 않은 토큰)"),
+            @ApiResponse(responseCode = "402", description = "크레딧 또는 쿠폰 잔액 부족"),
+            @ApiResponse(responseCode = "500", description = "서버 내부 오류 또는 AI 서버 연동 실패")
+    })
     @PostMapping
     public ResponseEntity<?> startUiTest(
-            @RequestHeader(value = "Authorization", required = false) String authorization,
-            @Valid @RequestBody UiTestStartRequest request) {
+            @Parameter(description = "테스트를 실행할 사용자 이메일 (임시 인증 우회용)", required = false) @RequestParam(defaultValue = "test@example.com") String email,
+            @Parameter(description = "UI/UX 테스트 시작에 필요한 대상 URL 및 프롬프트 정보", required = true) @Valid @RequestBody UiUxTestStartRequest request) {
         try {
-            String email = extractEmailFromToken(authorization);
+            // [임시] JWT 기능이 완성될 때까지 파라미터로 받은 이메일을 그대로 사용합니다.
             UUID requestId = uiTestService.submitUiTest(email, request);
             return ResponseEntity.status(HttpStatus.ACCEPTED).body(
-                    UiTestStartResponse.builder()
+                    UiUxTestStartResponse.builder()
                             .requestId(requestId)
                             .status("PENDING")
                             .message("UI Autonomous Test exploration has been initiated.")
@@ -56,15 +66,19 @@ public class UiTestController {
         }
     }
 
-    @Operation(summary = "UI 탐색 실시간 상태 및 결과 조회", description = "특정 요청 ID에 대응하는 실시간 탐색 단계(Telemetry) 및 종합 보고서를 조회합니다.")
+    @Operation(summary = "UI 탐색 실시간 상태 및 결과 조회", description = "특정 요청 ID에 대응하는 통합 리포트 및 내장 jsonb 스텝 로그 데이터를 조회합니다.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "테스트 상태 조회 성공"),
+            @ApiResponse(responseCode = "404", description = "해당 UUID의 테스트 요청을 찾을 수 없음"),
+            @ApiResponse(responseCode = "500", description = "서버 내부 오류")
+    })
     @GetMapping("/{requestId}/status")
-    public ResponseEntity<?> getTestStatus(@PathVariable UUID requestId) {
+    public ResponseEntity<?> getTestStatus(
+            @Parameter(description = "조회할 테스트의 식별자(UUID)", required = true) @PathVariable UUID requestId) {
         try {
-            // 해당 요청 ID의 최신 진행 상태와 스텝 정보를 서비스 계층에서 조회
-            UiTestStatusResponse response = uiTestService.getTestStatus(requestId);
+            UiUxTestStatusResponse response = uiTestService.getTestStatus(requestId);
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
-            // 유효하지 않은 UUID 요청이거나 데이터가 없는 경우 404 (Not Found) 에러 반환
             log.error("Test status not found: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         } catch (Exception e) {
@@ -73,32 +87,17 @@ public class UiTestController {
         }
     }
 
-    @Operation(summary = "AI 서버 실시간 스텝 기록 접수", description = "AI 에이전트(FastAPI)가 탐색 단계별 수행 결과를 보고합니다.")
-    @PostMapping("/{requestId}/steps")
-    public ResponseEntity<?> addStep(
-            @PathVariable UUID requestId,
-            @RequestBody UiTestStepSubmitRequest request) {
-        try {
-            // 각 행동(CLICK, TYPE 등) 결과를 DB에 기록 (PENDING일 경우 RUNNING으로 업데이트)
-            uiTestService.addStep(requestId, request);
-            return ResponseEntity.ok().build();
-        } catch (IllegalArgumentException e) {
-            // 잘못된 requestId가 넘어왔을 경우 서버 에러(500) 대신 400 Bad Request 반환
-            log.warn("Invalid step submission: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
-        } catch (Exception e) {
-            log.error("Error submitting step", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
-        }
-    }
-
-    @Operation(summary = "AI 서버 최종 마크다운 리포트 접수", description = "AI 에이전트(FastAPI)가 탐색 종료 후 최종 종합 보고서 텍스트를 제출합니다.")
+    @Operation(summary = "AI 서버 최종 리포트 및 스텝 데이터 일괄 접수", description = "AI 에이전트가 탐색 종료 후 마크다운 보고서와 수집된 스텝 로그 배열을 일괄 제출합니다.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "리포트 및 스텝 데이터 저장 성공"),
+            @ApiResponse(responseCode = "400", description = "잘못된 요청 (예: 존재하지 않는 테스트 ID)"),
+            @ApiResponse(responseCode = "500", description = "서버 내부 오류")
+    })
     @PostMapping("/{requestId}/report")
     public ResponseEntity<?> submitReport(
-            @PathVariable UUID requestId,
-            @RequestBody UiTestReportSubmitRequest request) {
+            @Parameter(description = "리포트를 제출할 테스트의 식별자(UUID)", required = true) @PathVariable UUID requestId,
+            @Parameter(description = "제출할 최종 마크다운 리포트 정보", required = true) @RequestBody UiUxTestReportSubmitRequest request) {
         try {
-            // 전체 테스트 결과(리포트) 저장 및 상태를 COMPLETED로 변경
             uiTestService.saveReport(requestId, request);
             return ResponseEntity.ok().build();
         } catch (IllegalArgumentException e) {
@@ -110,11 +109,16 @@ public class UiTestController {
         }
     }
 
-    @Operation(summary = "AI 서버 실행 실패 보고 접수", description = "AI 에이전트(FastAPI) 탐색 중 에러나 비정상 중단 상황을 보고합니다.")
+    @Operation(summary = "AI 서버 실행 실패 보고 접수", description = "AI 에이전트 탐색 중 치명적 결함이나 비정상 중단 상황에 대한 실패 사유를 접수합니다.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "실패 사유 접수 및 테스트 상태 FAILED 변경 성공"),
+            @ApiResponse(responseCode = "400", description = "잘못된 요청 (예: 존재하지 않는 테스트 ID)"),
+            @ApiResponse(responseCode = "500", description = "서버 내부 오류")
+    })
     @PostMapping("/{requestId}/fail")
     public ResponseEntity<?> reportFailure(
-            @PathVariable UUID requestId,
-            @RequestParam String reason) {
+            @Parameter(description = "실패를 보고할 테스트의 식별자(UUID)", required = true) @PathVariable UUID requestId,
+            @Parameter(description = "발생한 치명적 오류 또는 실패 사유", required = true) @RequestParam String reason) {
         try {
             uiTestService.markAsFailed(requestId, reason);
             return ResponseEntity.ok().build();
@@ -127,19 +131,18 @@ public class UiTestController {
         }
     }
 
+    // [임시 주석 처리] JWT 토큰 기능이 없으므로 비활성화합니다.
+    /*
     private String extractEmailFromToken(String authorization) {
-        // Authorization 헤더 존재 및 Bearer 토큰 형식인지 검사
         if (authorization == null || !authorization.startsWith("Bearer ")) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing or invalid Authorization header");
         }
         String token = authorization.substring(7);
         try {
-            // JWT 토큰 분해 (header.payload.signature)
             String[] parts = token.split("\\.");
             if (parts.length < 2) {
                 throw new IllegalArgumentException("Invalid JWT format");
             }
-            // Base64Url 디코딩 후 email 클레임(Claim) 추출
             String payloadJson = new String(Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8);
             JsonNode payloadNode = objectMapper.readTree(payloadJson);
             return payloadNode.get("email").asText();
@@ -147,4 +150,5 @@ public class UiTestController {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Failed to parse token");
         }
     }
+    */
 }

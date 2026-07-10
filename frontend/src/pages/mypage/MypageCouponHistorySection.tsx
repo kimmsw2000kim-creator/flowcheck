@@ -8,7 +8,7 @@ import EmptyState from '../../components/common/EmptyState';
 
 const couponTypeLabels: Record<string, string> = {
     LOAD_TEST: '부하 테스트 쿠폰',
-    UI_UX_TEST: 'UI/UX 테스트 쿠폰',
+    UIUX_TEST: 'UI/UX 테스트 쿠폰',
 };
 
 function formatDate(value: string) {

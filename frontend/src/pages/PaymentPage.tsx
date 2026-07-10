@@ -284,8 +284,8 @@ export default function PaymentPage({
     setSelectedProduct(null);
   };
 
-  const handleBuyCoupons = (count: number, couponType: 'LOAD_TEST' | 'UI_UX_TEST') => {
-    const unitPrice = couponType === 'UI_UX_TEST' ? 1000 : 10000;
+  const handleBuyCoupons = (count: number, couponType: 'LOAD_TEST' | 'UIUX_TEST') => {
+    const unitPrice = couponType === 'UIUX_TEST' ? 1000 : 10000;
     const cost = count * unitPrice;
     if (currentUser.balance < cost) {
       showAlert('크레딧 잔액이 부족합니다.', 'error');
@@ -662,7 +662,7 @@ export default function PaymentPage({
               <Gift size={18} style={{ color: 'var(--accent)' }} />
               <span>선결제 테스트 쿠폰 패키지 구매</span>
             </h3>
-            
+
             <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.95rem', color: 'var(--text-secondary)' }}>📊 부하 테스트 쿠폰 패키지</h4>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginBottom: '1.5rem' }}>
               <div className="card" style={{ background: 'var(--bg-tertiary)', textAlign: 'center', border: '1px dashed var(--border)', borderRadius: '0.75rem', padding: '1.25rem' }}>
@@ -682,12 +682,12 @@ export default function PaymentPage({
               <div className="card" style={{ background: 'var(--bg-tertiary)', textAlign: 'center', border: '1px dashed var(--border)', borderRadius: '0.75rem', padding: '1.25rem' }}>
                 <div style={{ fontWeight: 800, fontSize: '1.05rem', marginBottom: '0.25rem', color: 'var(--text-primary)' }}>UI 5회 쿠폰 패키지</div>
                 <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '1.25rem' }}>가격: 5,000 크레딧</div>
-                <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => handleBuyCoupons(5, 'UI_UX_TEST')}>구매하기</button>
+                <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => handleBuyCoupons(5, 'UIUX_TEST')}>구매하기</button>
               </div>
               <div className="card" style={{ background: 'var(--bg-tertiary)', textAlign: 'center', border: '1px dashed var(--border)', borderRadius: '0.75rem', padding: '1.25rem' }}>
                 <div style={{ fontWeight: 800, fontSize: '1.05rem', marginBottom: '0.25rem', color: 'var(--text-primary)' }}>UI 10회 쿠폰 패키지</div>
                 <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '1.25rem' }}>가격: 10,000 크레딧</div>
-                <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => handleBuyCoupons(10, 'UI_UX_TEST')}>구매하기</button>
+                <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => handleBuyCoupons(10, 'UIUX_TEST')}>구매하기</button>
               </div>
             </div>
           </div>

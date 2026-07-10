@@ -1,4 +1,4 @@
-package com.flowcheck.dto.uitest;
+package com.flowcheck.dto.uiuxtest;
 
 import lombok.*;
 
@@ -7,6 +7,6 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class UiTestReportSubmitRequest {
+public class UiUxTestReportSubmitRequest {
     private String reportMarkdown;
 }
