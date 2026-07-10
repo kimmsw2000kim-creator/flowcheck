@@ -27,7 +27,7 @@ export interface UiUxTestStatusResponse {
 /**
  * UI 탐색 테스트를 시작합니다.
  */
-export async function startUiUxTest(targetUrl: string, userId: string): Promise<StartUiUxTestResponse> {
+export async function startUiUxTest(targetUrl: string): Promise<StartUiUxTestResponse> {
   const response = await apiClient.post('/api/ui-tests',
     { targetUrl }
   );

@@ -24,11 +24,9 @@ public class MypageService {
         private final CreditsLedgerRepository creditsLedgerRepository;
         private final CouponUsageLogRepository couponUsageLogRepository;
 
-        public MypageResponseDTO getMyPage(String email) {
-                User user = userRepository.findByEmail(email)
+        public MypageResponseDTO getMyPage(UUID userId) {
+                User user = userRepository.findById(userId)
                                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
-
-                UUID userId = user.getUserId();
 
                 int couponCount = userCouponRepository.sumRemainingChancesByUserId(userId);
                 int loadTestCouponCount = userCouponRepository.sumRemainingChancesByUserIdAndCouponType(userId, CouponType.LOAD_TEST);
@@ -61,11 +59,10 @@ public class MypageService {
                                 sites);
         }
 
-        public List<MypageTestHistoryResponseDTO> getTestHistory(String email) {
-                User user = userRepository.findByEmail(email)
+        public List<MypageTestHistoryResponseDTO> getTestHistory(UUID userId) {
+                User user = userRepository.findById(userId)
                                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-                UUID userId = user.getUserId();
                 List<MypageTestHistoryResponseDTO> histories = new ArrayList<>();
 
                 // 1. 부하 테스트(LOAD) 이력 추출
@@ -83,7 +80,7 @@ public class MypageService {
                                 test.getUpdatedAt())));
 
                 // 2. UI/UX 테스트(UI) 이력 추출 (test_requests 테이블 내에서 UI 타입 필터링)
-                List<TestRequest> uiRequests = testRequestRepository.findByUserAndTestTypeOrderByCreatedAtAsc(user, "UI");
+                List<TestRequest> uiRequests = testRequestRepository.findByUserAndTestTypeOrderByCreatedAtAsc(user, "UIUX");
                 uiRequests.forEach(test -> {
                         // 세부 분석 보고서 텍스트 추출 매핑 조정
                         String reportMarkdown = uiUxTestReportRepository.findByTestRequestId(test.getId())
@@ -119,12 +116,7 @@ public class MypageService {
                 return firstLine.length() > 120 ? firstLine.substring(0, 120) + "..." : firstLine;
         }
 
-        public List<MypagePointHistoryResponseDTO> getPointHistory(String email) {
-                User user = userRepository.findByEmail(email)
-                                .orElseThrow(() -> new IllegalArgumentException("User not found"));
-
-                UUID userId = user.getUserId();
-
+        public List<MypagePointHistoryResponseDTO> getPointHistory(UUID userId) {
                 List<CreditsLedger> ledgers = creditsLedgerRepository.findByUser_UserIdOrderByCreatedAtDesc(userId);
 
                 return ledgers.stream()
@@ -137,18 +129,17 @@ public class MypageService {
                                 .toList();
         }
 
-        public List<MypageCouponHistoryResponseDTO> getCouponUsageHistory(String email) {
-                User user = userRepository.findByEmail(email)
-                                .orElseThrow(() -> new IllegalArgumentException("User not found"));
-
-                UUID userId = user.getUserId();
+        public List<MypageCouponHistoryResponseDTO> getCouponUsageHistory(UUID userId) {
+                if (!userRepository.existsById(userId)) {
+                        throw new IllegalArgumentException("User not found");
+                }
 
                 List<CouponUsageLog> logs = couponUsageLogRepository.findByUser_UserIdOrderByUsedAtDesc(userId);
 
                 return logs.stream()
                                 .map(log -> new MypageCouponHistoryResponseDTO(
                                                 log.getId(),
-                                                log.getCouponType().name(),
+                                                log.getCouponType() != null ? log.getCouponType().name() : "UNKNOWN",
                                                 log.getDescription(),
                                                 log.getUsedAt()))
                                 .toList();

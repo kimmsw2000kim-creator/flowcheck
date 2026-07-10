@@ -12,6 +12,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
 
+import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -41,19 +43,48 @@ public class UiUxTestService {
     private String supabaseAnonKey;
 
     private static final int TEST_COST = 1_000;
+    private static final String TEST_TYPE_UIUX = "UIUX";
+    private static final List<String> ACTIVE_TEST_STATUSES = List.of("PENDING", "RUNNING");
+    private static final Duration STALE_ACTIVE_TEST_TIMEOUT = Duration.ofMinutes(15);
+
+    private void failStaleActiveUiUxTests() {
+        OffsetDateTime staleCutoff = OffsetDateTime.now().minus(STALE_ACTIVE_TEST_TIMEOUT);
+        List<TestRequest> staleRequests = testRequestRepository
+                .findByTestTypeAndTestStatusInAndCreatedAtBefore(
+                        TEST_TYPE_UIUX,
+                        ACTIVE_TEST_STATUSES,
+                        staleCutoff);
+
+        if (staleRequests.isEmpty()) {
+            return;
+        }
+
+        staleRequests.forEach(testRequest -> {
+            testRequest.changeStatus("FAILED");
+            testRequest.changePhase("TIMEOUT");
+            testRequest.changeProgress(100);
+        });
+
+        testRequestRepository.saveAll(staleRequests);
+        log.warn("Marked {} stale UI/UX test requests as FAILED after {} minutes",
+                staleRequests.size(),
+                STALE_ACTIVE_TEST_TIMEOUT.toMinutes());
+    }
 
     @Transactional
-    public UUID submitUiUxTest(String email, UiUxTestStartRequest request) {
-        User user = userRepository.findByEmail(email)
+    public UUID submitUiUxTest(UUID userId, UiUxTestStartRequest request) {
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
 
+        failStaleActiveUiUxTests();
+
         boolean hasActiveTest = testRequestRepository.existsByUserAndTestTypeAndTestStatusIn(
-                user, "UI", List.of("PENDING", "RUNNING"));
+                user, TEST_TYPE_UIUX, ACTIVE_TEST_STATUSES);
         if (hasActiveTest) {
             throw new IllegalStateException("이미 진행 중인 UI 테스트가 있습니다. 완료 후 다시 시도해 주세요.");
         }
 
-        List<TestRequest> userUiRequests = testRequestRepository.findByUserAndTestTypeOrderByCreatedAtAsc(user, "UI");
+        List<TestRequest> userUiRequests = testRequestRepository.findByUserAndTestTypeOrderByCreatedAtAsc(user, TEST_TYPE_UIUX);
         if (userUiRequests.size() >= 10) {
             int deleteCount = userUiRequests.size() - 9;
             for (int i = 0; i < deleteCount; i++) {
@@ -62,7 +93,7 @@ public class UiUxTestService {
                 deleteVideoFromSupabase(oldestRequest.getId());
 
                 testRequestRepository.delete(oldestRequest);
-                log.info("Deleted oldest UI test request record {} for user {} due to 10-test limit", oldestRequest.getId(), email);
+                log.info("Deleted oldest UI test request record {} for user {} due to 10-test limit", oldestRequest.getId(), userId);
             }
         }
 
@@ -97,7 +128,7 @@ public class UiUxTestService {
                 .user(user)
                 .targetUrl(request.getTargetUrl())
                 .promptInput(request.getPromptInput() != null ? request.getPromptInput() : "")
-                .testType("UIUX")
+                .testType(TEST_TYPE_UIUX)
                 .testStatus("PENDING")
                 .testPhase("QUEUED")
                 .testProgress(0)

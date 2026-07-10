@@ -3,6 +3,7 @@ import { Play, CheckCircle, AlertCircle, RefreshCw, Globe, Monitor, Terminal, Fi
 import apiClient from "../api/client";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import axios from 'axios';
 import { startUiUxTest, getUiUxTestStatus, UiUxTestStepData } from '../api/uiUxTestApi';
 import Button from '../components/common/Button';
 import TextField from '../components/common/TextField';
@@ -113,7 +114,7 @@ export default function UiUxTestPage({
 
     try {
       // 2. 백엔드 호출
-      const startRes = await startUiUxTest(targetUrl, currentUser.id);
+      const startRes = await startUiUxTest(targetUrl);
       const requestId = startRes.requestId;
 
       showAlert('자율형 AI UI 테스트 탐색 에이전트가 가동되었습니다!', 'success');
@@ -186,7 +187,10 @@ export default function UiUxTestPage({
     } catch (err: any) {
       console.error('Failed to start UI Test:', err);
       setUiUxTestStatus('error');
-      showAlert(err.message || 'AI 서버를 호출하지 못했습니다.', 'error');
+      const errorMessage = axios.isAxiosError(err)
+        ? (typeof err.response?.data === 'string' ? err.response.data : err.response?.data?.message)
+        : err.message;
+      showAlert(errorMessage || 'AI 서버를 호출하지 못했습니다.', 'error');
     } finally {
       isSubmittingRef.current = false; // ✅ 성공/실패 모두 잠금 해제
     }

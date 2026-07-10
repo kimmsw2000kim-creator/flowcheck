@@ -33,8 +33,8 @@ public class UiUxTestController {
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody UiUxTestStartRequest request) {
         try {
-            String email = jwt.getClaimAsString("email");
-            UUID requestId = uiUxTestService.submitUiUxTest(email, request);
+            UUID userId = UUID.fromString(jwt.getSubject());
+            UUID requestId = uiUxTestService.submitUiUxTest(userId, request);
             return ResponseEntity.status(HttpStatus.ACCEPTED).body(
                     UiUxTestStartResponse.builder()
                             .requestId(requestId)

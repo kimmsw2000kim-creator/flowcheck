@@ -5,6 +5,7 @@ import com.flowcheck.domain.User;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -19,4 +20,9 @@ public interface TestRequestRepository extends JpaRepository<TestRequest, UUID> 
 
     // 제한 개수 및 마이페이지 조회를 위한 정렬 메서드
     List<TestRequest> findByUserAndTestTypeOrderByCreatedAtAsc(User user, String testType);
+
+    List<TestRequest> findByTestTypeAndTestStatusInAndCreatedAtBefore(
+            String testType,
+            List<String> testStatuses,
+            OffsetDateTime createdAt);
 }
