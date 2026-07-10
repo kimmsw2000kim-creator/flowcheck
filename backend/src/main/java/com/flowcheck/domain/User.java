@@ -101,4 +101,10 @@ public class User {
         this.role = newRole;
     }
 
+    /*
+    user 탈퇴 처리 (재회원가입 불가)
+     */
+    public void withdraw() {
+        this.status = UserStatus.WITHDRAWN;
+    }
 }
