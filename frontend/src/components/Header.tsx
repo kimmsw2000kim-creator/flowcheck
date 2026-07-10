@@ -35,6 +35,7 @@ export default function Header({ activeTab, setActiveTab }: HeaderProps) {
           <button className={`nav-item ${activeTab === 'billing' ? 'active' : ''}`} onClick={() => handleNavClick('billing')}>크레딧 상점</button>
           <button className={`nav-item ${activeTab === 'community' ? 'active' : ''}`} onClick={() => setActiveTab('community')}>커뮤니티</button>
           <button className={`nav-item ${activeTab === 'comment' ? 'active' : ''}`} onClick={() => setActiveTab('comment')}>게시판</button>
+          <button className={`nav-item ${activeTab === 'support' ? 'active' : ''}`} onClick={() => handleNavClick('support')}>문의글 남기기</button>
           {/* {currentUser.role === 'ADMIN' && (
             <button className={`nav-item ${activeTab === 'admin' ? 'active' : ''}`} onClick={() => handleNavClick('admin')}>관리자 및 고객지원</button>
           )} */}
