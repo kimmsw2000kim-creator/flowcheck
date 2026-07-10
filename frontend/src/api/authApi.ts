@@ -1,4 +1,4 @@
-import axios from 'axios';
+import { supabase } from "../lib/supabaseClient";
 
 export interface AuthParams {
     email: string;
@@ -7,60 +7,36 @@ export interface AuthParams {
 }
 
 export async function signup({ email, password, nickname }: AuthParams): Promise<any> {
-    try {
-        const response = await axios.post('/api/auth/signup', {
-            email,
-            password,
-            nickname,
-        });
+    if (!password) throw new Error("비밀번호가 필요합니다.");
 
-        return response.data;
-    } catch (error: any) {
-        const message =
-            error.response?.data?.message ||
-            error.response?.data?.error ||
-            '회원가입에 실패했습니다.';
+    const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+            data: {
+                nickname
+            },
+        },
+    });
 
-        throw new Error(message);
-    }
+    if (error) throw new Error(error.message);
+    return data;
 }
 
 export async function login({ email, password }: AuthParams): Promise<any> {
-    try {
-        const response = await axios.post('/api/auth/login', {
-            email,
-            password,
-        });
+    if (!password) throw new Error("비밀번호가 필요합니다.");
 
-        const data = response.data;
+    const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+    });
 
-        localStorage.setItem('accessToken', data.accessToken);
-        localStorage.setItem('refreshToken', data.refreshToken);
-        localStorage.setItem('email', data.email);
-        localStorage.setItem('userId', data.userId);
-
-        return data;
-    } catch (error: any) {
-        const message =
-            error.response?.data?.message ||
-            error.response?.data?.error ||
-            '로그인에 실패했습니다.';
-
-        throw new Error(message);
-    }
+    if (error) throw new Error(error.message);
+    return data;
 }
 
-export function logout(): void {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('email');
-    localStorage.removeItem('userId');
-}
-
-export function getAccessToken(): string | null {
-    return localStorage.getItem('accessToken');
-}
-
-export function getCurrentEmail(): string | null {
-    return localStorage.getItem('email');
+export async function logout(): Promise<any> {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw new Error(error.message);
+    return;
 }

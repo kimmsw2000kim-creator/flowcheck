@@ -27,6 +27,7 @@ public class LoadTestService {
         private final TestRequestRepository testRequestRepository;
         private final LoadTestReportRepository loadTestReportRepository;
         private final LoadTestStreamService loadTestStreamService;
+        private final CouponUsageLogRepository couponUsageLogRepository;
 
         private final ApplicationEventPublisher eventPublisher;
 
@@ -60,6 +61,12 @@ public class LoadTestService {
                         // 쿠폰 사용
                         UserCoupon couponToUse = availableCoupons.getFirst();
                         couponToUse.useChance();
+
+                        couponUsageLogRepository.save(CouponUsageLog.builder()
+                                .user(user)
+                                .couponType(CouponType.LOAD_TEST)
+                                .description("부하 테스트 실행 (" + request.getTargetUrl() + ")")
+                                .build());
 
                 } else if (user.getBalance() >= TEST_COST) {
                         // 잔액 사용

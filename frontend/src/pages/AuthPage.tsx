@@ -124,33 +124,39 @@ export default function AuthPage({
     if (mode === "login") {
       try {
         const data = await login({ email, password });
-        localStorage.setItem("accessToken", data.accessToken);
-        localStorage.setItem("refreshToken", data.refreshToken);
-        localStorage.setItem("email", data.email);
 
-        loginSuccess(data.email, data.accessToken, data.userId);
-        showAlert("로그인에 성공했습니다!", "success");
-        setActiveTab("dashboard");
+        if (data.session && data.user) {
+          loginSuccess(
+            data.user.email,
+            data.session.access_token,
+            data.user.id
+          );
+          showAlert("로그인에 성공했습니다!", "success");
+          setActiveTab("dashboard");
+        }
       } catch (error) {
-        showAlert("로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.", "error");
-        console.error(error);
+        showAlert(error.message || "로그인에 실패했습니다.", "error");
       } finally {
         setLoading(false);
       }
     } else {
       try {
         const data = await signup({ email, password, nickname });
-        showAlert(
-          data.message || "회원가입 요청이 완료되었습니다. 이메일 인증 후 로그인해 주세요.",
-          "success"
-        );
+
+        if (data.session === null) {
+          showAlert(
+            data.message || "회원가입 요청이 완료되었습니다. 이메일 인증 후 로그인해 주세요.",
+            "success"
+          );
+        } else {
+          showAlert("회원가입이 완료되었습니다!", "success");
+        }
 
         setMode("login");
         setPassword("");
         setPasswordConfirm("");
       } catch (error) {
-        showAlert("회원가입에 실패했습니다. 형식에 맞게 다시 입력해 주세요.", "error");
-        console.error(error);
+        showAlert(error.message || "회원가입에 실패했습니다.", "error");
       } finally {
         setLoading(false);
       }
