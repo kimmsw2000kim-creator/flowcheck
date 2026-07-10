@@ -15,6 +15,7 @@ import PostWritePage from "./pages/PostWritePage";
 import PostDetailPage from "./pages/PostDetailPage";
 import PostEditPage from "./pages/PostEditPage";
 import AdminPage from './pages/admin/AdminPage';
+import SupportPage from './pages/SupportPage';
 import Mypage from './pages/Mypage';
 import AuthPage from './pages/AuthPage';
 import AuthCallback from './pages/AuthCallback';
@@ -64,6 +65,7 @@ function App() {
     billing: '/billing',
     community: '/community',
     admin: '/admin',
+    support: '/support',
     login: '/login',
     signup: '/signup',
     comment: "/comment",
@@ -137,10 +139,6 @@ function App() {
     };
     setReports([...reports, report]);
     showAlert('신고가 접수되었습니다.');
-  };
-
-  const handleSuspendUser = (targetUserId: string) => {
-    showAlert(`해당 유저(${targetUserId})가 7일간 서비스 정지 처리되었습니다.`, 'success');
   };
 
   return (
@@ -238,13 +236,11 @@ function App() {
               <Route
                 path="/admin"
                 element={
-                  <AdminPage
-                    reports={reports}
-                    setReports={setReports}
-                    handleSuspendUser={handleSuspendUser}
-                  />
+                  <AdminPage currentUser={currentUser} />
                 }
               />
+
+              <Route path="/support" element={<SupportPage />} />
 
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </>
