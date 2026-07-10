@@ -39,6 +39,7 @@ public class AdminUserController {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
         user.changeRole(request.role());
+        userRepository.save(user);
         return UserSummaryResponse.from(user, userCouponRepository.sumRemainingChancesByUserId(userId));
     }
 
@@ -48,6 +49,7 @@ public class AdminUserController {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
         user.suspendAccount(OffsetDateTime.now().plusDays(7));
+        userRepository.save(user);
         return UserSummaryResponse.from(user, userCouponRepository.sumRemainingChancesByUserId(userId));
     }
 
@@ -57,6 +59,7 @@ public class AdminUserController {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
         user.activateAccount();
+        userRepository.save(user);
         return UserSummaryResponse.from(user, userCouponRepository.sumRemainingChancesByUserId(userId));
     }
 
@@ -66,6 +69,7 @@ public class AdminUserController {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
         user.withdraw();
+        userRepository.save(user);
         return UserSummaryResponse.from(user, userCouponRepository.sumRemainingChancesByUserId(userId));
     }
 
