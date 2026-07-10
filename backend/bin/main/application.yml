@@ -1,26 +1,67 @@
 spring:
   application:
     name: flowcheck
+  config:
+    import:
+      - optional:file:../.env[.properties]
+      - optional:file:.env[.properties]
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:flowcheck}
     username: ${DB_USER:postgres}
     password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 3 # 개발환경에서는 3개면 충분
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: none
     show-sql: true
     properties:
       hibernate:
         format_sql: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${SUPABASE_JWKS_URL}
+          jws-algorithms:
+            - ES256
 
 supabase:
+  url: ${SUPABASE_URL}
+  anon-key: ${SUPABASE_ANON_KEY}
   jwt:
-    secret: ${SUPABASE_JWT_SECRET:}
+    key: ${SUPABASE_JWT_KEY}
 
 gemini:
   api-key: ${GEMINI_API_KEY:}
 
 toss:
-  secret-key: ${TOSS_SECRET_KEY:}
-  client-key: ${TOSS_CLIENT_KEY:}
+  secret-key: ${TOSS_WIDGET_SECRET_KEY:${TOSS_SECRET_KEY:}}
+  client-key: ${VITE_TOSS_CLIENT_KEY:${TOSS_WIDGET_CLIENT_KEY:${TOSS_CLIENT_KEY:}}}
+
+external:
+  fastapi:
+    base-url: ${FASTAPI_URL}
+
+fastapi:
+  url: ${FASTAPI_URL:http://localhost:8000}
+
+---
+# 배포 환경(prod) 오버라이드: 개발 설정과 분리
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    hikari:
+      maximum-pool-size: 10       # 배포 환경에서는 커넥션 풀 확대
+      minimum-idle: 3
+      connection-timeout: 20000   # 20초 내 커넥션 획득 못하면 예외
+      idle-timeout: 600000        # 10분 유휴 시 반환
+      max-lifetime: 1800000       # 30분 최대 수명
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: false

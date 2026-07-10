@@ -69,6 +69,13 @@ public class TestRequest {
     @Column(name = "test_progress", nullable = false)
     private Integer testProgress = 0;
 
+    // 추가된 테스트 타입 구분 컬럼
+    @NotNull
+    @Builder.Default
+    @ColumnDefault("'LOAD'") // 기본값을 부하(LOAD)로 지정함
+    @Column(name = "test_type", nullable = false, length = 10)
+    private String testType = "LOAD";
+
     // @NotNull
     // @Builder.Default
     // @Enumerated(EnumType.STRING) // 💡 문자열 상태값은 Enum으로 관리하는 것이 가장 안전합니다.

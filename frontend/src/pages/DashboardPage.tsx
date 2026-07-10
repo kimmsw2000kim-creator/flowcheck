@@ -12,10 +12,10 @@ interface Domain {
 
 interface DashboardPageProps {
   setActiveTab: (tab: string) => void;
-  setSelectedUiTestDomain: (id: number) => void;
+  setSelectedUiUxTestDomain: (id: number) => void;
 }
 
-export default function DashboardPage({ setActiveTab, setSelectedUiTestDomain }: DashboardPageProps) {
+export default function DashboardPage({ setActiveTab, setSelectedUiUxTestDomain }: DashboardPageProps) {
   const currentUser = useUserStore((state) => state.currentUser);
   const { domains } = useDomains();
   return (
@@ -24,7 +24,7 @@ export default function DashboardPage({ setActiveTab, setSelectedUiTestDomain }:
         <h2 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>FlowCheck 대시보드</h2>
         <p style={{ color: 'var(--text-secondary)' }}>크레딧 모니터링, AI UI 테스트 수행, 그리고 부하 테스트 평가를 한눈에 관리하세요.</p>
       </div>
-      
+
       <div className="dashboard-grid">
         <div className="card">
           <div className="card-title"><CreditCard size={18} /> 보유 크레딧 잔액</div>
@@ -69,10 +69,10 @@ export default function DashboardPage({ setActiveTab, setSelectedUiTestDomain }:
                     </span>
                   </td>
                   <td>
-                    <button 
-                      className="btn btn-secondary" 
+                    <button
+                      className="btn btn-secondary"
                       style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
-                      onClick={() => { setActiveTab('uitest'); setSelectedUiTestDomain(d.id); }}
+                      onClick={() => { setActiveTab('uiUxTest'); setSelectedUiUxTestDomain(d.id); }}
                     >
                       UI/UX 테스트 실행
                     </button>

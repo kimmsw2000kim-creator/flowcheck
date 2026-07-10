@@ -3,7 +3,8 @@ import { Play, CheckCircle, AlertCircle, RefreshCw, Globe, Monitor, Terminal, Fi
 import apiClient from "../api/client";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { startUiTest, getUiTestStatus, UiTestStepData } from '../api/uiTestApi';
+import axios from 'axios';
+import { startUiUxTest, getUiUxTestStatus, UiUxTestStepData } from '../api/uiUxTestApi';
 import Button from '../components/common/Button';
 import TextField from '../components/common/TextField';
 
@@ -18,25 +19,25 @@ import { useAlertStore } from '../store/alertStore';
 
 import { useDomains } from '../hooks/useDomains';
 
-interface UiTestPageProps {
-  selectedUiTestDomain: number;
-  setSelectedUiTestDomain: (id: number) => void;
+interface UiUxTestPageProps {
+  selectedUiUxTestDomain: number;
+  setSelectedUiUxTestDomain: (id: number) => void;
   onAddLedger: (ledgerItem: any) => void;
 }
 
-export default function UiTestPage({
-  selectedUiTestDomain,
-  setSelectedUiTestDomain,
+export default function UiUxTestPage({
+  selectedUiUxTestDomain,
+  setSelectedUiUxTestDomain,
   onAddLedger,
-}: UiTestPageProps) {
+}: UiUxTestPageProps) {
   const currentUser = useUserStore((state) => state.currentUser);
   const onUserUpdate = useUserStore((state) => state.updateUserBalanceAndCoupons);
   const showAlert = useAlertStore((state) => state.showAlert);
   const { domains } = useDomains();
   const [targetUrl, setTargetUrl] = useState<string>('');
-  const [uiTestStatus, setUiTestStatus] = useState<string>('idle'); // idle, running, success, error
-  const [uiTestSteps, setUiTestSteps] = useState<UiTestStepData[]>([]);
-  const [uiTestReportMarkdown, setUiTestReportMarkdown] = useState<string>('');
+  const [uiUxTestStatus, setUiUxTestStatus] = useState<string>('idle'); // idle, running, success, error
+  const [uiUxTestSteps, setUiUxTestSteps] = useState<UiUxTestStepData[]>([]);
+  const [uiUxTestReportMarkdown, setUiUxTestReportMarkdown] = useState<string>('');
 
   // ✅ interval ID를 useRef로 관리 — React 비동기 state와 무관하게 즉시 clearInterval 가능
   const intervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
@@ -54,7 +55,7 @@ export default function UiTestPage({
     if (stepsEndRef.current) {
       stepsEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [uiTestSteps]);
+  }, [uiUxTestSteps]);
 
   /** interval을 완전히 정지하는 헬퍼 함수 */
   const stopPolling = React.useCallback(() => {
@@ -66,25 +67,25 @@ export default function UiTestPage({
 
   // 도메인 선택 변경 시 URL 입력창 자동 반영
   useEffect(() => {
-    const selected = domains.find(d => d.id === selectedUiTestDomain);
+    const selected = domains.find(d => d.id === selectedUiUxTestDomain);
     if (selected) {
       setTargetUrl(selected.domainUrl);
     }
-  }, [selectedUiTestDomain, domains]);
+  }, [selectedUiUxTestDomain, domains]);
 
   // 언마운트 시 폴링 리소스 정리
   useEffect(() => {
     return () => { stopPolling(); };
   }, [stopPolling]);
 
-  const handleRunUiTest = async () => {
+  const handleRunUiUxTest = async () => {
     // ✅ 이중 가드 1: 이미 제출 중이면 즉시 차단 (비동기 중복 클릭 방지)
     if (isSubmittingRef.current) {
       showAlert('이미 테스트 요청이 처리 중입니다. 잠시 기다려 주세요.', 'error');
       return;
     }
     // ✅ 이중 가드 2: 이미 running 상태면 추가 시작 불가
-    if (uiTestStatus === 'running') {
+    if (uiUxTestStatus === 'running') {
       showAlert('테스트가 이미 실행 중입니다.', 'error');
       return;
     }
@@ -106,14 +107,14 @@ export default function UiTestPage({
       return;
     }
 
-    setUiTestStatus('running');
-    setUiTestSteps([]);
-    setUiTestReportMarkdown('');
+    setUiUxTestStatus('running');
+    setUiUxTestSteps([]);
+    setUiUxTestReportMarkdown('');
     isSubmittingRef.current = true; // ✅ 제출 잠금
 
     try {
       // 2. 백엔드 호출
-      const startRes = await startUiTest(targetUrl, currentUser.id);
+      const startRes = await startUiUxTest(targetUrl);
       const requestId = startRes.requestId;
 
       showAlert('자율형 AI UI 테스트 탐색 에이전트가 가동되었습니다!', 'success');
@@ -146,26 +147,26 @@ export default function UiTestPage({
         if (pollCountRef.current > MAX_POLL_COUNT) {
           console.warn('Max polling count exceeded. Stopping polling.');
           stopPolling();
-          setUiTestStatus('error');
-          setUiTestReportMarkdown('# 타임아웃\n\n테스트가 12분 이상 응답이 없어 자동으로 중단되었습니다.');
+          setUiUxTestStatus('error');
+          setUiUxTestReportMarkdown('# 타임아웃\n\n테스트가 12분 이상 응답이 없어 자동으로 중단되었습니다.');
           showAlert('테스트 응답 대기 시간이 초과되었습니다.', 'error');
           return;
         }
 
         try {
-          const statusRes = await getUiTestStatus(requestId);
+          const statusRes = await getUiUxTestStatus(requestId);
           pollErrorCountRef.current = 0; // 성공 시 에러 카운터 리셋
-          setUiTestSteps(statusRes.steps);
+          setUiUxTestSteps(statusRes.steps || []);
 
           if (statusRes.status === 'COMPLETED') {
             stopPolling(); // ✅ ref 기반으로 즉시 중단
-            setUiTestStatus('success');
-            setUiTestReportMarkdown(statusRes.report || '');
+            setUiUxTestStatus('success');
+            setUiUxTestReportMarkdown(statusRes.report || '');
             showAlert('자율형 AI UI 테스트가 완료되었습니다!', 'success');
           } else if (statusRes.status === 'FAILED') {
             stopPolling(); // ✅ ref 기반으로 즉시 중단
-            setUiTestStatus('error');
-            setUiTestReportMarkdown(statusRes.report || '# 테스트 실패\n\nAI 에이전트 탐색 중 비정상 종료되거나 에러가 발생했습니다.');
+            setUiUxTestStatus('error');
+            setUiUxTestReportMarkdown(statusRes.report || '# 테스트 실패\n\nAI 에이전트 탐색 중 비정상 종료되거나 에러가 발생했습니다.');
             showAlert('AI UI 테스트 도중 에러가 발생하였습니다.', 'error');
           }
         } catch (pollErr) {
@@ -176,8 +177,8 @@ export default function UiTestPage({
           if (pollErrorCountRef.current >= MAX_POLL_ERRORS) {
             console.error('Too many consecutive polling errors. Stopping polling.');
             stopPolling(); // ✅ ref 기반으로 즉시 중단
-            setUiTestStatus('error');
-            setUiTestReportMarkdown('# 연결 오류\n\n서버와의 통신이 반복적으로 실패하여 테스트 상태 조회를 중단하였습니다.');
+            setUiUxTestStatus('error');
+            setUiUxTestReportMarkdown('# 연결 오류\n\n서버와의 통신이 반복적으로 실패하여 테스트 상태 조회를 중단하였습니다.');
             showAlert('서버 통신 오류로 상태 조회가 중단되었습니다.', 'error');
           }
         }
@@ -185,20 +186,23 @@ export default function UiTestPage({
 
     } catch (err: any) {
       console.error('Failed to start UI Test:', err);
-      setUiTestStatus('error');
-      showAlert(err.message || 'AI 서버를 호출하지 못했습니다.', 'error');
+      setUiUxTestStatus('error');
+      const errorMessage = axios.isAxiosError(err)
+        ? (typeof err.response?.data === 'string' ? err.response.data : err.response?.data?.message)
+        : err.message;
+      showAlert(errorMessage || 'AI 서버를 호출하지 못했습니다.', 'error');
     } finally {
       isSubmittingRef.current = false; // ✅ 성공/실패 모두 잠금 해제
     }
   };
 
   // 비디오 녹화본 URL 추출 파싱 (백엔드 추가 컬럼 없이 report 내 마킹 데이터 활용)
-  const hasVideoUrl = uiTestReportMarkdown.includes('[VIDEO_URL]:');
+  const hasVideoUrl = uiUxTestReportMarkdown.includes('[VIDEO_URL]:');
   let videoUrl = '';
-  let cleanReportMarkdown = uiTestReportMarkdown;
+  let cleanReportMarkdown = uiUxTestReportMarkdown;
 
   if (hasVideoUrl) {
-    const parts = uiTestReportMarkdown.split('[VIDEO_URL]:');
+    const parts = uiUxTestReportMarkdown.split('[VIDEO_URL]:');
     const afterTag = parts[1];
     const firstNewlineIdx = afterTag.indexOf('\n');
 
@@ -231,9 +235,9 @@ export default function UiTestPage({
               <label className="form-label">인증 도메인 불러오기</label>
               <select
                 className="form-input"
-                value={selectedUiTestDomain}
-                onChange={(e) => setSelectedUiTestDomain(parseInt(e.target.value))}
-                disabled={uiTestStatus === 'running'}
+                value={selectedUiUxTestDomain}
+                onChange={(e) => setSelectedUiUxTestDomain(parseInt(e.target.value))}
+                disabled={uiUxTestStatus === 'running'}
               >
                 <option value="">-- 주소 선택하기 --</option>
                 {domains.filter(d => d.verified).map(d => (
@@ -255,7 +259,7 @@ export default function UiTestPage({
               placeholder="https://example.com"
               value={targetUrl}
               onChange={(e) => setTargetUrl(e.target.value)}
-              disabled={uiTestStatus === 'running'}
+              disabled={uiUxTestStatus === 'running'}
               leftIcon={Globe}
               style={{ marginTop: '0.25rem' }}
             />
@@ -310,8 +314,8 @@ export default function UiTestPage({
             <Button
               variant="primary"
               style={{ width: '100%' }}
-              onClick={handleRunUiTest}
-              isLoading={uiTestStatus === 'running'}
+              onClick={handleRunUiUxTest}
+              isLoading={uiUxTestStatus === 'running'}
               loadingText="탐색 에이전트 구동 중..."
               icon={Play}
             >
@@ -327,23 +331,23 @@ export default function UiTestPage({
               <span>실시간 탐색 상황 (Telemetry)</span>
             </h3>
 
-            {uiTestStatus === 'idle' && (
+            {uiUxTestStatus === 'idle' && (
               <div style={{ color: 'var(--text-muted)', textAlign: 'center', margin: 'auto' }}>
                 <Play size={48} style={{ margin: '0 auto 1rem', opacity: 0.3 }} />
                 <p>UI/UX 테스트를 시작하면 실시간 DOM 탐색 진행 상황이 표시됩니다.</p>
               </div>
             )}
 
-            {uiTestStatus === 'running' && uiTestSteps.length === 0 && (
+            {uiUxTestStatus === 'running' && uiUxTestSteps.length === 0 && (
               <div style={{ color: 'var(--text-muted)', textAlign: 'center', margin: 'auto' }}>
                 <RefreshCw className="animate-spin" size={48} style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
                 <p>브라우저를 초기화하고 대상 주소로 이동하는 중입니다...</p>
               </div>
             )}
 
-            {(uiTestStatus === 'running' || uiTestSteps.length > 0) && (
+            {(uiUxTestStatus === 'running' || uiUxTestSteps.length > 0) && (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                {uiTestStatus === 'running' && (
+                {uiUxTestStatus === 'running' && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--accent-hover)', marginBottom: '1.5rem', fontSize: '0.9rem', fontWeight: 500 }}>
                     <RefreshCw className="animate-spin" size={16} />
                     <span>Gemini AI와 Playwright가 화면 구조를 파악하고 이벤트를 유도하고 있습니다.</span>
@@ -351,7 +355,7 @@ export default function UiTestPage({
                 )}
 
                 <div className="timeline" style={{ flex: 1, overflowY: 'auto', maxHeight: '400px' }}>
-                  {uiTestSteps.map((step, idx) => (
+                  {uiUxTestSteps.map((step, idx) => (
                     <div className="timeline-step" key={idx} style={{ marginBottom: '1.5rem', paddingLeft: '1.5rem', position: 'relative' }}>
                       <div className="timeline-dot" style={{
                         position: 'absolute',
@@ -393,7 +397,7 @@ export default function UiTestPage({
                   <div ref={stepsEndRef} />
                 </div>
 
-                {uiTestStatus === 'success' && (
+                {uiUxTestStatus === 'success' && (
                   <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--border)', paddingTop: '1.5rem' }}>
                     <div style={{ color: 'var(--success)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
                       <CheckCircle size={18} />
@@ -427,7 +431,7 @@ export default function UiTestPage({
                   </div>
                 )}
 
-                {uiTestStatus === 'error' && (
+                {uiUxTestStatus === 'error' && (
                   <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--border)', paddingTop: '1.5rem' }}>
                     <div style={{ color: 'var(--error)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
                       <AlertCircle size={18} />
