@@ -8,7 +8,7 @@ import Toast from './components/common/Toast';
 // Pages
 import DashboardPage from './pages/DashboardPage';
 import DomainsPage from './pages/DomainsPage';
-import UiTestPage from './pages/UitestPage';
+import UiUxTestPage from './pages/UiUxTestPage';
 import LoadPage from './pages/LoadPage';
 import PaymentPage from './pages/PaymentPage';
 import CommunityPage from './pages/CommunityPage';
@@ -57,7 +57,7 @@ function App() {
     dashboard: '/dashboard',
     mypage: '/mypage',
     domains: '/domains',
-    uitest: '/uitest',
+    uiUxTest: '/uiUxTest',
     load: '/load',
     billing: '/billing',
     community: '/community',
@@ -177,7 +177,7 @@ function App() {
     };
   }, [resetAuthState, setAuthStatus, setCurrentUser]);
 
-  const [selectedUiTestDomain, setSelectedUiTestDomain] = useState<number>(1);
+  const [selectedUiUxTestDomain, setSelectedUiUxTestDomain] = useState<number>(1);
 
   const handleAddLedger = (ledgerItem: LedgerItem) => {
     setLedger(prev => [ledgerItem, ...prev]);
@@ -189,7 +189,7 @@ function App() {
       reporterId: currentUser.id,
       targetType: type,
       targetId: id,
-      reason: '부적절한 내용물',
+      reason: '부적절한 내용',
       status: 'PENDING',
       createdAt: new Date().toISOString().split('T')[0]
     };
@@ -233,7 +233,7 @@ function App() {
                 element={
                   <DashboardPage
                     setActiveTab={setActiveTab}
-                    setSelectedUiTestDomain={setSelectedUiTestDomain}
+                    setSelectedUiUxTestDomain={setSelectedUiUxTestDomain}
                   />
                 }
               />
@@ -248,11 +248,11 @@ function App() {
               />
 
               <Route
-                path="/uitest"
+                path="/uiUxTest"
                 element={
-                  <UiTestPage
-                    selectedUiTestDomain={selectedUiTestDomain}
-                    setSelectedUiTestDomain={setSelectedUiTestDomain}
+                  <UiUxTestPage
+                    selectedUiUxTestDomain={selectedUiUxTestDomain}
+                    setSelectedUiUxTestDomain={setSelectedUiUxTestDomain}
                     onAddLedger={handleAddLedger}
                   />
                 }

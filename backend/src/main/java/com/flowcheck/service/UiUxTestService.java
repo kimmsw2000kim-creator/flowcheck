@@ -43,7 +43,7 @@ public class UiUxTestService {
     private static final int TEST_COST = 1_000;
 
     @Transactional
-    public UUID submitUiTest(String email, UiUxTestStartRequest request) {
+    public UUID submitUiUxTest(String email, UiUxTestStartRequest request) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
 
@@ -141,9 +141,15 @@ public class UiUxTestService {
         }
 
         String reportMarkdown = "";
+        List<Map<String, Object>> stepsList = new java.util.ArrayList<>();
         var reportOpt = uiUxTestReportRepository.findByTestRequestId(requestId);
         if (reportOpt.isPresent()) {
             reportMarkdown = reportOpt.get().getAiUxReview();
+            try {
+                stepsList = objectMapper.readValue(reportOpt.get().getRawLogs(), new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
+            } catch (Exception e) {
+                log.warn("Failed to parse rawLogs for test status", e);
+            }
         }
 
         return UiUxTestStatusResponse.builder()
@@ -151,6 +157,7 @@ public class UiUxTestService {
                 .status(testRequest.getTestStatus())
                 .targetUrl(testRequest.getTargetUrl())
                 .report(reportMarkdown)
+                .steps(stepsList)
                 .build();
     }
 
@@ -197,6 +204,47 @@ public class UiUxTestService {
         }
         testRequestRepository.save(testRequest);
         log.info("Saved final UI/UX markdown review and completed request context for requestId: {}", requestId);
+    }
+
+    @Transactional
+    public void addStep(UUID requestId, Map<String, Object> request) {
+        TestRequest testRequest = testRequestRepository.findById(requestId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 테스트 요청입니다."));
+
+        UiUxTestReport report = uiUxTestReportRepository.findByTestRequestId(requestId).orElseGet(() ->
+                uiUxTestReportRepository.save(UiUxTestReport.builder()
+                        .testRequest(testRequest)
+                        .totalSteps(0)
+                        .defectCount(0)
+                        .executionTime(0)
+                        .rawLogs("[]")
+                        .aiUxReview("")
+                        .build())
+        );
+
+        List<Map<String, Object>> logs;
+        try {
+            logs = objectMapper.readValue(report.getRawLogs(), new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
+        } catch (Exception e) {
+            logs = new java.util.ArrayList<>();
+        }
+
+        logs.add(request);
+
+        try {
+            report.setRawLogs(objectMapper.writeValueAsString(logs));
+            report.setTotalSteps(logs.size());
+        } catch (Exception e) {
+            log.error("Failed to write rawLogs", e);
+        }
+
+        uiUxTestReportRepository.save(report);
+
+        if ("PENDING".equals(testRequest.getTestStatus())) {
+            testRequest.changeStatus("RUNNING");
+            testRequest.changePhase("EXPLORING");
+            testRequestRepository.save(testRequest);
+        }
     }
 
     @Transactional

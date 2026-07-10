@@ -15,6 +15,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "uiux_test_reports", schema = "public")
 @Getter
+@Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 @Builder
