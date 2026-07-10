@@ -35,7 +35,13 @@ function MypageProfileSection({ data }: MypageProfileSectionProps) {
         <MypageStatCard
           icon={Ticket}
           label="쿠폰"
-          value={`부하: ${data.loadTestCouponCount}회 / UI: ${data.uiUxTestCouponCount}회`}
+          value={
+            <>
+            부하: {data.loadTestCouponCount}회 
+            <br />
+            UI: {data.uiUxTestCouponCount}회
+            </>
+          }
         />
 
         <MypageStatCard
