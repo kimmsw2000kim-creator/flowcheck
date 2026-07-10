@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
@@ -25,7 +25,6 @@ import CommentPage from "./pages/CommentPage";
 // Types & Utils
 import axios from 'axios';
 import './api/client';
-import type { Domain } from './types/domain';
 import { useUserStore } from './store/userStore';
 import { useAlertStore } from './store/alertStore';
 
@@ -37,6 +36,7 @@ interface LedgerItem {
   createdAt: string;
 }
 
+// 신고
 interface Report {
   id: number;
   reporterId: string;
@@ -47,15 +47,11 @@ interface Report {
   createdAt: string;
 }
 
-interface AlertMsg {
-  message: string;
-  type: string;
-}
-
 function App() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // 라우팅
   const tabRoutes: Record<string, string> = {
     dashboard: '/dashboard',
     mypage: '/mypage',
@@ -92,7 +88,7 @@ function App() {
   const isLoggedIn = !!currentUser.email;
   const isLandingPage = !isLoggedIn && location.pathname === '/';
 
-  // Fetch User Profile and Billing Ledger
+  // 유저 정보와 결제 내역 불러오기
   useEffect(() => {
     const accessToken = localStorage.getItem("accessToken");
     if (accessToken) {
@@ -154,7 +150,7 @@ function App() {
         <Routes>
           {isLoggedIn ? (
             <>
-              {/* Authenticated Routes */}
+              {/* 로그인 상태인 경우 대시보드로 이동 */}
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/login" element={<Navigate to="/dashboard" replace />} />
               <Route path="/signup" element={<Navigate to="/dashboard" replace />} />
