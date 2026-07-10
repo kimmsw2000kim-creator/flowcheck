@@ -1,9 +1,9 @@
-import axios from 'axios';
 import type { Domain } from '../types/domain';
+import apiClient from './client';
 
 export async function fetchDomains(): Promise<Domain[]> {
   try {
-    const response = await axios.get<Domain[]>('/api/sites');
+    const response = await apiClient.get<Domain[]>('/api/sites');
     return response.data;
   } catch (error: any) {
     const message =
@@ -16,7 +16,7 @@ export async function fetchDomains(): Promise<Domain[]> {
 
 export async function registerDomain(domainUrl: string): Promise<Domain> {
   try {
-    const response = await axios.post<Domain>(
+    const response = await apiClient.post<Domain>(
       '/api/sites',
       { domainUrl }
     );
@@ -32,7 +32,7 @@ export async function registerDomain(domainUrl: string): Promise<Domain> {
 
 export async function verifyDomain(id: number): Promise<Domain> {
   try {
-    const response = await axios.post<Domain>(
+    const response = await apiClient.post<Domain>(
       `/api/sites/${id}/verify`,
       {}
     );
@@ -48,7 +48,7 @@ export async function verifyDomain(id: number): Promise<Domain> {
 
 export async function deleteDomain(id: number): Promise<void> {
   try {
-    await axios.delete(`/api/sites/${id}`);
+    await apiClient.delete(`/api/sites/${id}`);
   } catch (error: any) {
     const message =
       error.response?.data?.message ||

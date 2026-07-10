@@ -1,4 +1,4 @@
-import axios from 'axios';
+import apiClient from './client';
 
 export interface AdminUser {
     userId: string;
@@ -12,27 +12,27 @@ export interface AdminUser {
 }
 
 export const fetchAdminUsers = async (): Promise<AdminUser[]> => {
-    const response = await axios.get<AdminUser[]>('/api/admin/users');
+    const response = await apiClient.get<AdminUser[]>('/api/admin/users');
     return response.data;
 };
 
 export const changeUserRole = async (userId: string, role: 'USER' | 'ADMIN'): Promise<AdminUser> => {
-    const response = await axios.patch<AdminUser>(`/api/admin/users/${userId}/role`, { role });
+    const response = await apiClient.patch<AdminUser>(`/api/admin/users/${userId}/role`, { role });
     return response.data;
 };
 
 export const suspendUser = async (userId: string): Promise<AdminUser> => {
-    const response = await axios.patch<AdminUser>(`/api/admin/users/${userId}/suspend`);
+    const response = await apiClient.patch<AdminUser>(`/api/admin/users/${userId}/suspend`);
     return response.data;
 };
 
 export const withdrawUser = async (userId: string): Promise<AdminUser> => {
-    const response = await axios.patch<AdminUser>(`/api/admin/users/${userId}/withdraw`);
+    const response = await apiClient.patch<AdminUser>(`/api/admin/users/${userId}/withdraw`);
     return response.data;
 };
 
 export const activateUser = async (userId: string): Promise<AdminUser> => {
-    const response = await axios.patch<AdminUser>(`/api/admin/users/${userId}/activate`);
+    const response = await apiClient.patch<AdminUser>(`/api/admin/users/${userId}/activate`);
     return response.data;
 };
 

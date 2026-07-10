@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Play, CheckCircle, AlertCircle, RefreshCw, Globe, Monitor, Terminal, FileText, Ticket, Video } from 'lucide-react';
-import axios from 'axios';
+import apiClient from "../api/client";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { startUiTest, getUiTestStatus, UiTestStepData } from '../api/uiTestApi';
@@ -115,12 +115,12 @@ export default function UiTestPage({
       // 2. 백엔드 호출
       const startRes = await startUiTest(targetUrl, currentUser.id);
       const requestId = startRes.requestId;
-      
+
       showAlert('자율형 AI UI 테스트 탐색 에이전트가 가동되었습니다!', 'success');
 
       // 잔액/쿠폰 정보 갱신
       try {
-        const mypageRes = await axios.get('/api/mypage');
+        const mypageRes = await apiClient.get('/api/mypage');
         onUserUpdate({
           balance: mypageRes.data.balance,
           coupons: mypageRes.data.couponCount,
@@ -201,7 +201,7 @@ export default function UiTestPage({
     const parts = uiTestReportMarkdown.split('[VIDEO_URL]:');
     const afterTag = parts[1];
     const firstNewlineIdx = afterTag.indexOf('\n');
-    
+
     if (firstNewlineIdx !== -1) {
       videoUrl = afterTag.substring(0, firstNewlineIdx).trim();
       // VIDEO_URL 태그 이후 첫 줄바꿈 다음부터가 실제 보고서 내용
@@ -226,12 +226,12 @@ export default function UiTestPage({
         <div>
           <div className="card">
             <h3 style={{ marginBottom: '1.25rem' }}>AI UI 테스트 시작</h3>
-            
+
             <div className="form-group">
               <label className="form-label">인증 도메인 불러오기</label>
-              <select 
-                className="form-input" 
-                value={selectedUiTestDomain} 
+              <select
+                className="form-input"
+                value={selectedUiTestDomain}
                 onChange={(e) => setSelectedUiTestDomain(parseInt(e.target.value))}
                 disabled={uiTestStatus === 'running'}
               >
@@ -307,8 +307,8 @@ export default function UiTestPage({
               </div>
             </div>
 
-            <Button 
-              variant="primary" 
+            <Button
+              variant="primary"
               style={{ width: '100%' }}
               onClick={handleRunUiTest}
               isLoading={uiTestStatus === 'running'}
@@ -326,7 +326,7 @@ export default function UiTestPage({
               <Terminal size={18} style={{ color: 'var(--text-secondary)' }} />
               <span>실시간 탐색 상황 (Telemetry)</span>
             </h3>
-            
+
             {uiTestStatus === 'idle' && (
               <div style={{ color: 'var(--text-muted)', textAlign: 'center', margin: 'auto' }}>
                 <Play size={48} style={{ margin: '0 auto 1rem', opacity: 0.3 }} />
@@ -349,7 +349,7 @@ export default function UiTestPage({
                     <span>Gemini AI와 Playwright가 화면 구조를 파악하고 이벤트를 유도하고 있습니다.</span>
                   </div>
                 )}
-                
+
                 <div className="timeline" style={{ flex: 1, overflowY: 'auto', maxHeight: '400px' }}>
                   {uiTestSteps.map((step, idx) => (
                     <div className="timeline-step" key={idx} style={{ marginBottom: '1.5rem', paddingLeft: '1.5rem', position: 'relative' }}>
@@ -378,7 +378,7 @@ export default function UiTestPage({
                           <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '0.5rem 0.75rem', borderRadius: '0.25rem', border: '1px solid var(--border)' }}>
                             {step.selector && (
                               <p style={{ margin: '0 0 0.25rem' }}>
-                                <strong>선택자 (Selector):</strong> <code style={{ backgroundColor: 'rgba(255,255,255,0.1)', padding: '0.1rem 0.3rem', borderRadius: '0.2rem' }}>{step.selector}</code> 
+                                <strong>선택자 (Selector):</strong> <code style={{ backgroundColor: 'rgba(255,255,255,0.1)', padding: '0.1rem 0.3rem', borderRadius: '0.2rem' }}>{step.selector}</code>
                                 {step.text && <span> | <strong>입력 내용:</strong> "{step.text}"</span>}
                               </p>
                             )}
@@ -404,7 +404,7 @@ export default function UiTestPage({
                         <FileText size={18} />
                         <h4 style={{ margin: 0 }}>Gemini UI/UX 종합 감사 보고서</h4>
                       </div>
-                      
+
                       {videoUrl && (
                         <div style={{ marginBottom: '1.5rem', border: '1px solid var(--border)', borderRadius: '0.5rem', overflow: 'hidden', backgroundColor: '#000000' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', backgroundColor: 'var(--bg-tertiary)', borderBottom: '1px solid var(--border)', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>

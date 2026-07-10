@@ -4,6 +4,7 @@ import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tool
 import axios from 'axios';
 import Button from '../components/common/Button';
 import EmptyState from '../components/common/EmptyState';
+import apiClient from '../api/client';
 
 interface Domain {
   id: number;
@@ -110,11 +111,7 @@ export default function LoadPage({
     setLoadMessage('요청을 백엔드에 전달하는 중입니다.');
 
     try {
-      const response = await axios.post("/api/load-tests", payload, {
-        headers: {
-          'X-User-Id': currentUser.id,
-        }
-      });
+      const response = await apiClient.post("/api/load-tests", payload);
 
       const { requestId } = response.data;
       subscribeLoadTestStream(requestId);
@@ -153,7 +150,7 @@ export default function LoadPage({
 
       if (data.status === 'COMPLETED') {
         eventSource.close();
-        axios.get(`/api/load-tests/${requestId}`)
+        apiClient.get(`/api/load-tests/${requestId}`)
           .then((resultResponse) => {
             const resultData = resultResponse.data;
             const { testResults } = resultData;

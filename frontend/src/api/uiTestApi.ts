@@ -1,4 +1,4 @@
-import axios from 'axios';
+import apiClient from './client';
 
 export interface StartUiTestResponse {
   requestId: string;
@@ -28,13 +28,8 @@ export interface UiTestStatusResponse {
  * UI 탐색 테스트를 시작합니다.
  */
 export async function startUiTest(targetUrl: string, userId: string): Promise<StartUiTestResponse> {
-  const response = await axios.post('/api/ui-tests', 
-    { targetUrl }, 
-    {
-      headers: {
-        'X-User-Id': userId,
-      }
-    }
+  const response = await apiClient.post('/api/ui-tests',
+    { targetUrl }
   );
   return response.data;
 }
@@ -43,6 +38,6 @@ export async function startUiTest(targetUrl: string, userId: string): Promise<St
  * 실시간 UI 탐색 테스트 상태 및 단계 정보를 조회합니다.
  */
 export async function getUiTestStatus(requestId: string): Promise<UiTestStatusResponse> {
-  const response = await axios.get(`/api/ui-tests/${requestId}/status`);
+  const response = await apiClient.get(`/api/ui-tests/${requestId}/status`);
   return response.data;
 }
