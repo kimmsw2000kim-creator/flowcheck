@@ -18,6 +18,7 @@ import MypageMyPostsSection from './mypage/MypageMyPostsSection';
 import MypageNotificationSettingsSection from './mypage/MypageNotificationSettingsSection';
 import MypageThemeSettingsSection from './mypage/MypageThemeSettingsSection';
 import MypageAccountSecuritySection from './mypage/MypageAccountSecuritySection';
+import MypageTestDetailSection from './mypage/MypageTestDetailSection';
 
 import { getAccessToken, getCurrentEmail } from '../api/authApi';
 import { fetchMypage } from '../api/mypageApi';
@@ -106,6 +107,11 @@ function Mypage() {
             <Route
               path="tests"
               element={<MypageTestHistorySection />}
+            />
+
+            <Route
+              path="tests/:testType/:requestId"
+              element={<MypageTestDetailSection />}
             />
 
             <Route

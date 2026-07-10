@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Activity, Monitor } from 'lucide-react';
 
 import { getAccessToken } from '../../api/authApi';
@@ -40,6 +41,7 @@ function formatDate(value: string) {
 }
 
 function MypageTestHistorySection() {
+    const navigate = useNavigate();
     const [tests, setTests] = useState<MypageTestHistoryItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [errorMessage, setErrorMessage] = useState('');
@@ -98,7 +100,13 @@ function MypageTestHistorySection() {
                         const phase = test.phase ? phaseLabels[test.phase] || test.phase : null;
 
                         return (
-                            <article className={styles['test-history-item']} key={`${test.testType}-${test.requestId}`}>
+                            <article
+                                className={styles['test-history-item']}
+                                key={`${test.testType}-${test.requestId}`}
+                                style={{ cursor: 'pointer' }}
+                                onClick={() => navigate(`/mypage/tests/${test.testType}/${test.requestId}`)}
+                            >
+
                                 <div className={styles['test-history-icon']}>
                                     {test.testType === 'UI' ? <Monitor size={20} /> : <Activity size={20} />}
                                 </div>
