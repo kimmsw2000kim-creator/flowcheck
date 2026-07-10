@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import type { Session } from '@supabase/supabase-js';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
@@ -23,10 +24,10 @@ import LandingPage from './pages/LandingPage';
 import CommentPage from "./pages/CommentPage";
 
 // Types & Utils
-import axios from 'axios';
-import './api/client';
 import { useUserStore } from './store/userStore';
 import { useAlertStore } from './store/alertStore';
+import apiClient from './api/client';
+import { supabase } from './lib/supabaseClient';
 
 interface LedgerItem {
   id: number;
@@ -78,44 +79,103 @@ function App() {
   };
 
   const currentUser = useUserStore((state) => state.currentUser);
+  const authStatus = useUserStore((state) => state.authStatus);
+  const setAuthStatus = useUserStore((state) => state.setAuthStatus);
   const setCurrentUser = useUserStore((state) => state.setCurrentUser);
+  const resetAuthState = useUserStore((state) => state.resetAuthState);
   const alertMsg = useAlertStore((state) => state.alertMsg);
   const showAlert = useAlertStore((state) => state.showAlert);
 
   const [ledger, setLedger] = useState<LedgerItem[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
+  const lastSessionTokenRef = useRef<string | null | undefined>(undefined);
 
-  const isLoggedIn = !!currentUser.email;
+  const isLoggedIn = authStatus === 'authenticated';
   const isLandingPage = !isLoggedIn && location.pathname === '/';
 
   // 유저 정보와 결제 내역 불러오기
   useEffect(() => {
-    const accessToken = localStorage.getItem("accessToken");
-    if (accessToken) {
-      axios.get('/api/mypage')
-        .then((res) => {
-          const data = res.data;
-          setCurrentUser({
-            email: data.email,
-            balance: data.balance,
-            coupons: data.couponCount,
-            loadTestCoupons: data.loadTestCouponCount,
-            uiUxTestCoupons: data.uiUxTestCouponCount
-          });
-        })
-        .catch((err) => {
-          console.error("Failed to load user profile session:", err);
-        });
+    let isMounted = true;
 
-      axios.get('/api/payment/ledger')
-        .then((res) => {
-          setLedger(res.data);
-        })
-        .catch((err) => {
-          console.error("Failed to load ledger history:", err);
+    const applySession = async (session: Session | null) => {
+      const sessionToken = session?.access_token ?? null;
+      if (lastSessionTokenRef.current === sessionToken) return;
+      lastSessionTokenRef.current = sessionToken;
+
+      if (!session) {
+        setLedger([]);
+        resetAuthState();
+        return;
+      }
+
+      const sessionUser = session.user;
+      const authConfig = {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      };
+
+      setCurrentUser({
+        id: sessionUser.id,
+        email: sessionUser.email ?? '',
+      });
+      setAuthStatus('authenticated');
+
+      try {
+        const res = await apiClient.get('/api/mypage', authConfig);
+        if (!isMounted) return;
+
+        const data = res.data;
+        setCurrentUser({
+          id: sessionUser.id,
+          email: data.email ?? sessionUser.email ?? '',
+          role: data.role,
+          status: data.status,
+          balance: data.balance,
+          coupons: data.couponCount,
+          loadTestCoupons: data.loadTestCouponCount,
+          uiUxTestCoupons: data.uiUxTestCouponCount,
         });
-    }
-  }, [currentUser.email, setCurrentUser]);
+      } catch (err) {
+        console.error("Failed to load user profile session:", err);
+        return;
+      }
+
+      try {
+        const res = await apiClient.get('/api/payment/ledger', authConfig);
+        if (!isMounted) return;
+        setLedger(res.data);
+      } catch (err) {
+        console.error("Failed to load ledger history:", err);
+      }
+    };
+
+    setAuthStatus('checking');
+
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (!isMounted) return;
+
+      if (error) {
+        console.error("Failed to check Supabase session:", error);
+        applySession(null);
+        return;
+      }
+
+      applySession(session);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      window.setTimeout(() => {
+        if (!isMounted) return;
+        applySession(session);
+      }, 0);
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, [resetAuthState, setAuthStatus, setCurrentUser]);
 
   const [selectedUiTestDomain, setSelectedUiTestDomain] = useState<number>(1);
 
@@ -136,6 +196,19 @@ function App() {
     setReports([...reports, report]);
     showAlert('신고가 접수되었습니다.');
   };
+
+  if (authStatus === 'checking') {
+    return (
+      <div className="app-container">
+        {alertMsg && <Toast message={alertMsg.message} type={alertMsg.type} />}
+        <main className="main-content">
+          <div style={{ textAlign: 'center', padding: '4rem 0', color: 'var(--text-secondary)' }}>
+            Loading...
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="app-container">

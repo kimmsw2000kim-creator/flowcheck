@@ -1,12 +1,15 @@
 import { useState } from "react";
 import { createPost } from "../api/communityApi";
+import { supabase } from "../lib/supabaseClient";
 
 export default function PostWritePage() {
     const [title, setTitle] = useState("");
     const [content, setContent] = useState("");
 
     const handleSubmit = async () => {
-        if (!localStorage.getItem("accessToken")) {
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (!session) {
             alert("로그인 후 글을 작성할 수 있습니다.");
             window.location.href = "/login";
             return;

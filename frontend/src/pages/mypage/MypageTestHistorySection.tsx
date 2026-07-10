@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Activity, Monitor } from 'lucide-react';
 
-import { getAccessToken } from '../../api/authApi';
 import { fetchMypageTestHistory } from '../../api/mypageApi';
 import type { MypageTestHistoryItem } from '../../types/mypage';
 import styles from '../../styles/mypage.module.css';
 import EmptyState from '../../components/common/EmptyState';
 import StatusBadge from '../../components/common/StatusBadge';
+import { supabase } from '../../lib/supabaseClient';
 
 const statusLabels: Record<string, string> = {
     PENDING: '대기 중',
@@ -47,22 +47,27 @@ function MypageTestHistorySection() {
     const [errorMessage, setErrorMessage] = useState('');
 
     useEffect(() => {
-        const accessToken = getAccessToken();
+        const checkAuthAndFetch = async () => {
+            try {
+                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-        if (!accessToken) {
-            setErrorMessage('로그인이 필요합니다.');
-            setLoading(false);
-            return;
-        }
+                if (sessionError || !session) {
+                    setErrorMessage('로그인이 필요합니다.');
+                    setLoading(false);
+                    return;
+                }
 
-        fetchMypageTestHistory()
-            .then(setTests)
-            .catch((error) => {
+                const data = await fetchMypageTestHistory();
+                setTests(data);
+
+            } catch (error: any) {
                 setErrorMessage(error.message || '테스트 이력을 불러오지 못했습니다.');
-            })
-            .finally(() => {
+            } finally {
                 setLoading(false);
-            });
+            }
+        };
+
+        checkAuthAndFetch();
     }, []);
 
     return (

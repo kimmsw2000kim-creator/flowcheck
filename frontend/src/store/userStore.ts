@@ -1,5 +1,8 @@
 import { create } from 'zustand';
 import { useAlertStore } from './alertStore';
+import { supabase } from '../lib/supabaseClient';
+
+export type AuthStatus = 'checking' | 'authenticated' | 'anonymous';
 
 export interface CurrentUser {
   id: string;
@@ -14,7 +17,10 @@ export interface CurrentUser {
 
 interface UserState {
   currentUser: CurrentUser;
+  authStatus: AuthStatus;
+  setAuthStatus: (status: AuthStatus) => void;
   setCurrentUser: (user: Partial<CurrentUser>) => void;
+  resetAuthState: () => void;
   updateUserBalanceAndCoupons: (updated: {
     balance: number;
     coupons: number;
@@ -22,11 +28,11 @@ interface UserState {
     uiUxTestCoupons?: number;
   }) => void;
   loginSuccess: (email: string, token?: string, userId?: string) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
   toggleRole: () => void;
 }
 
-const initialUser: CurrentUser = {
+const createInitialUser = (): CurrentUser => ({
   id: '',
   email: '',
   role: 'USER',
@@ -35,18 +41,34 @@ const initialUser: CurrentUser = {
   coupons: 0,
   loadTestCoupons: 0,
   uiUxTestCoupons: 0,
+});
+
+const clearLegacyAuthStorage = () => {
+  if (typeof window === 'undefined') return;
+
+  localStorage.removeItem('accessToken');
+  localStorage.removeItem('refreshToken');
+  localStorage.removeItem('email');
+  localStorage.removeItem('userId');
 };
 
+const anonymousAuthState = () => ({
+  currentUser: createInitialUser(),
+  authStatus: 'anonymous' as const,
+});
+
 export const useUserStore = create<UserState>((set) => ({
-  currentUser: {
-    ...initialUser,
-    id: typeof window !== 'undefined' ? localStorage.getItem('userId') ?? '' : '',
-    email: typeof window !== 'undefined' ? localStorage.getItem('email') ?? '' : '',
-  },
+  currentUser: createInitialUser(),
+  authStatus: 'checking',
+  setAuthStatus: (authStatus) => set({ authStatus }),
   setCurrentUser: (user) =>
     set((state) => ({
       currentUser: { ...state.currentUser, ...user },
     })),
+  resetAuthState: () => {
+    clearLegacyAuthStorage();
+    set(anonymousAuthState());
+  },
   updateUserBalanceAndCoupons: (updated) =>
     set((state) => ({
       currentUser: {
@@ -64,19 +86,24 @@ export const useUserStore = create<UserState>((set) => ({
       },
     })),
   loginSuccess: (email, token, userId) => {
-    if (email) localStorage.setItem('email', email);
-    if (userId) localStorage.setItem('userId', userId);
     set((state) => ({
       currentUser: {
         ...state.currentUser,
         id: userId ?? state.currentUser.id,
         email,
       },
+      authStatus: 'authenticated',
     }));
   },
-  logout: () => {
-    localStorage.clear();
-    set({ currentUser: { ...initialUser } });
+  logout: async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error('Failed to sign out from Supabase:', error);
+    } finally {
+      clearLegacyAuthStorage();
+      set(anonymousAuthState());
+    }
   },
   toggleRole: () =>
     set((state) => {

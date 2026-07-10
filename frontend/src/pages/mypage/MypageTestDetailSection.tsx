@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import axios from 'axios';
+import apiClient from "../../api/client";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Legend } from 'recharts';
@@ -34,7 +34,7 @@ function MypageTestDetailSection() {
         if (!requestId || !testType) return;
 
         if (testType === 'LOAD') {
-            axios.get(`/api/load-tests/${requestId}`)
+            apiClient.get(`/api/load-tests/${requestId}`)
                 .then((res) => {
                     setLoadDetail(res.data.testResults ?? null);
                 })

@@ -1,16 +1,18 @@
 import { useEffect } from 'react';
 import { useUserStore } from '../store/userStore';
 import { useDomainStore } from '../store/domainStore';
+import { supabase } from "../lib/supabaseClient";
 
 export function useDomains() {
   const currentUserEmail = useUserStore((state) => state.currentUser.email);
   const loadDomains = useDomainStore((state) => state.loadDomains);
 
   useEffect(() => {
-    const accessToken = localStorage.getItem("accessToken");
-    if (accessToken && currentUserEmail) {
-      loadDomains();
-    }
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session && currentUserEmail) {
+        loadDomains();
+      }
+    });
   }, [currentUserEmail, loadDomains]);
 
   const domains = useDomainStore((state) => state.domains);

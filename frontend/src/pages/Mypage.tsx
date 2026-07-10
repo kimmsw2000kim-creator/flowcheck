@@ -20,8 +20,8 @@ import MypageThemeSettingsSection from './mypage/MypageThemeSettingsSection';
 import MypageAccountSecuritySection from './mypage/MypageAccountSecuritySection';
 import MypageTestDetailSection from './mypage/MypageTestDetailSection';
 
-import { getAccessToken, getCurrentEmail } from '../api/authApi';
 import { fetchMypage } from '../api/mypageApi';
+import { supabase } from '../lib/supabaseClient';
 import MypageCouponHistorySection from './mypage/MypageCouponHistorySection';
 
 const emptyData: MypageData = {
@@ -38,33 +38,37 @@ const emptyData: MypageData = {
 function Mypage() {
   const navigate = useNavigate();
 
-  const [data, setData] = useState<MypageData>({
-    ...emptyData,
-    email: getCurrentEmail() ?? '',
-  });
-
+  const [data, setData] = useState<MypageData>(emptyData);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
-    const accessToken = getAccessToken();
+    const checkAuthAndFetch = async () => {
+      try {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-    if (!accessToken) {
-      setErrorMessage('로그인이 필요합니다.');
-      setLoading(false);
-      return;
+        if (sessionError || !session) {
+          setErrorMessage('로그인이 필요합니다.');
+          return;
+        }
+
+        const userEmail = session.user.email || '';
+
+        const mypageData = await fetchMypage();
+
+        setData({
+          ...mypageData,
+          email: userEmail,
+        });
+
+      } catch (error) {
+        setErrorMessage('마이페이지 정보를 불러오지 못했습니다.');
+      } finally {
+        setLoading(false);
+      }
     }
 
-    fetchMypage()
-      .then((mypageData) => {
-        setData(mypageData);
-      })
-      .catch(() => {
-        setErrorMessage('마이페이지 정보를 불러오지 못했습니다.');
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+    checkAuthAndFetch();
   }, []);
 
   return (
