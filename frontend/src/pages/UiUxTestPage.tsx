@@ -4,7 +4,7 @@ import apiClient from "../api/client";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import axios from 'axios';
-import { startUiUxTest, getUiUxTestStatus, UiUxTestStepData } from '../api/uiUxTestApi';
+import { startUIUXTest, getUIUXTestStatus, UIUXTestStepData } from '../api/UIUXTestApi';
 import Button from '../components/common/Button';
 import TextField from '../components/common/TextField';
 
@@ -19,25 +19,25 @@ import { useAlertStore } from '../store/alertStore';
 
 import { useDomains } from '../hooks/useDomains';
 
-interface UiUxTestPageProps {
-  selectedUiUxTestDomain: number;
-  setSelectedUiUxTestDomain: (id: number) => void;
+interface UIUXTestPageProps {
+  selectedUIUXTestDomain: number;
+  setSelectedUIUXTestDomain: (id: number) => void;
   onAddLedger: (ledgerItem: any) => void;
 }
 
-export default function UiUxTestPage({
-  selectedUiUxTestDomain,
-  setSelectedUiUxTestDomain,
+export default function UIUXTestPage({
+  selectedUIUXTestDomain,
+  setSelectedUIUXTestDomain,
   onAddLedger,
-}: UiUxTestPageProps) {
+}: UIUXTestPageProps) {
   const currentUser = useUserStore((state) => state.currentUser);
   const onUserUpdate = useUserStore((state) => state.updateUserBalanceAndCoupons);
   const showAlert = useAlertStore((state) => state.showAlert);
   const { domains } = useDomains();
   const [targetUrl, setTargetUrl] = useState<string>('');
-  const [uiUxTestStatus, setUiUxTestStatus] = useState<string>('idle'); // idle, running, success, error
-  const [uiUxTestSteps, setUiUxTestSteps] = useState<UiUxTestStepData[]>([]);
-  const [uiUxTestReportMarkdown, setUiUxTestReportMarkdown] = useState<string>('');
+  const [UIUXTestStatus, setUIUXTestStatus] = useState<string>('idle'); // idle, running, success, error
+  const [UIUXTestSteps, setUIUXTestSteps] = useState<UIUXTestStepData[]>([]);
+  const [UIUXTestReportMarkdown, setUIUXTestReportMarkdown] = useState<string>('');
 
   // ✅ interval ID를 useRef로 관리 — React 비동기 state와 무관하게 즉시 clearInterval 가능
   const intervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
@@ -55,7 +55,7 @@ export default function UiUxTestPage({
     if (stepsEndRef.current) {
       stepsEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [uiUxTestSteps]);
+  }, [UIUXTestSteps]);
 
   /** interval을 완전히 정지하는 헬퍼 함수 */
   const stopPolling = React.useCallback(() => {
@@ -67,25 +67,25 @@ export default function UiUxTestPage({
 
   // 도메인 선택 변경 시 URL 입력창 자동 반영
   useEffect(() => {
-    const selected = domains.find(d => d.id === selectedUiUxTestDomain);
+    const selected = domains.find(d => d.id === selectedUIUXTestDomain);
     if (selected) {
       setTargetUrl(selected.domainUrl);
     }
-  }, [selectedUiUxTestDomain, domains]);
+  }, [selectedUIUXTestDomain, domains]);
 
   // 언마운트 시 폴링 리소스 정리
   useEffect(() => {
     return () => { stopPolling(); };
   }, [stopPolling]);
 
-  const handleRunUiUxTest = async () => {
+  const handleRunUIUXTest = async () => {
     // ✅ 이중 가드 1: 이미 제출 중이면 즉시 차단 (비동기 중복 클릭 방지)
     if (isSubmittingRef.current) {
       showAlert('이미 테스트 요청이 처리 중입니다. 잠시 기다려 주세요.', 'error');
       return;
     }
     // ✅ 이중 가드 2: 이미 running 상태면 추가 시작 불가
-    if (uiUxTestStatus === 'running') {
+    if (UIUXTestStatus === 'running') {
       showAlert('테스트가 이미 실행 중입니다.', 'error');
       return;
     }
@@ -102,19 +102,19 @@ export default function UiUxTestPage({
     }
 
     // 쿠폰/크레딧 체크 및 차감
-    if (currentUser.uiUxTestCoupons <= 0 && currentUser.balance < 1000) {
+    if (currentUser.UIUXTestCoupons <= 0 && currentUser.balance < 1000) {
       showAlert('UI/UX 테스트 쿠폰 또는 크레딧 잔액이 부족합니다.', 'error');
       return;
     }
 
-    setUiUxTestStatus('running');
-    setUiUxTestSteps([]);
-    setUiUxTestReportMarkdown('');
+    setUIUXTestStatus('running');
+    setUIUXTestSteps([]);
+    setUIUXTestReportMarkdown('');
     isSubmittingRef.current = true; // ✅ 제출 잠금
 
     try {
       // 2. 백엔드 호출
-      const startRes = await startUiUxTest(targetUrl);
+      const startRes = await startUIUXTest(targetUrl);
       const requestId = startRes.requestId;
 
       showAlert('자율형 AI UI 테스트 탐색 에이전트가 가동되었습니다!', 'success');
@@ -126,7 +126,7 @@ export default function UiUxTestPage({
           balance: mypageRes.data.balance,
           coupons: mypageRes.data.couponCount,
           loadTestCoupons: mypageRes.data.loadTestCouponCount,
-          uiUxTestCoupons: mypageRes.data.uiUxTestCouponCount
+          UIUXTestCoupons: mypageRes.data.UIUXTestCouponCount
         });
       } catch (err) {
         console.error('Failed to sync user state after starting UI test:', err);
@@ -147,26 +147,26 @@ export default function UiUxTestPage({
         if (pollCountRef.current > MAX_POLL_COUNT) {
           console.warn('Max polling count exceeded. Stopping polling.');
           stopPolling();
-          setUiUxTestStatus('error');
-          setUiUxTestReportMarkdown('# 타임아웃\n\n테스트가 12분 이상 응답이 없어 자동으로 중단되었습니다.');
+          setUIUXTestStatus('error');
+          setUIUXTestReportMarkdown('# 타임아웃\n\n테스트가 12분 이상 응답이 없어 자동으로 중단되었습니다.');
           showAlert('테스트 응답 대기 시간이 초과되었습니다.', 'error');
           return;
         }
 
         try {
-          const statusRes = await getUiUxTestStatus(requestId);
+          const statusRes = await getUIUXTestStatus(requestId);
           pollErrorCountRef.current = 0; // 성공 시 에러 카운터 리셋
-          setUiUxTestSteps(statusRes.steps || []);
+          setUIUXTestSteps(statusRes.steps || []);
 
           if (statusRes.status === 'COMPLETED') {
             stopPolling(); // ✅ ref 기반으로 즉시 중단
-            setUiUxTestStatus('success');
-            setUiUxTestReportMarkdown(statusRes.report || '');
+            setUIUXTestStatus('success');
+            setUIUXTestReportMarkdown(statusRes.report || '');
             showAlert('자율형 AI UI 테스트가 완료되었습니다!', 'success');
           } else if (statusRes.status === 'FAILED') {
             stopPolling(); // ✅ ref 기반으로 즉시 중단
-            setUiUxTestStatus('error');
-            setUiUxTestReportMarkdown(statusRes.report || '# 테스트 실패\n\nAI 에이전트 탐색 중 비정상 종료되거나 에러가 발생했습니다.');
+            setUIUXTestStatus('error');
+            setUIUXTestReportMarkdown(statusRes.report || '# 테스트 실패\n\nAI 에이전트 탐색 중 비정상 종료되거나 에러가 발생했습니다.');
             showAlert('AI UI 테스트 도중 에러가 발생하였습니다.', 'error');
           }
         } catch (pollErr) {
@@ -177,8 +177,8 @@ export default function UiUxTestPage({
           if (pollErrorCountRef.current >= MAX_POLL_ERRORS) {
             console.error('Too many consecutive polling errors. Stopping polling.');
             stopPolling(); // ✅ ref 기반으로 즉시 중단
-            setUiUxTestStatus('error');
-            setUiUxTestReportMarkdown('# 연결 오류\n\n서버와의 통신이 반복적으로 실패하여 테스트 상태 조회를 중단하였습니다.');
+            setUIUXTestStatus('error');
+            setUIUXTestReportMarkdown('# 연결 오류\n\n서버와의 통신이 반복적으로 실패하여 테스트 상태 조회를 중단하였습니다.');
             showAlert('서버 통신 오류로 상태 조회가 중단되었습니다.', 'error');
           }
         }
@@ -186,7 +186,7 @@ export default function UiUxTestPage({
 
     } catch (err: any) {
       console.error('Failed to start UI Test:', err);
-      setUiUxTestStatus('error');
+      setUIUXTestStatus('error');
       const errorMessage = axios.isAxiosError(err)
         ? (typeof err.response?.data === 'string' ? err.response.data : err.response?.data?.message)
         : err.message;
@@ -197,12 +197,12 @@ export default function UiUxTestPage({
   };
 
   // 비디오 녹화본 URL 추출 파싱 (백엔드 추가 컬럼 없이 report 내 마킹 데이터 활용)
-  const hasVideoUrl = uiUxTestReportMarkdown.includes('[VIDEO_URL]:');
+  const hasVideoUrl = UIUXTestReportMarkdown.includes('[VIDEO_URL]:');
   let videoUrl = '';
-  let cleanReportMarkdown = uiUxTestReportMarkdown;
+  let cleanReportMarkdown = UIUXTestReportMarkdown;
 
   if (hasVideoUrl) {
-    const parts = uiUxTestReportMarkdown.split('[VIDEO_URL]:');
+    const parts = UIUXTestReportMarkdown.split('[VIDEO_URL]:');
     const afterTag = parts[1];
     const firstNewlineIdx = afterTag.indexOf('\n');
 
@@ -235,9 +235,9 @@ export default function UiUxTestPage({
               <label className="form-label">인증 도메인 불러오기</label>
               <select
                 className="form-input"
-                value={selectedUiUxTestDomain}
-                onChange={(e) => setSelectedUiUxTestDomain(parseInt(e.target.value))}
-                disabled={uiUxTestStatus === 'running'}
+                value={selectedUIUXTestDomain}
+                onChange={(e) => setSelectedUIUXTestDomain(parseInt(e.target.value))}
+                disabled={UIUXTestStatus === 'running'}
               >
                 <option value="">-- 주소 선택하기 --</option>
                 {domains.filter(d => d.verified).map(d => (
@@ -259,7 +259,7 @@ export default function UiUxTestPage({
               placeholder="https://example.com"
               value={targetUrl}
               onChange={(e) => setTargetUrl(e.target.value)}
-              disabled={uiUxTestStatus === 'running'}
+              disabled={UIUXTestStatus === 'running'}
               leftIcon={Globe}
               style={{ marginTop: '0.25rem' }}
             />
@@ -267,7 +267,7 @@ export default function UiUxTestPage({
             {/* 쿠폰 및 크레딧 현황 카드 */}
             <div style={{
               background: 'var(--bg-tertiary)',
-              border: `1.5px solid ${currentUser.uiUxTestCoupons > 0 ? 'var(--accent)' : currentUser.balance >= 1000 ? '#f59e0b' : '#ef4444'}`,
+              border: `1.5px solid ${currentUser.UIUXTestCoupons > 0 ? 'var(--accent)' : currentUser.balance >= 1000 ? '#f59e0b' : '#ef4444'}`,
               borderRadius: '0.75rem',
               padding: '1rem 1.25rem',
               marginBottom: '1.25rem',
@@ -281,18 +281,18 @@ export default function UiUxTestPage({
                   fontWeight: 600,
                   padding: '0.2rem 0.6rem',
                   borderRadius: '999px',
-                  background: currentUser.uiUxTestCoupons > 0 ? 'rgba(99,102,241,0.15)' : currentUser.balance >= 1000 ? 'rgba(245,158,11,0.15)' : 'rgba(239,68,68,0.15)',
-                  color: currentUser.uiUxTestCoupons > 0 ? 'var(--accent)' : currentUser.balance >= 1000 ? '#f59e0b' : '#ef4444',
+                  background: currentUser.UIUXTestCoupons > 0 ? 'rgba(99,102,241,0.15)' : currentUser.balance >= 1000 ? 'rgba(245,158,11,0.15)' : 'rgba(239,68,68,0.15)',
+                  color: currentUser.UIUXTestCoupons > 0 ? 'var(--accent)' : currentUser.balance >= 1000 ? '#f59e0b' : '#ef4444',
                 }}>
-                  {currentUser.uiUxTestCoupons > 0 ? '쿠폰으로 차감' : currentUser.balance >= 1000 ? '크레딧으로 차감' : '잔액 부족'}
+                  {currentUser.UIUXTestCoupons > 0 ? '쿠폰으로 차감' : currentUser.balance >= 1000 ? '크레딧으로 차감' : '잔액 부족'}
                 </span>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '0.75rem' }}>
                 <div style={{ background: 'var(--bg-secondary)', borderRadius: '0.5rem', padding: '0.6rem 0.8rem' }}>
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>UI/UX 쿠폰</div>
-                  <div style={{ fontWeight: 800, fontSize: '1.1rem', color: currentUser.uiUxTestCoupons > 0 ? 'var(--accent)' : 'var(--text-muted)' }}>
-                    {currentUser.uiUxTestCoupons}회
+                  <div style={{ fontWeight: 800, fontSize: '1.1rem', color: currentUser.UIUXTestCoupons > 0 ? 'var(--accent)' : 'var(--text-muted)' }}>
+                    {currentUser.UIUXTestCoupons}회
                   </div>
                 </div>
                 <div style={{ background: 'var(--bg-secondary)', borderRadius: '0.5rem', padding: '0.6rem 0.8rem' }}>
@@ -304,8 +304,8 @@ export default function UiUxTestPage({
               </div>
 
               <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', borderTop: '1px solid var(--border)', paddingTop: '0.6rem' }}>
-                {currentUser.uiUxTestCoupons > 0
-                  ? <>이번 테스트에 <strong style={{ color: 'var(--accent)' }}>UI/UX 쿠폰 1회</strong>가 소모됩니다. (잔여 {currentUser.uiUxTestCoupons - 1}회)</>
+                {currentUser.UIUXTestCoupons > 0
+                  ? <>이번 테스트에 <strong style={{ color: 'var(--accent)' }}>UI/UX 쿠폰 1회</strong>가 소모됩니다. (잔여 {currentUser.UIUXTestCoupons - 1}회)</>
                   : <>이번 테스트에 <strong style={{ color: '#f59e0b' }}>1,000 크레딧</strong>이 소모됩니다.</>
                 }
               </div>
@@ -314,8 +314,8 @@ export default function UiUxTestPage({
             <Button
               variant="primary"
               style={{ width: '100%' }}
-              onClick={handleRunUiUxTest}
-              isLoading={uiUxTestStatus === 'running'}
+              onClick={handleRunUIUXTest}
+              isLoading={UIUXTestStatus === 'running'}
               loadingText="탐색 에이전트 구동 중..."
               icon={Play}
             >
@@ -331,23 +331,23 @@ export default function UiUxTestPage({
               <span>실시간 탐색 상황 (Telemetry)</span>
             </h3>
 
-            {uiUxTestStatus === 'idle' && (
+            {UIUXTestStatus === 'idle' && (
               <div style={{ color: 'var(--text-muted)', textAlign: 'center', margin: 'auto' }}>
                 <Play size={48} style={{ margin: '0 auto 1rem', opacity: 0.3 }} />
                 <p>UI/UX 테스트를 시작하면 실시간 DOM 탐색 진행 상황이 표시됩니다.</p>
               </div>
             )}
 
-            {uiUxTestStatus === 'running' && uiUxTestSteps.length === 0 && (
+            {UIUXTestStatus === 'running' && UIUXTestSteps.length === 0 && (
               <div style={{ color: 'var(--text-muted)', textAlign: 'center', margin: 'auto' }}>
                 <RefreshCw className="animate-spin" size={48} style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
                 <p>브라우저를 초기화하고 대상 주소로 이동하는 중입니다...</p>
               </div>
             )}
 
-            {(uiUxTestStatus === 'running' || uiUxTestSteps.length > 0) && (
+            {(UIUXTestStatus === 'running' || UIUXTestSteps.length > 0) && (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                {uiUxTestStatus === 'running' && (
+                {UIUXTestStatus === 'running' && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--accent-hover)', marginBottom: '1.5rem', fontSize: '0.9rem', fontWeight: 500 }}>
                     <RefreshCw className="animate-spin" size={16} />
                     <span>Gemini AI와 Playwright가 화면 구조를 파악하고 이벤트를 유도하고 있습니다.</span>
@@ -355,7 +355,7 @@ export default function UiUxTestPage({
                 )}
 
                 <div className="timeline" style={{ flex: 1, overflowY: 'auto', maxHeight: '400px' }}>
-                  {uiUxTestSteps.map((step, idx) => (
+                  {UIUXTestSteps.map((step, idx) => (
                     <div className="timeline-step" key={idx} style={{ marginBottom: '1.5rem', paddingLeft: '1.5rem', position: 'relative' }}>
                       <div className="timeline-dot" style={{
                         position: 'absolute',
@@ -397,7 +397,7 @@ export default function UiUxTestPage({
                   <div ref={stepsEndRef} />
                 </div>
 
-                {uiUxTestStatus === 'success' && (
+                {UIUXTestStatus === 'success' && (
                   <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--border)', paddingTop: '1.5rem' }}>
                     <div style={{ color: 'var(--success)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
                       <CheckCircle size={18} />
@@ -431,7 +431,7 @@ export default function UiUxTestPage({
                   </div>
                 )}
 
-                {uiUxTestStatus === 'error' && (
+                {UIUXTestStatus === 'error' && (
                   <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--border)', paddingTop: '1.5rem' }}>
                     <div style={{ color: 'var(--error)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
                       <AlertCircle size={18} />

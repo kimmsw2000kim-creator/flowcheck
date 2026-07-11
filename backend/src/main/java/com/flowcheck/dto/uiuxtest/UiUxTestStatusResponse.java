@@ -10,7 +10,7 @@ import java.util.Map;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class UiUxTestStatusResponse {
+public class UIUXTestStatusResponse {
     private UUID requestId;
     private String status;
     private String targetUrl;

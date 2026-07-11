@@ -22,13 +22,13 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class UiUxTestService {
+public class UIUXTestService {
 
     private final UserRepository userRepository;
     private final UserCouponRepository userCouponRepository;
     private final CreditsLedgerRepository creditsLedgerRepository;
     private final TestRequestRepository testRequestRepository;
-    private final UiUxTestReportRepository uiUxTestReportRepository;
+    private final UIUXTestReportRepository UIUXTestReportRepository;
     private final RestClient restClient;
     private final CouponUsageLogRepository couponUsageLogRepository;
     private final ObjectMapper objectMapper;
@@ -47,7 +47,7 @@ public class UiUxTestService {
     private static final List<String> ACTIVE_TEST_STATUSES = List.of("PENDING", "RUNNING");
     private static final Duration STALE_ACTIVE_TEST_TIMEOUT = Duration.ofMinutes(15);
 
-    private void failStaleActiveUiUxTests() {
+    private void failStaleActiveUIUXTests() {
         OffsetDateTime staleCutoff = OffsetDateTime.now().minus(STALE_ACTIVE_TEST_TIMEOUT);
         List<TestRequest> staleRequests = testRequestRepository
                 .findByTestTypeAndTestStatusInAndCreatedAtBefore(
@@ -66,17 +66,17 @@ public class UiUxTestService {
         });
 
         testRequestRepository.saveAll(staleRequests);
-        log.warn("Marked {} stale UI/UX test requests as FAILED after {} minutes",
+        log.warn("{}개의 오래된 UI/UX 테스트 요청을 {}분 경과로 인해 FAILED 처리했습니다.",
                 staleRequests.size(),
                 STALE_ACTIVE_TEST_TIMEOUT.toMinutes());
     }
 
     @Transactional
-    public UUID submitUiUxTest(UUID userId, UiUxTestStartRequest request) {
+    public UUID submitUIUXTest(UUID userId, UIUXTestStartRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
 
-        failStaleActiveUiUxTests();
+        failStaleActiveUIUXTests();
 
         boolean hasActiveTest = testRequestRepository.existsByUserAndTestTypeAndTestStatusIn(
                 user, TEST_TYPE_UIUX, ACTIVE_TEST_STATUSES);
@@ -93,7 +93,7 @@ public class UiUxTestService {
                 deleteVideoFromSupabase(oldestRequest.getId());
 
                 testRequestRepository.delete(oldestRequest);
-                log.info("Deleted oldest UI test request record {} for user {} due to 10-test limit", oldestRequest.getId(), userId);
+                log.info("10개 테스트 제한으로 인해 사용자 {}의 가장 오래된 UI 테스트 요청 기록 {}을 삭제했습니다.", userId, oldestRequest.getId());
             }
         }
 
@@ -141,29 +141,29 @@ public class UiUxTestService {
                     "requestId", requestId.toString(),
                     "targetUrl", request.getTargetUrl(),
                     "promptInput", request.getPromptInput() != null ? request.getPromptInput() : "");
-
-            log.info("Calling FastAPI endpoint /api/ui-tests for requestId: {}", requestId);
+            // 핵심 로직: FastAPI 서버로 UI 테스트 실행 비동기 요청 전송
+            log.info("요청 ID {}에 대해 FastAPI 엔드포인트 /api/ui-tests 호출 중...", requestId);
             restClient.post()
                     .uri(fastApiUrl + "/api/ui-tests")
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(payload)
                     .retrieve()
                     .toBodilessEntity();
-            log.info("FastAPI triggered successfully for requestId: {}", requestId);
+            log.info("요청 ID {}에 대해 FastAPI가 성공적으로 트리거되었습니다.", requestId);
 
         } catch (Exception e) {
-            log.error("Failed to trigger AI Server for requestId: {}", requestId, e);
+            log.error("요청 ID {}에 대해 AI 서버 트리거 실패", requestId, e);
             savedRequest.changeStatus("FAILED");
             savedRequest.changePhase("FAILED");
             testRequestRepository.save(savedRequest);
-            throw new RuntimeException("AI server is currently unavailable: " + e.getMessage(), e);
+            throw new RuntimeException("현재 AI 서버를 사용할 수 없습니다: " + e.getMessage(), e);
         }
 
         return requestId;
     }
 
     @Transactional(readOnly = true)
-    public UiUxTestStatusResponse getTestStatus(UUID requestId) {
+    public UIUXTestStatusResponse getTestStatus(UUID requestId) {
         TestRequest testRequest = testRequestRepository.findById(requestId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 테스트 요청입니다."));
 
@@ -173,17 +173,17 @@ public class UiUxTestService {
 
         String reportMarkdown = "";
         List<Map<String, Object>> stepsList = new java.util.ArrayList<>();
-        var reportOpt = uiUxTestReportRepository.findByTestRequestId(requestId);
+        var reportOpt = UIUXTestReportRepository.findByTestRequestId(requestId);
         if (reportOpt.isPresent()) {
             reportMarkdown = reportOpt.get().getAiUxReview();
             try {
                 stepsList = objectMapper.readValue(reportOpt.get().getRawLogs(), new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
             } catch (Exception e) {
-                log.warn("Failed to parse rawLogs for test status", e);
+                log.warn("테스트 상태 조회를 위한 rawLogs 파싱 실패", e);
             }
         }
 
-        return UiUxTestStatusResponse.builder()
+        return UIUXTestStatusResponse.builder()
                 .requestId(testRequest.getId())
                 .status(testRequest.getTestStatus())
                 .targetUrl(testRequest.getTargetUrl())
@@ -194,7 +194,7 @@ public class UiUxTestService {
 
 
     @Transactional
-    public void saveReport(UUID requestId, UiUxTestReportSubmitRequest request) {
+    public void saveReport(UUID requestId, UIUXTestReportSubmitRequest request) {
         TestRequest testRequest = testRequestRepository.findById(requestId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 테스트 요청입니다."));
 
@@ -202,12 +202,12 @@ public class UiUxTestService {
             throw new IllegalArgumentException("해당 요청은 UI 테스트 타입이 아닙니다.");
         }
 
-        var reportOpt = uiUxTestReportRepository.findByTestRequestId(requestId);
-        UiUxTestReport report;
+        var reportOpt = UIUXTestReportRepository.findByTestRequestId(requestId);
+        UIUXTestReport report;
         if (reportOpt.isPresent()) {
             report = reportOpt.get();
         } else {
-            report = UiUxTestReport.builder()
+            report = UIUXTestReport.builder()
                     .testRequest(testRequest)
                     .totalSteps(0)
                     .defectCount(0)
@@ -217,7 +217,7 @@ public class UiUxTestService {
                     .build();
         }
 
-        UiUxTestReport finalReport = UiUxTestReport.builder()
+        UIUXTestReport finalReport = UIUXTestReport.builder()
                 .id(report.getId())
                 .testRequest(testRequest)
                 .totalSteps(report.getTotalSteps())
@@ -226,15 +226,16 @@ public class UiUxTestService {
                 .rawLogs(report.getRawLogs())
                 .aiUxReview(request.getReportMarkdown() != null ? request.getReportMarkdown() : "")
                 .build();
-        uiUxTestReportRepository.save(finalReport);
+        UIUXTestReportRepository.save(finalReport);
 
+        // 핵심 로직: 테스트 완료 상태로 변경하고 최종 Markdown 리뷰 저장
         if (!"FAILED".equals(testRequest.getTestStatus())) {
             testRequest.changeStatus("COMPLETED");
             testRequest.changePhase("FINISHED");
             testRequest.changeProgress(100);
         }
         testRequestRepository.save(testRequest);
-        log.info("Saved final UI/UX markdown review and completed request context for requestId: {}", requestId);
+        log.info("요청 ID {}에 대한 최종 UI/UX 마크다운 리뷰 저장 및 요청 컨텍스트 완료됨", requestId);
     }
 
     @Transactional
@@ -242,8 +243,8 @@ public class UiUxTestService {
         TestRequest testRequest = testRequestRepository.findById(requestId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 테스트 요청입니다."));
 
-        UiUxTestReport report = uiUxTestReportRepository.findByTestRequestId(requestId).orElseGet(() ->
-                uiUxTestReportRepository.save(UiUxTestReport.builder()
+        UIUXTestReport report = UIUXTestReportRepository.findByTestRequestId(requestId).orElseGet(() ->
+                UIUXTestReportRepository.save(UIUXTestReport.builder()
                         .testRequest(testRequest)
                         .totalSteps(0)
                         .defectCount(0)
@@ -266,11 +267,12 @@ public class UiUxTestService {
             report.setRawLogs(objectMapper.writeValueAsString(logs));
             report.setTotalSteps(logs.size());
         } catch (Exception e) {
-            log.error("Failed to write rawLogs", e);
+            log.error("rawLogs 저장 실패", e);
         }
 
-        uiUxTestReportRepository.save(report);
+        UIUXTestReportRepository.save(report);
 
+        // 핵심 로직: 첫 스텝이 접수되면 상태를 PENDING에서 RUNNING으로 갱신
         if ("PENDING".equals(testRequest.getTestStatus())) {
             testRequest.changeStatus("RUNNING");
             testRequest.changePhase("EXPLORING");
@@ -291,12 +293,12 @@ public class UiUxTestService {
         testRequest.changePhase("FAILED");
         testRequestRepository.save(testRequest);
 
-        var reportOpt = uiUxTestReportRepository.findByTestRequestId(requestId);
-        UiUxTestReport report;
+        var reportOpt = UIUXTestReportRepository.findByTestRequestId(requestId);
+        UIUXTestReport report;
         if (reportOpt.isPresent()) {
             report = reportOpt.get();
         } else {
-            report = UiUxTestReport.builder()
+            report = UIUXTestReport.builder()
                     .testRequest(testRequest)
                     .totalSteps(0)
                     .defectCount(0)
@@ -311,7 +313,7 @@ public class UiUxTestService {
             summaryError = "# UI Test Audit Report - FAILED\n\n**Reason:** " + reason;
         }
 
-        UiUxTestReport failedReport = UiUxTestReport.builder()
+        UIUXTestReport failedReport = UIUXTestReport.builder()
                 .id(report.getId())
                 .testRequest(testRequest)
                 .totalSteps(report.getTotalSteps())
@@ -320,14 +322,14 @@ public class UiUxTestService {
                 .rawLogs(report.getRawLogs())
                 .aiUxReview(summaryError)
                 .build();
-        uiUxTestReportRepository.save(failedReport);
-        log.info("Marked UI context request {} as FAILED. Reason: {}", requestId, reason);
+        UIUXTestReportRepository.save(failedReport);
+        log.info("UI 컨텍스트 요청 {}을(를) FAILED로 표시했습니다. 사유: {}", requestId, reason);
     }
 
     private void deleteVideoFromSupabase(UUID requestId) {
         if (supabaseUrl == null || supabaseUrl.trim().isEmpty() ||
                 supabaseAnonKey == null || supabaseAnonKey.trim().isEmpty()) {
-            log.warn("Supabase credentials not fully configured. Skipping video deletion.");
+            log.warn("Supabase 인증 정보가 완전히 구성되지 않았습니다. 비디오 삭제를 건너뜁니다.");
             return;
         }
 
@@ -336,15 +338,15 @@ public class UiUxTestService {
         String url = supabaseUrl + "/storage/v1/object/" + bucketName + "/" + path;
 
         try {
-            log.info("Attempting to delete video from Supabase Storage: {}", url);
+            log.info("Supabase 스토리지에서 비디오 삭제 시도 중: {}", url);
             restClient.delete()
                     .uri(url)
                     .header("Authorization", "Bearer " + supabaseAnonKey)
                     .retrieve()
                     .toBodilessEntity();
-            log.info("Successfully deleted video file {} from Supabase Storage", path);
+            log.info("Supabase 스토리지에서 비디오 파일 {} 삭제 성공", path);
         } catch (Exception e) {
-            log.error("Failed to delete video file {} from Supabase Storage (it might not exist)", path, e);
+            log.error("Supabase 스토리지에서 비디오 파일 {} 삭제 실패 (존재하지 않을 수 있음)", path, e);
         }
     }
 }

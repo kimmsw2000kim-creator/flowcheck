@@ -13,17 +13,17 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "uiux_test_reports", schema = "public")
+@Table(name = "UIUX_test_reports", schema = "public")
 @Getter
 @Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 @Builder
-public class UiUxTestReport {
+public class UIUXTestReport {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "uiux_report_id", nullable = false, updatable = false)
+    @Column(name = "UIUX_report_id", nullable = false, updatable = false)
     private UUID id;
 
     @NotNull

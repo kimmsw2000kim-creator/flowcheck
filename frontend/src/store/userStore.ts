@@ -12,7 +12,7 @@ export interface CurrentUser {
   status: string;
   coupons: number;
   loadTestCoupons: number;
-  uiUxTestCoupons: number;
+  UIUXTestCoupons: number;
 }
 
 interface UserState {
@@ -25,7 +25,7 @@ interface UserState {
     balance: number;
     coupons: number;
     loadTestCoupons?: number;
-    uiUxTestCoupons?: number;
+    UIUXTestCoupons?: number;
   }) => void;
   loginSuccess: (email: string, token?: string, userId?: string) => void;
   logout: () => Promise<void>;
@@ -40,7 +40,7 @@ const createInitialUser = (): CurrentUser => ({
   status: 'ACTIVE',
   coupons: 0,
   loadTestCoupons: 0,
-  uiUxTestCoupons: 0,
+  UIUXTestCoupons: 0,
 });
 
 const clearLegacyAuthStorage = () => {
@@ -79,10 +79,10 @@ export const useUserStore = create<UserState>((set) => ({
           updated.loadTestCoupons !== undefined
             ? updated.loadTestCoupons
             : state.currentUser.loadTestCoupons,
-        uiUxTestCoupons:
-          updated.uiUxTestCoupons !== undefined
-            ? updated.uiUxTestCoupons
-            : state.currentUser.uiUxTestCoupons,
+        UIUXTestCoupons:
+          updated.UIUXTestCoupons !== undefined
+            ? updated.UIUXTestCoupons
+            : state.currentUser.UIUXTestCoupons,
       },
     })),
   loginSuccess: (email, token, userId) => {

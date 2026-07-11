@@ -18,7 +18,7 @@ import java.util.UUID;
 public class MypageService {
         private final RegisteredSiteRepository registeredSiteRepository;
         private final TestRequestRepository testRequestRepository;
-        private final UiUxTestReportRepository uiUxTestReportRepository;
+        private final UIUXTestReportRepository UIUXTestReportRepository;
         private final UserCouponRepository userCouponRepository;
         private final UserRepository userRepository;
         private final CreditsLedgerRepository creditsLedgerRepository;
@@ -30,7 +30,7 @@ public class MypageService {
 
                 int couponCount = userCouponRepository.sumRemainingChancesByUserId(userId);
                 int loadTestCouponCount = userCouponRepository.sumRemainingChancesByUserIdAndCouponType(userId, CouponType.LOAD_TEST);
-                int uiUxTestCouponCount = userCouponRepository.sumRemainingChancesByUserIdAndCouponType(userId, CouponType.UIUX_TEST);
+                int UIUXTestCouponCount = userCouponRepository.sumRemainingChancesByUserIdAndCouponType(userId, CouponType.UIUX_TEST);
                 long registeredSiteCount = registeredSiteRepository.countByUser_UserId(userId);
                 
                 // 마스터 테이블인 test_requests 단일 개수로 총 실행 횟수 계산 변경
@@ -53,7 +53,7 @@ public class MypageService {
                                 user.getBalance(),
                                 couponCount,
                                 loadTestCouponCount,
-                                uiUxTestCouponCount,
+                                UIUXTestCouponCount,
                                 registeredSiteCount,
                                 testRunCount,
                                 sites);
@@ -83,8 +83,8 @@ public class MypageService {
                 List<TestRequest> uiRequests = testRequestRepository.findByUserAndTestTypeOrderByCreatedAtAsc(user, "UIUX");
                 uiRequests.forEach(test -> {
                         // 세부 분석 보고서 텍스트 추출 매핑 조정
-                        String reportMarkdown = uiUxTestReportRepository.findByTestRequestId(test.getId())
-                                        .map(UiUxTestReport::getAiUxReview)
+                        String reportMarkdown = UIUXTestReportRepository.findByTestRequestId(test.getId())
+                                        .map(UIUXTestReport::getAiUxReview)
                                         .orElse("");
 
                         histories.add(new MypageTestHistoryResponseDTO(

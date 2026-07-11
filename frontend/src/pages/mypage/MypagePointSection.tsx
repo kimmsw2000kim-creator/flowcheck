@@ -24,7 +24,7 @@ function MypagePointSection({ data }: MypagePointSectionProps) {
 
       <div className={styles['mypage-section-card']}>
         <strong>보유 쿠폰 (UI/UX 테스트)</strong>
-        <span>{data.uiUxTestCouponCount}회</span>
+        <span>{data.UIUXTestCouponCount}회</span>
       </div>
 
       {data.couponCount === 0 && (
