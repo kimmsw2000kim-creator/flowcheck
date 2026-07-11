@@ -28,7 +28,7 @@ export interface UIUXTestStatusResponse {
  * UI 탐색 테스트를 시작합니다.
  */
 export async function startUIUXTest(targetUrl: string): Promise<StartUIUXTestResponse> {
-  const response = await apiClient.post('/api/ui-tests',
+  const response = await apiClient.post('/api/uiux-tests',
     { targetUrl }
   );
   return response.data;
@@ -38,6 +38,6 @@ export async function startUIUXTest(targetUrl: string): Promise<StartUIUXTestRes
  * 실시간 UI 탐색 테스트 상태 및 단계 정보를 조회합니다.
  */
 export async function getUIUXTestStatus(requestId: string): Promise<UIUXTestStatusResponse> {
-  const response = await apiClient.get(`/api/ui-tests/${requestId}/status`);
+  const response = await apiClient.get(`/api/uiux-tests/${requestId}/status`);
   return response.data;
 }

@@ -37,7 +37,7 @@ def report_step(request_id: str, step: int, url: str, action: str, selector: str
         "error": error
     }
     try:
-        url_dest = f"{BACKEND_URL}/api/ui-tests/{request_id}/steps"
+        url_dest = f"{BACKEND_URL}/api/uiux-tests/{request_id}/steps"
         print(f"Reporting step {step} to backend: {url_dest}")
         r = httpx.post(url_dest, json=payload, timeout=5.0)
         print(f"Backend response: {r.status_code}")
@@ -52,7 +52,7 @@ def report_report(request_id: str, report_md: str):
         "reportMarkdown": report_md
     }
     try:
-        url_dest = f"{BACKEND_URL}/api/ui-tests/{request_id}/report"
+        url_dest = f"{BACKEND_URL}/api/uiux-tests/{request_id}/report"
         print(f"Reporting report to backend: {url_dest}")
         r = httpx.post(url_dest, json=payload, timeout=5.0)
         print(f"Backend response: {r.status_code}")
@@ -64,7 +64,7 @@ def report_failure(request_id: str, reason: str):
     자율 탐색 중 복구 불가능한 치명적 오류가 발생했을 때 실패 상태와 사유를 백엔드에 전송합니다.
     """
     try:
-        url_dest = f"{BACKEND_URL}/api/ui-tests/{request_id}/fail"
+        url_dest = f"{BACKEND_URL}/api/uiux-tests/{request_id}/fail"
         print(f"Reporting fail to backend: {url_dest}")
         r = httpx.post(url_dest, params={"reason": reason}, timeout=5.0)
         print(f"Backend response: {r.status_code}")
@@ -110,7 +110,7 @@ def upload_video_to_supabase(file_path: str, request_id: str) -> Optional[str]:
         print(f"비디오 업로드 중 오류 발생: {e}")
         return None
 
-def run_ui_agent(request_id: str, target_url: str):
+def run_uiux_test_service(request_id: str, target_url: str):
     """
     지정한 대상 URL에 대해 AI 기반의 UI/UX 자율 탐색 및 분석 테스트를 실행합니다.
     

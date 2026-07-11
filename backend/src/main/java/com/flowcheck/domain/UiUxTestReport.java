@@ -13,7 +13,7 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "UIUX_test_reports", schema = "public")
+@Table(name = "uiux_test_reports", schema = "public")
 @Getter
 @Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

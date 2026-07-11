@@ -18,7 +18,7 @@ import java.util.UUID;
 
 @Tag(name = "UI Test Explorer", description = "자율형 UI 탐색 API")
 @RestController
-@RequestMapping("/api/ui-tests")
+@RequestMapping("/api/uiux-tests")
 @RequiredArgsConstructor
 @Slf4j
 @CrossOrigin(origins = { "http://localhost:5173", "https://flow-check.duckdns.org" })

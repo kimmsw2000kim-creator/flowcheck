@@ -142,9 +142,9 @@ public class UIUXTestService {
                     "targetUrl", request.getTargetUrl(),
                     "promptInput", request.getPromptInput() != null ? request.getPromptInput() : "");
             // 핵심 로직: FastAPI 서버로 UI 테스트 실행 비동기 요청 전송
-            log.info("요청 ID {}에 대해 FastAPI 엔드포인트 /api/ui-tests 호출 중...", requestId);
+            log.info("요청 ID {}에 대해 FastAPI 엔드포인트 /api/uiux-tests 호출 중...", requestId);
             restClient.post()
-                    .uri(fastApiUrl + "/api/ui-tests")
+                    .uri(fastApiUrl + "/api/uiux-tests")
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(payload)
                     .retrieve()
