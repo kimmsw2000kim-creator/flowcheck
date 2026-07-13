@@ -10,8 +10,10 @@ import com.flowcheck.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -101,14 +103,12 @@ public class LoadTestService {
         }
 
         @Transactional(readOnly = true)
-        public LoadTestResponse getTestResult(UUID requestId) {
-                TestRequest testRequest = testRequestRepository.findById(requestId)
-                                .orElseThrow(() -> new IllegalArgumentException("Invalid request ID"));
-
-                // 테스트 종류가 부하 테스트인지 확인하는 예외 처리
-                if (!"LOAD".equals(testRequest.getTestType())) {
-                        throw new IllegalStateException("해당 요청은 부하 테스트 타입이 아님");
-                }
+        public LoadTestResponse getTestResult(UUID userId, UUID requestId) {
+                TestRequest testRequest = testRequestRepository
+                                .findByIdAndUser_UserIdAndTestType(requestId, userId, "LOAD")
+                                .orElseThrow(() -> new ResponseStatusException(
+                                                HttpStatus.NOT_FOUND,
+                                                "Load test not found"));
 
                 String currentStatus = testRequest.getTestStatus();
                 String currentPhase = testRequest.getTestPhase();

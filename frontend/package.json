@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@microsoft/fetch-event-source": "^2.0.1",
     "@supabase/supabase-js": "^2.110.0",
     "@tosspayments/tosspayments-sdk": "^2.7.1",
     "axios": "^1.18.1",
@@ -20,6 +21,7 @@
     "react-router-dom": "^7.18.1",
     "recharts": "^3.9.0",
     "remark-gfm": "^4.0.1",
+    "sweetalert2": "^11.26.25",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
