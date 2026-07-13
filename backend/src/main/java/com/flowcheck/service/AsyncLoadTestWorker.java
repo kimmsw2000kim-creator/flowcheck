@@ -18,6 +18,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -76,13 +77,29 @@ public class AsyncLoadTestWorker {
                 aiReview = "AI 분석 결과가 비어 있습니다.";
             }
 
+            Map<String, Object> rawMetrics = new HashMap<>();
+            rawMetrics.put("points", testResults.getPoints());
+            if (testResults.getPerformanceScore() != null) {
+                rawMetrics.put("performanceScore", testResults.getPerformanceScore());
+                rawMetrics.put("performanceGrade", testResults.getPerformanceGrade());
+                rawMetrics.put("scoreLabel", testResults.getScoreLabel());
+            }
+            if (testResults.getScoreBreakdown() != null) {
+                Map<String, Object> scoreBreakdown = new HashMap<>();
+                scoreBreakdown.put("reliabilityScore",
+                        testResults.getScoreBreakdown().getReliabilityScore());
+                scoreBreakdown.put("latencyScore",
+                        testResults.getScoreBreakdown().getLatencyScore());
+                rawMetrics.put("scoreBreakdown", scoreBreakdown);
+            }
+
             LoadTestReport report = LoadTestReport.builder()
                     .testRequest(testHistory)
                     .vusers(request.getVusers())
                     .totalTps(BigDecimal.valueOf(testResults.getMaxTps()))
                     .avgLatency((int) (testResults.getAvgResponse() * 1000))
                     .errorRate(BigDecimal.valueOf(testResults.getErrorRate()))
-                    .rawMetrics(Map.of("points", testResults.getPoints()))
+                    .rawMetrics(rawMetrics)
                     .aiPerformanceReview(aiReview)
                     .build();
 

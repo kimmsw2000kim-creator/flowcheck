@@ -17,6 +17,13 @@ interface LoadTestDetail {
     maxTps: number;
     avgResponse: number;
     errorRate: number;
+    performanceScore: number;
+    performanceGrade: string;
+    scoreLabel: string;
+    scoreBreakdown: {
+        reliabilityScore: number;
+        latencyScore: number;
+    };
     bottleneckComment: string;
     points: LoadChartDataPoint[];
 }
@@ -78,8 +85,9 @@ function MypageTestDetailSection() {
         return (
             <div className="card">
                 <h2>부하 테스트 상세 결과</h2>
-                <p>최대 TPS: {loadDetail.maxTps} / 평균 응답시간: {loadDetail.avgResponse}ms / 에러율: {loadDetail.errorRate}%</p>
-                <p style={{ marginTop: '1rem' }}>{loadDetail.bottleneckComment}</p>
+                <div className={`report-markdown load-report-markdown grade-${loadDetail.performanceGrade?.toLowerCase() ?? 'unknown'}`}>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{loadDetail.bottleneckComment}</ReactMarkdown>
+                </div>
 
                 <div style={{ height: '320px', width: '100%', marginTop: '1.5rem' }}>
                     <ResponsiveContainer width="100%" height="100%">
