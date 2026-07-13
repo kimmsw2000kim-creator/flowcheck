@@ -72,6 +72,9 @@ public class AsyncLoadTestWorker {
             testHistory.changeProgress(85);
             testRequestRepository.save(testHistory);
 
+            if (testResults == null) {
+                throw new RuntimeException("FastAPI Error: testResults is null");
+            }
             String aiReview = testResults.getBottleneckComment();
             if (aiReview == null || aiReview.isBlank()) {
                 aiReview = "AI 분석 결과가 비어 있습니다.";

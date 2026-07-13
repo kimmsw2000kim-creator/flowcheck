@@ -1,6 +1,6 @@
 package com.flowcheck.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+
 import com.flowcheck.dto.SiteRegisterRequestDTO;
 import com.flowcheck.dto.SiteResponseDTO;
 import com.flowcheck.service.SiteService;
@@ -23,7 +23,7 @@ import java.util.List;
 public class SiteController {
 
     private final SiteService siteService;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+
 
     @Operation(summary = "새 사이트 등록", description = "검증 대상 웹사이트 도메인을 등록합니다. 소유권 검증 토큰이 발급됩니다.")
     @PostMapping

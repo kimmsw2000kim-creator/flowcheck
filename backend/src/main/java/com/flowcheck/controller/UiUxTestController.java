@@ -1,6 +1,6 @@
 package com.flowcheck.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+
 import com.flowcheck.dto.uiuxtest.*;
 import com.flowcheck.service.UIUXTestService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -25,7 +25,7 @@ import java.util.UUID;
 public class UIUXTestController {
 
     private final UIUXTestService UIUXTestService;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+
 
     @Operation(summary = "UI 탐색 테스트 시작", description = "자율형 AI 크롤링 및 UX 분석 테스트를 생성하고 시작 요청을 보냅니다.")
     @PostMapping
