@@ -4,6 +4,7 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Toast from './components/common/Toast';
+import Chatbot from './components/Chatbot';
 
 // Pages
 import DashboardPage from './pages/DashboardPage';
@@ -369,6 +370,7 @@ function App() {
       </main>
 
       {isLoggedIn && <Footer />}
+      <Chatbot />
     </div>
   );
 }
