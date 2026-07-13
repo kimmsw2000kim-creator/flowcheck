@@ -13,7 +13,7 @@ interface Message {
 const Chatbot: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    { id: 1, text: '안녕하세요! Flowcheck AI 어시스턴트입니다. 무엇을 도와드릴까요?', sender: 'bot' }
+    { id: 1, text: '안녕하세요! Flowcheck AI 어시스턴트 첵첵이입니다. 무엇을 도와드릴까요?', sender: 'bot' }
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
