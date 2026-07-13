@@ -57,9 +57,13 @@ class RetriableSseError extends Error {
 
 const phaseLabels: Record<string, string> = {
   QUEUED: '대기 중',
+  DISPATCHED_TO_FASTAPI: 'FastAPI 전달 중',
+  GENERATING_SCRIPT: 'k6 스크립트 생성 중',
+  PROVISIONING_INFRA: '부하 테스트 인프라 실행 중',
   PREPARING_REQUEST: '요청 준비 중',
   CALLING_FASTAPI: 'FastAPI 호출 중',
   PROCESSING_RESULTS: '결과 처리 중',
+  RESULT_READY: '결과 전달 준비 중',
   SAVING_REPORT: '리포트 저장 중',
   COMPLETED: '완료',
   FAILED: '실패',

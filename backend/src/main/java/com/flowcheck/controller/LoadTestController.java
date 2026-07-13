@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -18,8 +19,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.UUID;
 
 @Tag(name = "Load Test", description = "부하 테스트 실행 및 조회 API")
@@ -29,8 +33,13 @@ import java.util.UUID;
 @Slf4j
 public class LoadTestController {
 
+    private static final String CALLBACK_TOKEN_HEADER = "X-Internal-Api-Key";
+
     private final LoadTestService loadTestService;
     private final LoadTestStreamService loadTestStreamService;
+
+    @Value("${internal.load-test-callback-token}")
+    private String loadTestCallbackToken;
 
     @Operation(summary = "부하 테스트 실행 요청", description = "새로운 부하 테스트를 큐에 등록하고 요청 ID를 반환받습니다.")
     @PostMapping()
@@ -84,9 +93,29 @@ public class LoadTestController {
     @PostMapping("/{requestId}/progress")
     public ResponseEntity<Void> updateTestProgress(
             @PathVariable UUID requestId,
+            @RequestHeader(value = CALLBACK_TOKEN_HEADER, required = false) String callbackToken,
             @Valid @RequestBody LoadTestProgressUpdateRequest request) {
+        validateCallbackToken(requestId, callbackToken);
         loadTestStreamService.updateProgress(requestId, request);
         return ResponseEntity.ok().build();
+    }
+
+    private void validateCallbackToken(UUID requestId, String callbackToken) {
+        if (loadTestCallbackToken == null || loadTestCallbackToken.isBlank()) {
+            log.error("LOAD_TEST_CALLBACK_TOKEN is not configured");
+            throw new ResponseStatusException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "Load test callback authentication is not configured");
+        }
+
+        boolean tokenMatches = callbackToken != null && MessageDigest.isEqual(
+                loadTestCallbackToken.getBytes(StandardCharsets.UTF_8),
+                callbackToken.getBytes(StandardCharsets.UTF_8));
+
+        if (!tokenMatches) {
+            log.warn("Rejected load test progress callback for request {}", requestId);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid callback credentials");
+        }
     }
 
 }

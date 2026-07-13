@@ -68,10 +68,6 @@ public class AsyncLoadTestWorker {
                     })
                     .body(LoadTestResponse.TestResults.class);
 
-            testHistory.changePhase("PROCESSING_RESULTS");
-            testHistory.changeProgress(85);
-            testRequestRepository.save(testHistory);
-
             if (testResults == null) {
                 throw new RuntimeException("FastAPI Error: testResults is null");
             }

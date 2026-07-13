@@ -5,6 +5,7 @@ import com.flowcheck.dto.LoadTest.LoadTestProgressUpdateRequest;
 import com.flowcheck.dto.LoadTest.LoadTestResponse;
 import com.flowcheck.repository.TestRequestRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class LoadTestStreamService {
 
     private final TestRequestRepository testRequestRepository;
@@ -59,6 +61,12 @@ public class LoadTestStreamService {
         testRequestRepository.save(testRequest);
 
         broadcast(requestId, buildSnapshot(testRequest, request.message()));
+        log.info(
+                "Load test progress updated: requestId={}, status={}, phase={}, progress={}",
+                requestId,
+                request.status(),
+                request.phase(),
+                request.progress());
     }
 
     private LoadTestResponse buildSnapshot(TestRequest testRequest, String message) {
