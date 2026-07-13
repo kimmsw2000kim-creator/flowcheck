@@ -99,16 +99,24 @@ function App() {
 
     const applySession = async (session: Session | null) => {
       const sessionToken = session?.access_token ?? null;
+
       if (lastSessionTokenRef.current === sessionToken) return;
       lastSessionTokenRef.current = sessionToken;
 
       if (!session) {
+        localStorage.removeItem("accessToken");
+        localStorage.removeItem("email");
+
         setLedger([]);
         resetAuthState();
         return;
       }
 
       const sessionUser = session.user;
+
+      localStorage.setItem("accessToken", session.access_token);
+      localStorage.setItem("email", sessionUser.email ?? "");
+
       const authConfig = {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -117,18 +125,21 @@ function App() {
 
       setCurrentUser({
         id: sessionUser.id,
-        email: sessionUser.email ?? '',
+        email: sessionUser.email ?? "",
       });
-      setAuthStatus('authenticated');
+
+      setAuthStatus("authenticated");
 
       try {
-        const res = await apiClient.get('/api/mypage', authConfig);
+        const res = await apiClient.get("/api/mypage", authConfig);
+
         if (!isMounted) return;
 
         const data = res.data;
+
         setCurrentUser({
           id: sessionUser.id,
-          email: data.email ?? sessionUser.email ?? '',
+          email: data.email ?? sessionUser.email ?? "",
           role: data.role,
           status: data.status,
           balance: data.balance,
@@ -138,12 +149,13 @@ function App() {
         });
       } catch (err) {
         console.error("Failed to load user profile session:", err);
-        return;
       }
 
       try {
-        const res = await apiClient.get('/api/payment/ledger', authConfig);
+        const res = await apiClient.get("/api/payment/ledger", authConfig);
+
         if (!isMounted) return;
+
         setLedger(res.data);
       } catch (err) {
         console.error("Failed to load ledger history:", err);
@@ -183,18 +195,30 @@ function App() {
     setLedger(prev => [ledgerItem, ...prev]);
   };
 
+  const handleUserUpdate = (updatedUser: {
+    balance: number;
+    coupons: number;
+  }) => {
+    setCurrentUser({
+      ...currentUser,
+      balance: updatedUser.balance,
+      coupons: updatedUser.coupons,
+    });
+  };
+
   const handleSubmitReport = (type: string, id: number) => {
     const report: Report = {
-      id: reports.length + 1,
+      id: Date.now(),
       reporterId: currentUser.id,
       targetType: type,
       targetId: id,
-      reason: '부적절한 내용',
-      status: 'PENDING',
-      createdAt: new Date().toISOString().split('T')[0]
+      reason: "부적절한 내용",
+      status: "PENDING",
+      createdAt: new Date().toISOString().split("T")[0],
     };
-    setReports([...reports, report]);
-    showAlert('신고가 접수되었습니다.');
+
+    setReports((prev) => [...prev, report]);
+    showAlert("신고가 접수되었습니다.");
   };
 
   if (authStatus === 'checking') {
@@ -214,10 +238,7 @@ function App() {
     <div className="app-container">
       {alertMsg && <Toast message={alertMsg.message} type={alertMsg.type} />}
 
-      <Header
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-      />
+      <Header activeTab={activeTab} />
 
       <main className={isLandingPage ? "landing-main" : "main-content"}>
         <Routes>
@@ -282,15 +303,20 @@ function App() {
                 path="/community"
                 element={
                   <CommunityPage
+                    currentUser={currentUser}
+                    onUserUpdate={handleUserUpdate}
                     ledger={ledger}
                     onAddLedger={handleAddLedger}
+                    showAlert={showAlert}
                     handleSubmitReport={handleSubmitReport}
                   />
                 }
               />
               <Route path="/community/write" element={<PostWritePage />} />
+              <Route path="/comment/write" element={<PostWritePage />} />
               <Route path="/community/:postId" element={<PostDetailPage />} />
               <Route path="/community/:postId/edit" element={<PostEditPage />} />
+              <Route path="/comment/:postId/edit" element={<PostEditPage />} />
 
               <Route
                 path="/comment"
