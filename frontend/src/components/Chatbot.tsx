@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import axios from 'axios';
+import apiClient from '../api/client';
 import './Chatbot.css';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -46,7 +46,7 @@ const Chatbot: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const response = await axios.post('http://localhost:8000/api/chat', {
+      const response = await apiClient.post('/api/chat', {
         message: userMessage.text
       });
 
