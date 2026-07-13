@@ -12,10 +12,10 @@ interface Domain {
 
 interface DashboardPageProps {
   setActiveTab: (tab: string) => void;
-  setSelectedUiUxTestDomain: (id: number) => void;
+  setSelectedUIUXTestDomain: (id: number) => void;
 }
 
-export default function DashboardPage({ setActiveTab, setSelectedUiUxTestDomain }: DashboardPageProps) {
+export default function DashboardPage({ setActiveTab, setSelectedUIUXTestDomain }: DashboardPageProps) {
   const currentUser = useUserStore((state) => state.currentUser);
   const { domains } = useDomains();
   return (
@@ -35,7 +35,7 @@ export default function DashboardPage({ setActiveTab, setSelectedUiUxTestDomain 
         <div className="card">
           <div className="card-title"><PlusCircle size={18} /> 선결제 테스트 쿠폰</div>
           <div className="card-value" style={{ fontSize: '1.4rem' }}>
-            부하: {currentUser.loadTestCoupons || 0}회 / UI: {currentUser.uiUxTestCoupons || 0}회
+            부하: {currentUser.loadTestCoupons || 0}회 / UI: {currentUser.UIUXTestCoupons || 0}회
           </div>
         </div>
         <div className="card">
@@ -72,7 +72,7 @@ export default function DashboardPage({ setActiveTab, setSelectedUiUxTestDomain 
                     <button
                       className="btn btn-secondary"
                       style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
-                      onClick={() => { setActiveTab('uiUxTest'); setSelectedUiUxTestDomain(d.id); }}
+                      onClick={() => { setActiveTab('UIUXTest'); setSelectedUIUXTestDomain(d.id); }}
                     >
                       UI/UX 테스트 실행
                     </button>

@@ -312,7 +312,7 @@ export default function PaymentPage({
               balance: mypageData.balance,
               coupons: mypageData.couponCount,
               loadTestCoupons: mypageData.loadTestCouponCount,
-              uiUxTestCoupons: mypageData.uiUxTestCouponCount
+              UIUXTestCoupons: mypageData.UIUXTestCouponCount
             });
             onAddLedger({
               id: ledger.length + 1,

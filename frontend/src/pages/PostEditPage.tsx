@@ -13,7 +13,7 @@ export default function PostEditPage() {
             if (!postId) return;
 
             try {
-                const data = await getPost(postId);
+                const data = await getPost(Number(postId));
                 setTitle(data.title);
                 setContent(data.content);
             } catch (error) {
@@ -38,7 +38,7 @@ export default function PostEditPage() {
         }
 
         try {
-            await updatePost(postId, { title, content });
+            await updatePost(Number(postId), { title, content });
             alert("게시글이 수정되었습니다.");
             window.location.href = `/community/${postId}`;
         } catch (error) {

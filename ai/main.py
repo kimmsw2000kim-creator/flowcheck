@@ -4,7 +4,7 @@ truststore.inject_into_ssl()
 from fastapi import FastAPI, BackgroundTasks
 from pydantic import BaseModel
 from typing import Optional
-from ui_agent import run_ui_agent
+from uiux_test_service import run_uiux_test_service
 import os
 from dotenv import load_dotenv
 from google import genai
@@ -78,8 +78,8 @@ async def run_load_test(request: LoadTestRequest):
     print("테스트 완료! 정밀 결과를 반환합니다.")
     return result
 
-@app.post("/api/ui-tests")
-async def run_ui_test(request: UiTestRequest, background_tasks: BackgroundTasks):
-    print(f"Received UI test request: {request}")
-    background_tasks.add_task(run_ui_agent, request.requestId, request.targetUrl)
+@app.post("/api/uiux-tests")
+async def run_uiux_test(request: UiTestRequest, background_tasks: BackgroundTasks):
+    print(f"UIUX 테스트 요청 수신됨: {request}")
+    background_tasks.add_task(run_uiux_test_service, request.requestId, request.targetUrl)
     return {"status": "started"}

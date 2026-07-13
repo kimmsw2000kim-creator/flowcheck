@@ -11,7 +11,7 @@ export interface MypageData {
   balance: number;
   couponCount: number;
   loadTestCouponCount: number;
-  uiUxTestCouponCount: number;
+  UIUXTestCouponCount: number;
   registeredSiteCount: number;
   testRunCount: number;
   sites: SiteSummary[];

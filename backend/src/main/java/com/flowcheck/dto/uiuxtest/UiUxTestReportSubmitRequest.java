@@ -7,6 +7,6 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class UiUxTestReportSubmitRequest {
+public class UIUXTestReportSubmitRequest {
     private String reportMarkdown;
 }
