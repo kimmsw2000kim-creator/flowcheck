@@ -373,8 +373,11 @@ function App() {
                 }
               />
               <Route path="/community/write" element={<PostWritePage />} />
+              <Route path="/comment/write" element={<PostWritePage />} />
               <Route path="/community/:postId" element={<PostDetailPage />} />
               <Route path="/community/:postId/edit" element={<PostEditPage />} />
+              <Route path="/comment/:postId/edit" element={<PostEditPage />}
+              />
 
               <Route
                 path="/comment"

@@ -3,7 +3,10 @@ import { MessageCircle, ThumbsUp } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
     createComment,
+    deleteComment,
+    deletePost,
     getComments,
+    getLikeStatus,
     getPost,
     getPosts,
     likePost,
@@ -41,7 +44,10 @@ interface Comment {
     replies?: Comment[];
 }
 
-export default function CommentPage({ showAlert }: CommentPageProps) {
+export default function CommentPage({
+    currentUser,
+    showAlert,
+}: CommentPageProps) {
     const navigate = useNavigate();
     const [posts, setPosts] = useState<Post[]>([]);
     const [selectedPost, setSelectedPost] = useState<Post | null>(null);
@@ -50,18 +56,22 @@ export default function CommentPage({ showAlert }: CommentPageProps) {
     const [commentText, setCommentText] = useState("");
     const [replyText, setReplyText] = useState("");
     const [replyParentId, setReplyParentId] = useState<number | null>(null);
+    const [liked, setLiked] = useState(false);
 
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
+
+    const [searchInput, setSearchInput] = useState("");
+    const [keyword, setKeyword] = useState("");
     const pageSize = 10;
 
     useEffect(() => {
         loadPosts();
-    }, [page]);
+    }, [page, keyword]);
 
     const loadPosts = async () => {
         try {
-            const data = await getPosts(page - 1, pageSize);
+            const data = await getPosts(page - 1, pageSize, keyword);
 
             if (Array.isArray(data)) {
                 setPosts(data);
@@ -76,13 +86,30 @@ export default function CommentPage({ showAlert }: CommentPageProps) {
         }
     };
 
+    const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+
+        setPage(1);
+        setKeyword(searchInput.trim());
+    };
+
+    const handleResetSearch = () => {
+        setSearchInput("");
+        setKeyword("");
+        setPage(1);
+    };
+
     const openPost = async (postId: number) => {
         try {
-            const postData = await getPost(postId);
-            const commentData = await getComments(postId);
+            const [postData, commentData, likeStatus] = await Promise.all([
+                getPost(postId),
+                getComments(postId),
+                getLikeStatus(postId),
+            ]);
 
             setSelectedPost(postData);
             setComments(commentData || []);
+            setLiked(likeStatus.liked);
         } catch (error) {
             console.error(error);
             showAlert("게시글 상세 정보를 불러오지 못했습니다.", "error");
@@ -93,14 +120,35 @@ export default function CommentPage({ showAlert }: CommentPageProps) {
         if (!selectedPost) return;
 
         try {
-            await likePost(selectedPost.id);
-            const updatedPost = await getPost(selectedPost.id);
-            setSelectedPost(updatedPost);
-            loadPosts();
-            showAlert("좋아요를 눌렀습니다.", "success");
+            const result = await likePost(selectedPost.id);
+
+            setLiked(result.liked);
+
+            setSelectedPost((prev) =>
+                prev
+                    ? {
+                        ...prev,
+                        likeCount: result.likeCount,
+                        likes: result.likeCount,
+                    }
+                    : prev
+            );
+
+            await loadPosts();
+
+            showAlert(
+                result.message,
+                result.liked ? "success" : "info"
+            );
         } catch (error) {
             console.error(error);
-            showAlert("좋아요 처리에 실패했습니다.", "error");
+
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : "좋아요 처리에 실패했습니다.";
+
+            showAlert(message, "error");
         }
     };
 
@@ -156,6 +204,120 @@ export default function CommentPage({ showAlert }: CommentPageProps) {
         }
     };
 
+    const handleEditPost = () => {
+        if (!selectedPost) return;
+
+        const loginEmail = (currentUser.email || "")
+            .trim()
+            .toLowerCase();
+
+        const writerEmail = (
+            selectedPost.writerEmail ||
+            selectedPost.email ||
+            ""
+        )
+            .trim()
+            .toLowerCase();
+
+        if (!loginEmail || loginEmail !== writerEmail) {
+            showAlert("본인이 작성한 게시글만 수정할 수 있습니다.", "error");
+            return;
+        }
+
+        navigate(`/comment/${selectedPost.id}/edit`);
+    };
+
+    const handleDeletePost = async () => {
+        if (!selectedPost) return;
+
+        const loginEmail = (currentUser.email || "")
+            .trim()
+            .toLowerCase();
+
+        const writerEmail = (
+            selectedPost.writerEmail ||
+            selectedPost.email ||
+            ""
+        )
+            .trim()
+            .toLowerCase();
+
+        if (!loginEmail || loginEmail !== writerEmail) {
+            showAlert("본인이 작성한 게시글만 삭제할 수 있습니다.", "error");
+            return;
+        }
+
+        const confirmed = window.confirm(
+            "게시글을 삭제하시겠습니까?\n댓글과 좋아요 정보도 함께 삭제됩니다."
+        );
+
+        if (!confirmed) return;
+
+        try {
+            await deletePost(selectedPost.id);
+
+            setSelectedPost(null);
+            setComments([]);
+            setReplyParentId(null);
+            setReplyText("");
+            setLiked(false);
+
+            await loadPosts();
+
+            showAlert("게시글이 삭제되었습니다.", "success");
+        } catch (error) {
+            console.error("게시글 삭제 실패:", error);
+
+            showAlert(
+                error instanceof Error
+                    ? error.message
+                    : "게시글 삭제에 실패했습니다.",
+                "error"
+            );
+        }
+    };
+
+    const handleDeleteComment = async (
+        commentId: number,
+        isReply = false
+    ) => {
+        if (!selectedPost) return;
+
+        const confirmed = window.confirm(
+            isReply
+                ? "이 답글을 삭제하시겠습니까?"
+                : "이 댓글을 삭제하시겠습니까?"
+        );
+
+        if (!confirmed) return;
+
+        try {
+            await deleteComment(commentId);
+
+            const updatedComments = await getComments(selectedPost.id);
+            setComments(updatedComments || []);
+
+            const updatedPost = await getPost(selectedPost.id);
+            setSelectedPost(updatedPost);
+
+            await loadPosts();
+
+            showAlert(
+                isReply ? "답글이 삭제되었습니다." : "댓글이 삭제되었습니다.",
+                "success"
+            );
+        } catch (error) {
+            console.error("댓글 삭제 오류:", error);
+
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : "댓글 삭제에 실패했습니다.";
+
+            showAlert(message, "error");
+        }
+    };
+
     const getWriter = (post: Post) => {
         return post.writerEmail || post.email || "unknown";
     };
@@ -181,6 +343,8 @@ export default function CommentPage({ showAlert }: CommentPageProps) {
                         setSelectedPost(null);
                         setComments([]);
                         setReplyParentId(null);
+                        setReplyText("");
+                        setLiked(false);
                     }}
                 >
                     ← 게시판 목록으로 돌아가기
@@ -209,13 +373,69 @@ export default function CommentPage({ showAlert }: CommentPageProps) {
 
                     <div
                         style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
                             borderTop: "1px solid var(--border)",
                             paddingTop: "1rem",
                         }}
                     >
-                        <button className="post-action-btn" onClick={handleLike}>
-                            <ThumbsUp size={16} /> 좋아요 ({getLikeCount(selectedPost)})
+                        <button
+                            type="button"
+                            className="post-action-btn"
+                            onClick={handleLike}
+                            style={{
+                                cursor: "pointer",
+                                fontWeight: liked ? 700 : 400,
+                                color: liked ? "var(--accent)" : "inherit",
+                            }}
+                        >
+                            <ThumbsUp
+                                size={16}
+                                fill={liked ? "currentColor" : "none"}
+                            />
+
+                            {liked ? "좋아요 취소" : "좋아요"} ({getLikeCount(selectedPost)})
                         </button>
+
+                        <div
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "1rem",
+                                marginLeft: "auto",
+                            }}
+                        >
+                            <button
+                                type="button"
+                                onClick={handleEditPost}
+                                style={{
+                                    background: "transparent",
+                                    border: "none",
+                                    color: "var(--accent)",
+                                    cursor: "pointer",
+                                    fontWeight: 700,
+                                    fontSize: "0.9rem",
+                                }}
+                            >
+                                게시글 수정
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={handleDeletePost}
+                                style={{
+                                    background: "transparent",
+                                    border: "none",
+                                    color: "#ef4444",
+                                    cursor: "pointer",
+                                    fontWeight: 700,
+                                    fontSize: "0.9rem",
+                                }}
+                            >
+                                게시글 삭제
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -243,41 +463,6 @@ export default function CommentPage({ showAlert }: CommentPageProps) {
                         </button>
                     </form>
 
-                    {replyParentId && (
-                        <form
-                            onSubmit={handleCreateReply}
-                            style={{ marginBottom: "1.5rem" }}
-                        >
-                            <p style={{ marginBottom: "0.5rem", color: "var(--accent)" }}>
-                                댓글 #{replyParentId}에 답글 작성 중
-                            </p>
-
-                            <textarea
-                                className="form-input"
-                                placeholder="답글을 입력하세요..."
-                                value={replyText}
-                                onChange={(e) => setReplyText(e.target.value)}
-                                required
-                            />
-
-                            <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>
-                                <button type="submit" className="btn btn-primary">
-                                    답글 등록
-                                </button>
-
-                                <button
-                                    type="button"
-                                    className="btn btn-secondary"
-                                    onClick={() => {
-                                        setReplyParentId(null);
-                                        setReplyText("");
-                                    }}
-                                >
-                                    취소
-                                </button>
-                            </div>
-                        </form>
-                    )}
 
                     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
                         {comments.length === 0 && (
@@ -301,34 +486,149 @@ export default function CommentPage({ showAlert }: CommentPageProps) {
 
                                     <p className="comment-content">{comment.content}</p>
 
-                                    <div className="comment-footer">
+                                    <div
+                                        className="comment-footer"
+                                        style={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: "0.75rem",
+                                            marginTop: "0.5rem",
+                                        }}
+                                    >
                                         <span>{comment.createdAt?.slice(0, 16)}</span>
 
                                         <button
+                                            type="button"
                                             style={{
                                                 background: "transparent",
                                                 border: "none",
                                                 color: "var(--accent-hover)",
                                                 cursor: "pointer",
+                                                padding: 0,
                                                 fontSize: "0.8rem",
                                             }}
-                                            onClick={() => setReplyParentId(comment.id)}
+                                            onClick={() => {
+                                                setReplyParentId(comment.id);
+                                                setReplyText("");
+                                            }}
                                         >
                                             답글
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            style={{
+                                                background: "transparent",
+                                                border: "none",
+                                                color: "#ef4444",
+                                                cursor: "pointer",
+                                                padding: 0,
+                                                fontSize: "0.8rem",
+                                            }}
+                                            onClick={() => handleDeleteComment(comment.id)}
+                                        >
+                                            삭제
                                         </button>
                                     </div>
                                 </div>
 
+                                {replyParentId === comment.id && (
+                                    <form
+                                        onSubmit={handleCreateReply}
+                                        style={{
+                                            marginLeft: "2rem",
+                                            marginTop: "1rem",
+                                            marginBottom: "1rem",
+                                        }}
+                                    >
+                                        <textarea
+                                            className="form-input"
+                                            placeholder="답글을 입력하세요..."
+                                            value={replyText}
+                                            onChange={(e) => setReplyText(e.target.value)}
+                                        />
+
+                                        <div
+                                            style={{
+                                                display: "flex",
+                                                gap: "0.5rem",
+                                                marginTop: "0.5rem",
+                                            }}
+                                        >
+                                            <button
+                                                className="btn btn-primary"
+                                                type="submit"
+                                            >
+                                                답글 등록
+                                            </button>
+
+                                            <button
+                                                className="btn btn-secondary"
+                                                type="button"
+                                                onClick={() => {
+                                                    setReplyParentId(null);
+                                                    setReplyText("");
+                                                }}
+                                            >
+                                                취소
+                                            </button>
+                                        </div>
+                                    </form>
+                                )}
+
                                 {(comment.replies || []).map((reply) => (
-                                    <div key={reply.id} className="comment-card reply">
+                                    <div
+                                        key={reply.id}
+                                        className="comment-card reply"
+                                        style={{
+                                            marginLeft: "2rem",
+                                            paddingLeft: "1rem",
+                                            borderLeft: "2px solid var(--border)",
+                                        }}
+                                    >
                                         <span className="comment-author">
                                             ㄴ {reply.writerEmail || reply.author || "unknown"}
                                         </span>
 
-                                        <p className="comment-content">{reply.content}</p>
+                                        <p
+                                            className="comment-content"
+                                            style={{
+                                                marginTop: "0.5rem",
+                                                marginBottom: "0.5rem",
+                                            }}
+                                        >
+                                            {reply.content}
+                                        </p>
 
-                                        <div className="comment-footer">
-                                            <span>{reply.createdAt?.slice(0, 16)}</span>
+                                        <div
+                                            className="comment-footer"
+                                            style={{
+                                                display: "flex",
+                                                justifyContent: "flex-start",
+                                                alignItems: "center",
+                                                gap: "0.75rem",
+                                            }}
+                                        >
+                                            <span>
+                                                {reply.createdAt
+                                                    ?.replace("T", " ")
+                                                    .slice(0, 16)}
+                                            </span>
+
+                                            <button
+                                                type="button"
+                                                style={{
+                                                    background: "transparent",
+                                                    border: "none",
+                                                    color: "#ef4444",
+                                                    cursor: "pointer",
+                                                    padding: 0,
+                                                    fontSize: "0.8rem",
+                                                }}
+                                                onClick={() => handleDeleteComment(reply.id, true)}
+                                            >
+                                                삭제
+                                            </button>
                                         </div>
                                     </div>
                                 ))}
@@ -359,13 +659,46 @@ export default function CommentPage({ showAlert }: CommentPageProps) {
 
                 <button
                     className="btn btn-primary"
-                    onClick={() => navigate("/community/write")}
+                    onClick={() => navigate("/comment/write")}
                 >
                     게시글 작성
                 </button>
             </div>
 
+            <form
+                onSubmit={handleSearch}
+                style={{
+                    display: "flex",
+                    gap: "0.75rem",
+                    marginBottom: "1.5rem",
+                }}
+            >
+                <input
+                    className="form-input"
+                    type="text"
+                    placeholder="제목 또는 작성자 이메일 검색"
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    style={{ flex: 1 }}
+                />
 
+                <button
+                    className="btn btn-primary"
+                    type="submit"
+                >
+                    검색
+                </button>
+
+                {keyword && (
+                    <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={handleResetSearch}
+                    >
+                        초기화
+                    </button>
+                )}
+            </form>
 
             <div className="card" style={{ padding: 0, overflow: "hidden" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -391,7 +724,9 @@ export default function CommentPage({ showAlert }: CommentPageProps) {
                                         color: "var(--text-muted)",
                                     }}
                                 >
-                                    게시글이 없습니다.
+                                    {keyword
+                                        ? `"${keyword}" 검색 결과가 없습니다.`
+                                        : "게시글이 없습니다."}
                                 </td>
                             </tr>
                         )}

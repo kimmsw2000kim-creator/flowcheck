@@ -1,14 +1,21 @@
 import { useState } from "react";
 import { createPost } from "../api/communityApi";
+import { useLocation, useNavigate } from "react-router-dom";
 
 export default function PostWritePage() {
+    const navigate = useNavigate();
+    const location = useLocation();
+
     const [title, setTitle] = useState("");
     const [content, setContent] = useState("");
+
+    // 게시판에서 들어왔는지 확인
+    const isCommentWrite = location.pathname.startsWith("/comment");
 
     const handleSubmit = async () => {
         if (!localStorage.getItem("accessToken")) {
             alert("로그인 후 글을 작성할 수 있습니다.");
-            window.location.href = "/login";
+            navigate("/login");
             return;
         }
 
@@ -23,11 +30,21 @@ export default function PostWritePage() {
         }
 
         try {
-            await createPost({ title, content });
+            await createPost({
+                title,
+                content,
+            });
+
             alert("게시글이 작성되었습니다.");
-            window.location.href = "/community";
+
+            // 작성 완료 후 원래 페이지로 이동
+            navigate(isCommentWrite ? "/comment" : "/community");
         } catch (error) {
-            alert(error instanceof Error ? error.message : "게시글 작성 실패");
+            alert(
+                error instanceof Error
+                    ? error.message
+                    : "게시글 작성 실패"
+            );
         }
     };
 
@@ -37,21 +54,40 @@ export default function PostWritePage() {
 
             <input
                 type="text"
-                value={title}
                 placeholder="제목"
+                value={title}
                 onChange={(e) => setTitle(e.target.value)}
             />
 
             <textarea
-                value={content}
                 placeholder="내용"
+                value={content}
                 onChange={(e) => setContent(e.target.value)}
             />
 
-            <button onClick={handleSubmit}>작성하기</button>
-            <button onClick={() => (window.location.href = "/community")}>
-                취소
-            </button>
+            <div
+                style={{
+                    display: "flex",
+                    gap: "10px",
+                    marginTop: "20px",
+                }}
+            >
+                <button onClick={handleSubmit}>
+                    작성하기
+                </button>
+
+                <button
+                    onClick={() =>
+                        navigate(
+                            isCommentWrite
+                                ? "/comment"
+                                : "/community"
+                        )
+                    }
+                >
+                    취소
+                </button>
+            </div>
         </div>
     );
 }
