@@ -60,15 +60,21 @@ public class LoadTestController {
 
     @Operation(summary = "부하 테스트 결과 조회", description = "특정 요청 ID에 대한 부하 테스트 결과를 가져옵니다.")
     @GetMapping("/{requestId}")
-    public ResponseEntity<LoadTestResponse> getTestResult(@PathVariable UUID requestId) {
-        LoadTestResponse response = loadTestService.getTestResult(requestId);
+    public ResponseEntity<LoadTestResponse> getTestResult(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID requestId) {
+        UUID userId = UUID.fromString(jwt.getSubject());
+        LoadTestResponse response = loadTestService.getTestResult(userId, requestId);
         return ResponseEntity.ok(response);
     }
 
     @Operation(summary = "부하 테스트 실시간 상태 스트림", description = "특정 요청 ID의 진행 상태를 SSE로 스트리밍합니다.")
     @GetMapping(value = "/{requestId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public ResponseEntity<SseEmitter> streamTestStatus(@PathVariable UUID requestId) {
-        SseEmitter emitter = loadTestStreamService.register(requestId);
+    public ResponseEntity<SseEmitter> streamTestStatus(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID requestId) {
+        UUID userId = UUID.fromString(jwt.getSubject());
+        SseEmitter emitter = loadTestStreamService.register(userId, requestId);
         HttpHeaders headers = new HttpHeaders();
         headers.set("X-Accel-Buffering", "no");
         return new ResponseEntity<>(emitter, headers, HttpStatus.OK);
