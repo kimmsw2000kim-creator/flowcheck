@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Activity, Monitor } from 'lucide-react';
 
-import { getAccessToken } from '../../api/authApi';
 import { fetchMypageTestHistory } from '../../api/mypageApi';
 import type { MypageTestHistoryItem } from '../../types/mypage';
 import styles from '../../styles/mypage.module.css';
 import EmptyState from '../../components/common/EmptyState';
 import StatusBadge from '../../components/common/StatusBadge';
+import { supabase } from '../../lib/supabaseClient';
 
 const statusLabels: Record<string, string> = {
     PENDING: '대기 중',
@@ -40,27 +41,33 @@ function formatDate(value: string) {
 }
 
 function MypageTestHistorySection() {
+    const navigate = useNavigate();
     const [tests, setTests] = useState<MypageTestHistoryItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [errorMessage, setErrorMessage] = useState('');
 
     useEffect(() => {
-        const accessToken = getAccessToken();
+        const checkAuthAndFetch = async () => {
+            try {
+                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-        if (!accessToken) {
-            setErrorMessage('로그인이 필요합니다.');
-            setLoading(false);
-            return;
-        }
+                if (sessionError || !session) {
+                    setErrorMessage('로그인이 필요합니다.');
+                    setLoading(false);
+                    return;
+                }
 
-        fetchMypageTestHistory()
-            .then(setTests)
-            .catch((error) => {
+                const data = await fetchMypageTestHistory();
+                setTests(data);
+
+            } catch (error: any) {
                 setErrorMessage(error.message || '테스트 이력을 불러오지 못했습니다.');
-            })
-            .finally(() => {
+            } finally {
                 setLoading(false);
-            });
+            }
+        };
+
+        checkAuthAndFetch();
     }, []);
 
     return (
@@ -98,7 +105,13 @@ function MypageTestHistorySection() {
                         const phase = test.phase ? phaseLabels[test.phase] || test.phase : null;
 
                         return (
-                            <article className={styles['test-history-item']} key={`${test.testType}-${test.requestId}`}>
+                            <article
+                                className={styles['test-history-item']}
+                                key={`${test.testType}-${test.requestId}`}
+                                style={{ cursor: 'pointer' }}
+                                onClick={() => navigate(`/mypage/tests/${test.testType}/${test.requestId}`)}
+                            >
+
                                 <div className={styles['test-history-icon']}>
                                     {test.testType === 'UI' ? <Monitor size={20} /> : <Activity size={20} />}
                                 </div>

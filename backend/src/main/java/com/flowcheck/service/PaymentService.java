@@ -33,7 +33,6 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@SuppressWarnings("null")
 public class PaymentService {
 
     private final UserRepository userRepository;
@@ -314,7 +313,7 @@ public class PaymentService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-        int unitPrice = targetType == CouponType.UI_UX_TEST ? 1000 : 10000;
+        int unitPrice = targetType == CouponType.UIUX_TEST ? 1000 : 10000;
         int cost = count * unitPrice;
         if (user.getBalance() < cost) {
             throw new IllegalStateException("크레딧 잔액이 부족합니다.");

@@ -4,7 +4,7 @@ import styles from '../styles/mypage.module.css';
 interface MypageStatCardProps {
     icon: LucideIcon;
     label: string;
-    value: string;
+    value: React.ReactNode;
 }
 
 function MypageStatCard({ icon: Icon, label, value }: MypageStatCardProps) {

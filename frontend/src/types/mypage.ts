@@ -11,7 +11,7 @@ export interface MypageData {
   balance: number;
   couponCount: number;
   loadTestCouponCount: number;
-  uiUxTestCouponCount: number;
+  UIUXTestCouponCount: number;
   registeredSiteCount: number;
   testRunCount: number;
   sites: SiteSummary[];
@@ -36,4 +36,11 @@ export interface MypagePointHistoryItem {
   transactionType : string;
   description: string;
   createdAt: string;
+}
+
+export interface MypageCouponHistoryItem {
+    logId: number;
+    couponType: string;
+    description: string;
+    usedAt: string;
 }

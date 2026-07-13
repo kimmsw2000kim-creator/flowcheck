@@ -9,7 +9,7 @@ public record MypageResponseDTO(
                 Integer balance,
                 Integer couponCount,
                 Integer loadTestCouponCount,
-                Integer uiUxTestCouponCount,
+                Integer UIUXTestCouponCount,
                 Long registeredSiteCount,
                 Long testRunCount,
                 List<SiteSummaryResponseDTO> sites) {}

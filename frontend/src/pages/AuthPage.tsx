@@ -3,19 +3,20 @@ import type { Session } from "@supabase/supabase-js";
 import { login, signup } from "../api/authApi";
 import { supabase } from "../lib/supabaseClient";
 
+import { useAlertStore } from "../store/alertStore";
+import { useUserStore } from "../store/userStore";
+
 interface AuthPageProps {
   setActiveTab: (tab: string) => void;
-  onLoginSuccess: (email: string, token: string, userId: string) => void;
-  showAlert: (message: string, type?: string) => void;
   initialMode?: "login" | "signup";
 }
 
 export default function AuthPage({
   setActiveTab,
-  onLoginSuccess,
-  showAlert,
   initialMode = "login",
 }: AuthPageProps) {
+  const showAlert = useAlertStore((state) => state.showAlert);
+  const loginSuccess = useUserStore((state) => state.loginSuccess);
   const [mode, setMode] = useState<"login" | "signup">(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -70,14 +71,14 @@ export default function AuthPage({
       localStorage.setItem("email", user.email);
       localStorage.setItem("userId", user.id);
 
-      onLoginSuccess(user.email, session.access_token, user.id);
+      loginSuccess(user.email, session.access_token, user.id);
       showAlert("Google 계정으로 로그인되었습니다!", "success");
       setActiveTab("dashboard");
 
       // OAuth redirect 후 URL에 남은 code/hash 제거
       window.history.replaceState({}, document.title, window.location.origin);
     },
-    [onLoginSuccess, setActiveTab, showAlert]
+    [loginSuccess, setActiveTab, showAlert]
   );
 
   useEffect(() => {
@@ -123,33 +124,39 @@ export default function AuthPage({
     if (mode === "login") {
       try {
         const data = await login({ email, password });
-        localStorage.setItem("accessToken", data.accessToken);
-        localStorage.setItem("refreshToken", data.refreshToken);
-        localStorage.setItem("email", data.email);
 
-        onLoginSuccess(data.email, data.accessToken, data.userId);
-        showAlert("로그인에 성공했습니다!", "success");
-        setActiveTab("dashboard");
+        if (data.session && data.user) {
+          loginSuccess(
+            data.user.email,
+            data.session.access_token,
+            data.user.id
+          );
+          showAlert("로그인에 성공했습니다!", "success");
+          setActiveTab("dashboard");
+        }
       } catch (error) {
-        showAlert("로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.", "error");
-        console.error(error);
+        showAlert(error.message || "로그인에 실패했습니다.", "error");
       } finally {
         setLoading(false);
       }
     } else {
       try {
         const data = await signup({ email, password, nickname });
-        showAlert(
-          data.message || "회원가입 요청이 완료되었습니다. 이메일 인증 후 로그인해 주세요.",
-          "success"
-        );
+
+        if (data.session === null) {
+          showAlert(
+            data.message || "회원가입 요청이 완료되었습니다. 이메일 인증 후 로그인해 주세요.",
+            "success"
+          );
+        } else {
+          showAlert("회원가입이 완료되었습니다!", "success");
+        }
 
         setMode("login");
         setPassword("");
         setPasswordConfirm("");
       } catch (error) {
-        showAlert("회원가입에 실패했습니다. 형식에 맞게 다시 입력해 주세요.", "error");
-        console.error(error);
+        showAlert(error.message || "회원가입에 실패했습니다.", "error");
       } finally {
         setLoading(false);
       }

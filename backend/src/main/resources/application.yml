@@ -19,12 +19,19 @@ spring:
     properties:
       hibernate:
         format_sql: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${SUPABASE_JWKS_URL}
+          jws-algorithms:
+            - ES256
 
 supabase:
   url: ${SUPABASE_URL}
   anon-key: ${SUPABASE_ANON_KEY}
   jwt:
-    secret: ${SUPABASE_JWT_SECRET:}
+    key: ${SUPABASE_JWT_KEY}
 
 gemini:
   api-key: ${GEMINI_API_KEY:}
@@ -41,7 +48,7 @@ fastapi:
   url: ${FASTAPI_URL:http://localhost:8000}
 
 ---
-# ✅ 배포 환경(prod) 오버라이드: 개발 설정과 분리
+# 배포 환경(prod) 오버라이드: 개발 설정과 분리
 spring:
   config:
     activate:

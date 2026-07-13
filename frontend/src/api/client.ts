@@ -1,30 +1,38 @@
 import axios from 'axios';
 import ApiURL from './ApiURL';
+import { supabase } from '../lib/supabaseClient';
+import { useUserStore } from '../store/userStore';
 
-axios.defaults.baseURL = ApiURL;
+const apiClient = axios.create({
+  baseURL: ApiURL,
+});
 
-// Axios Request Interceptor: Automatically attach Authorization header
-axios.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('accessToken');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
+apiClient.interceptors.request.use(async (config) => {
+  if (config.headers.Authorization) {
     return config;
-  },
-  (error) => {
-    return Promise.reject(error);
   }
-);
 
-// Axios Response Interceptor: Global 401 Unauthorized Handler
-axios.interceptors.response.use(
+  const { data: { session } } = await supabase.auth.getSession();
+
+  if (session?.access_token) {
+    config.headers.Authorization = `Bearer ${session.access_token}`;
+  }
+
+  return config;
+});
+
+apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     if (error.response && error.response.status === 401) {
-      localStorage.clear();
-      window.location.href = '/login';
+      await useUserStore.getState().logout();
+
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
 );
+
+export default apiClient;

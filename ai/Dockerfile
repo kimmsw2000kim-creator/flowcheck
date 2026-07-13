@@ -10,7 +10,7 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 COPY requirements.txt .
 
-# 🔹 [문법 패치] 역슬래시(\)와 && 체인을 올바르게 연결하여 의존성 및 브라우저 강제 설치
+# 역슬래시(\)와 && 체인을 올바르게 연결하여 의존성 및 브라우저 강제 설치
 RUN pip install --no-cache-dir -r requirements.txt \
     && playwright install --with-deps chromium
 

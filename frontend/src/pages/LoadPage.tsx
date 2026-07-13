@@ -4,6 +4,7 @@ import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tool
 import axios from 'axios';
 import Button from '../components/common/Button';
 import EmptyState from '../components/common/EmptyState';
+import apiClient from '../api/client';
 
 interface Domain {
   id: number;
@@ -48,26 +49,22 @@ const phaseLabels: Record<string, string> = {
   FAILED: '실패',
 };
 
+import { useUserStore } from '../store/userStore';
+import { useAlertStore } from '../store/alertStore';
+
+import { useDomains } from '../hooks/useDomains';
+
 interface LoadPageProps {
-  domains: Domain[];
-  currentUser: {
-    id: string;
-    coupons: number;
-    loadTestCoupons: number;
-    balance: number;
-  };
-  onUserUpdate: (updatedUser: { coupons: number; balance: number; loadTestCoupons?: number }) => void;
   onAddLedger: (ledgerItem: any) => void;
-  showAlert: (message: string, type?: string) => void;
 }
 
 export default function LoadPage({
-  domains,
-  currentUser,
-  onUserUpdate,
-  onAddLedger,
-  showAlert
+  onAddLedger
 }: LoadPageProps) {
+  const currentUser = useUserStore((state) => state.currentUser);
+  const onUserUpdate = useUserStore((state) => state.updateUserBalanceAndCoupons);
+  const showAlert = useAlertStore((state) => state.showAlert);
+  const { domains } = useDomains();
 
   const [selectedLoadDomain, setSelectedLoadDomain] = useState<number>(0);
   const [vusers, setVusers] = useState<number>(100);
@@ -114,11 +111,7 @@ export default function LoadPage({
     setLoadMessage('요청을 백엔드에 전달하는 중입니다.');
 
     try {
-      const response = await axios.post("/api/load-tests", payload, {
-        headers: {
-          'X-User-Id': currentUser.id,
-        }
-      });
+      const response = await apiClient.post("/api/load-tests", payload);
 
       const { requestId } = response.data;
       subscribeLoadTestStream(requestId);
@@ -156,7 +149,8 @@ export default function LoadPage({
       }
 
       if (data.status === 'COMPLETED') {
-        axios.get(`/api/load-tests/${requestId}`)
+        eventSource.close();
+        apiClient.get(`/api/load-tests/${requestId}`)
           .then((resultResponse) => {
             const resultData = resultResponse.data;
             const { testResults } = resultData;
@@ -178,9 +172,6 @@ export default function LoadPage({
             console.error('Failed to load final result:', resultError);
             setLoadStatus('error');
             showAlert('최종 결과를 불러오지 못했습니다.', 'error');
-          })
-          .finally(() => {
-            eventSource.close();
           });
       }
     };

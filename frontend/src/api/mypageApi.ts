@@ -1,9 +1,9 @@
-import axios from 'axios';
-import type { MypageData, MypagePointHistoryItem, MypageTestHistoryItem } from '../types/mypage';
+import type { MypageData, MypagePointHistoryItem, MypageTestHistoryItem, MypageCouponHistoryItem } from '../types/mypage';
+import apiClient from './client';
 
 export async function fetchMypage(): Promise<MypageData> {
     try {
-        const response = await axios.get<MypageData>('/api/mypage');
+        const response = await apiClient.get<MypageData>('/api/mypage');
         return response.data;
     } catch (error: any) {
         const message =
@@ -16,7 +16,7 @@ export async function fetchMypage(): Promise<MypageData> {
 
 export async function fetchMypageTestHistory(): Promise<MypageTestHistoryItem[]> {
     try {
-        const response = await axios.get<MypageTestHistoryItem[]>('/api/mypage/tests');
+        const response = await apiClient.get<MypageTestHistoryItem[]>('/api/mypage/tests');
         return response.data;
     } catch (error: any) {
         const message =
@@ -28,6 +28,13 @@ export async function fetchMypageTestHistory(): Promise<MypageTestHistoryItem[]>
 }
 
 export async function fetchMypagePointHistory(): Promise<MypagePointHistoryItem[]> {
-    const response = await axios.get<MypagePointHistoryItem[]>('/api/mypage/points/history');
+    const response = await apiClient.get<MypagePointHistoryItem[]>('/api/mypage/points/history');
     return response.data;
 }
+
+
+export async function fetchMypageCouponHistory(): Promise<MypageCouponHistoryItem[]> {
+    const response = await apiClient.get<MypageCouponHistoryItem[]>('/api/mypage/coupons/history');
+    return response.data;
+}
+

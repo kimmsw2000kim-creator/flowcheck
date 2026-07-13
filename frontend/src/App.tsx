@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import type { Session } from '@supabase/supabase-js';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
@@ -7,14 +8,15 @@ import Toast from './components/common/Toast';
 // Pages
 import DashboardPage from './pages/DashboardPage';
 import DomainsPage from './pages/DomainsPage';
-import UiTestPage from './pages/UitestPage';
+import UIUXTestPage from './pages/UIUXTestPage';
 import LoadPage from './pages/LoadPage';
 import PaymentPage from './pages/PaymentPage';
 import CommunityPage from './pages/CommunityPage';
 import PostWritePage from "./pages/PostWritePage";
 import PostDetailPage from "./pages/PostDetailPage";
 import PostEditPage from "./pages/PostEditPage";
-import AdminPage from './pages/AdminPage';
+import AdminPage from './pages/admin/AdminPage';
+import SupportPage from './pages/SupportPage';
 import Mypage from './pages/Mypage';
 import AuthPage from './pages/AuthPage';
 import AuthCallback from './pages/AuthCallback';
@@ -22,10 +24,10 @@ import LandingPage from './pages/LandingPage';
 import CommentPage from "./pages/CommentPage";
 
 // Types & Utils
-import axios from 'axios';
-import './api/client';
-import type { Domain } from './types/domain';
-import { fetchDomains, registerDomain, verifyDomain, deleteDomain } from './api/domainApi';
+import { useUserStore } from './store/userStore';
+import { useAlertStore } from './store/alertStore';
+import apiClient from './api/client';
+import { supabase } from './lib/supabaseClient';
 
 interface LedgerItem {
   id: number;
@@ -35,6 +37,7 @@ interface LedgerItem {
   createdAt: string;
 }
 
+// 신고
 interface Report {
   id: number;
   reporterId: string;
@@ -45,24 +48,21 @@ interface Report {
   createdAt: string;
 }
 
-interface AlertMsg {
-  message: string;
-  type: string;
-}
-
 function App() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // 라우팅
   const tabRoutes: Record<string, string> = {
     dashboard: '/dashboard',
     mypage: '/mypage',
     domains: '/domains',
-    uitest: '/uitest',
+    UIUXTest: '/UIUXTest',
     load: '/load',
     billing: '/billing',
     community: '/community',
     admin: '/admin',
+    support: '/support',
     login: '/login',
     signup: '/signup',
     comment: "/comment",
@@ -78,173 +78,106 @@ function App() {
     navigate(tabRoutes[tab] ?? '/dashboard');
   };
 
-  const [currentUser, setCurrentUser] = useState({
-    id: localStorage.getItem("userId") ?? '',
-    email: localStorage.getItem("email") ?? '',
-    role: 'USER', // USER or ADMIN
-    balance: 0,
-    status: 'ACTIVE',
-    coupons: 0,
-    loadTestCoupons: 0,
-    uiUxTestCoupons: 0
-  });
+  const currentUser = useUserStore((state) => state.currentUser);
+  const authStatus = useUserStore((state) => state.authStatus);
+  const setAuthStatus = useUserStore((state) => state.setAuthStatus);
+  const setCurrentUser = useUserStore((state) => state.setCurrentUser);
+  const resetAuthState = useUserStore((state) => state.resetAuthState);
+  const alertMsg = useAlertStore((state) => state.alertMsg);
+  const showAlert = useAlertStore((state) => state.showAlert);
 
-  const isLoggedIn = !!currentUser.email;
-  const isLandingPage = !isLoggedIn && location.pathname === '/';
-
-  // Fetch User Profile and Billing Ledger
-  useEffect(() => {
-    const accessToken = localStorage.getItem("accessToken");
-    if (accessToken) {
-      axios.get('/api/mypage')
-        .then((res) => {
-          const data = res.data;
-          setCurrentUser(prev => ({
-            ...prev,
-            email: data.email,
-            balance: data.balance,
-            coupons: data.couponCount,
-            loadTestCoupons: data.loadTestCouponCount,
-            uiUxTestCoupons: data.uiUxTestCouponCount
-          }));
-        })
-        .catch((err) => {
-          console.error("Failed to load user profile session:", err);
-        });
-
-      axios.get('/api/payment/ledger')
-        .then((res) => {
-          setLedger(res.data);
-        })
-        .catch((err) => {
-          console.error("Failed to load ledger history:", err);
-        });
-    }
-  }, [currentUser.email]);
-
-  // Fetch Verified Domain List
-  const [domains, setDomains] = useState<Domain[]>([]);
-  const [newDomainUrl, setNewDomainUrl] = useState<string>('');
-  const [verificationLoading, setVerificationLoading] = useState<boolean>(false);
-
-  useEffect(() => {
-    const accessToken = localStorage.getItem("accessToken");
-    if (accessToken) {
-      fetchDomains()
-        .then((data) => {
-          setDomains(data);
-        })
-        .catch((err) => {
-          console.error("Failed to load domains:", err.message);
-        });
-    }
-  }, [currentUser.email]);
-
-  const [selectedUiTestDomain, setSelectedUiTestDomain] = useState<number>(1);
   const [ledger, setLedger] = useState<LedgerItem[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
-  const [alertMsg, setAlertMsg] = useState<AlertMsg | null>(null);
+  const lastSessionTokenRef = useRef<string | null | undefined>(undefined);
 
-  const showAlert = (message: string, type: string = 'success') => {
-    setAlertMsg({ message, type });
-    setTimeout(() => setAlertMsg(null), 5000);
-  };
+  const isLoggedIn = authStatus === 'authenticated';
+  const isLandingPage = !isLoggedIn && location.pathname === '/';
 
-  const toggleRole = () => {
-    const nextRole = currentUser.role === 'USER' ? 'ADMIN' : 'USER';
-    setCurrentUser(prev => ({ ...prev, role: nextRole }));
-    showAlert(`시뮬레이션 역할을 ${nextRole === 'ADMIN' ? '관리자' : '일반 사용자'}(으)로 전환했습니다.`, 'info');
-  };
+  // 유저 정보와 결제 내역 불러오기
+  useEffect(() => {
+    let isMounted = true;
 
-  const handleLogout = () => {
-    localStorage.clear();
-    setCurrentUser({
-      id: '',
-      email: '',
-      role: 'USER',
-      balance: 0,
-      status: 'ACTIVE',
-      coupons: 0,
-      loadTestCoupons: 0,
-      uiUxTestCoupons: 0
+    const applySession = async (session: Session | null) => {
+      const sessionToken = session?.access_token ?? null;
+      if (lastSessionTokenRef.current === sessionToken) return;
+      lastSessionTokenRef.current = sessionToken;
+
+      if (!session) {
+        setLedger([]);
+        resetAuthState();
+        return;
+      }
+
+      const sessionUser = session.user;
+      const authConfig = {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      };
+
+      setCurrentUser({
+        id: sessionUser.id,
+        email: sessionUser.email ?? '',
+      });
+      setAuthStatus('authenticated');
+
+      try {
+        const res = await apiClient.get('/api/mypage', authConfig);
+        if (!isMounted) return;
+
+        const data = res.data;
+        setCurrentUser({
+          id: sessionUser.id,
+          email: data.email ?? sessionUser.email ?? '',
+          role: data.role,
+          status: data.status,
+          balance: data.balance,
+          coupons: data.couponCount,
+          loadTestCoupons: data.loadTestCouponCount,
+          UIUXTestCoupons: data.UIUXTestCouponCount,
+        });
+      } catch (err) {
+        console.error("Failed to load user profile session:", err);
+        return;
+      }
+
+      try {
+        const res = await apiClient.get('/api/payment/ledger', authConfig);
+        if (!isMounted) return;
+        setLedger(res.data);
+      } catch (err) {
+        console.error("Failed to load ledger history:", err);
+      }
+    };
+
+    setAuthStatus('checking');
+
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (!isMounted) return;
+
+      if (error) {
+        console.error("Failed to check Supabase session:", error);
+        applySession(null);
+        return;
+      }
+
+      applySession(session);
     });
-    navigate('/login');
-  };
 
-  const handleLoginSuccess = (email: string, _token?: string, userId?: string) => {
-    if (email) localStorage.setItem("email", email);
-    if (userId) localStorage.setItem("userId", userId);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      window.setTimeout(() => {
+        if (!isMounted) return;
+        applySession(session);
+      }, 0);
+    });
 
-    setCurrentUser(prev => ({
-      ...prev,
-      id: userId ?? prev.id,
-      email
-    }));
-    navigate("/dashboard");
-  };
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, [resetAuthState, setAuthStatus, setCurrentUser]);
 
-  const handleAddDomain = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newDomainUrl) return;
-    if (!currentUser.email) {
-      showAlert('로그인이 필요합니다.', 'error');
-      return;
-    }
-    registerDomain(newDomainUrl)
-      .then((data) => {
-        setDomains(prev => [data, ...prev]);
-        setNewDomainUrl('');
-        showAlert('도메인이 등록되었습니다. 소유권 검증 토큰을 적용한 후 지금 검증하기를 클릭하세요.');
-      })
-      .catch((err) => {
-        showAlert(err.message, 'error');
-      });
-  };
-
-  const handleVerifyDomain = (id: number) => {
-    setVerificationLoading(true);
-    if (!currentUser.email) {
-      showAlert('로그인이 필요합니다.', 'error');
-      setVerificationLoading(false);
-      return;
-    }
-    verifyDomain(id)
-      .then(() => {
-        setDomains(prev => prev.map(d => d.id === id ? { ...d, verified: true } : d));
-        setVerificationLoading(false);
-        showAlert('도메인 소유권 검증이 완료되었습니다!');
-      })
-      .catch((err) => {
-        setVerificationLoading(false);
-        showAlert(err.message, 'error');
-      });
-  };
-
-  const handleDeleteDomain = (id: number) => {
-    if (!window.confirm("정말로 이 도메인을 삭제하시겠습니까?")) return;
-    if (!currentUser.email) {
-      showAlert('로그인이 필요합니다.', 'error');
-      return;
-    }
-    deleteDomain(id)
-      .then(() => {
-        setDomains(prev => prev.filter(d => d.id !== id));
-        showAlert('도메인이 정상적으로 삭제되었습니다.');
-      })
-      .catch((err) => {
-        showAlert(err.message, 'error');
-      });
-  };
-
-  const handleUserUpdate = (updatedUser: { balance: number; coupons: number; loadTestCoupons?: number; uiUxTestCoupons?: number }) => {
-    setCurrentUser(prev => ({
-      ...prev,
-      balance: updatedUser.balance,
-      coupons: updatedUser.coupons,
-      loadTestCoupons: updatedUser.loadTestCoupons !== undefined ? updatedUser.loadTestCoupons : prev.loadTestCoupons,
-      uiUxTestCoupons: updatedUser.uiUxTestCoupons !== undefined ? updatedUser.uiUxTestCoupons : prev.uiUxTestCoupons
-    }));
-  };
+  const [selectedUIUXTestDomain, setSelectedUIUXTestDomain] = useState<number>(1);
 
   const handleAddLedger = (ledgerItem: LedgerItem) => {
     setLedger(prev => [ledgerItem, ...prev]);
@@ -256,7 +189,7 @@ function App() {
       reporterId: currentUser.id,
       targetType: type,
       targetId: id,
-      reason: '부적절한 내용물',
+      reason: '부적절한 내용',
       status: 'PENDING',
       createdAt: new Date().toISOString().split('T')[0]
     };
@@ -264,9 +197,18 @@ function App() {
     showAlert('신고가 접수되었습니다.');
   };
 
-  const handleSuspendUser = (targetUserId: string) => {
-    showAlert(`해당 유저(${targetUserId})가 7일간 서비스 정지 처리되었습니다.`, 'success');
-  };
+  if (authStatus === 'checking') {
+    return (
+      <div className="app-container">
+        {alertMsg && <Toast message={alertMsg.message} type={alertMsg.type} />}
+        <main className="main-content">
+          <div style={{ textAlign: 'center', padding: '4rem 0', color: 'var(--text-secondary)' }}>
+            Loading...
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="app-container">
@@ -275,15 +217,13 @@ function App() {
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        currentUser={currentUser}
-        toggleRole={toggleRole}
       />
 
       <main className={isLandingPage ? "landing-main" : "main-content"}>
         <Routes>
           {isLoggedIn ? (
             <>
-              {/* Authenticated Routes */}
+              {/* 로그인 상태인 경우 대시보드로 이동 */}
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/login" element={<Navigate to="/dashboard" replace />} />
               <Route path="/signup" element={<Navigate to="/dashboard" replace />} />
@@ -292,10 +232,8 @@ function App() {
                 path="/dashboard"
                 element={
                   <DashboardPage
-                    currentUser={currentUser}
-                    domains={domains}
                     setActiveTab={setActiveTab}
-                    setSelectedUiTestDomain={setSelectedUiTestDomain}
+                    setSelectedUIUXTestDomain={setSelectedUIUXTestDomain}
                   />
                 }
               />
@@ -305,29 +243,17 @@ function App() {
               <Route
                 path="/domains"
                 element={
-                  <DomainsPage
-                    domains={domains}
-                    newDomainUrl={newDomainUrl}
-                    setNewDomainUrl={setNewDomainUrl}
-                    handleAddDomain={handleAddDomain}
-                    handleVerifyDomain={handleVerifyDomain}
-                    handleDeleteDomain={handleDeleteDomain}
-                    verificationLoading={verificationLoading}
-                  />
+                  <DomainsPage />
                 }
               />
 
               <Route
-                path="/uitest"
+                path="/UIUXTest"
                 element={
-                  <UiTestPage
-                    domains={domains}
-                    selectedUiTestDomain={selectedUiTestDomain}
-                    setSelectedUiTestDomain={setSelectedUiTestDomain}
-                    currentUser={currentUser}
-                    onUserUpdate={handleUserUpdate}
+                  <UIUXTestPage
+                    selectedUIUXTestDomain={selectedUIUXTestDomain}
+                    setSelectedUIUXTestDomain={setSelectedUIUXTestDomain}
                     onAddLedger={handleAddLedger}
-                    showAlert={showAlert}
                   />
                 }
               />
@@ -336,11 +262,7 @@ function App() {
                 path="/load"
                 element={
                   <LoadPage
-                    domains={domains}
-                    currentUser={currentUser}
-                    onUserUpdate={handleUserUpdate}
                     onAddLedger={handleAddLedger}
-                    showAlert={showAlert}
                   />
                 }
               />
@@ -349,11 +271,8 @@ function App() {
                 path="/billing"
                 element={
                   <PaymentPage
-                    currentUser={currentUser}
-                    onUserUpdate={handleUserUpdate}
                     ledger={ledger}
                     onAddLedger={handleAddLedger}
-                    showAlert={showAlert}
                   />
                 }
               />
@@ -363,11 +282,8 @@ function App() {
                 path="/community"
                 element={
                   <CommunityPage
-                    currentUser={currentUser}
-                    onUserUpdate={handleUserUpdate}
                     ledger={ledger}
                     onAddLedger={handleAddLedger}
-                    showAlert={showAlert}
                     handleSubmitReport={handleSubmitReport}
                   />
                 }
@@ -392,15 +308,11 @@ function App() {
               <Route
                 path="/admin"
                 element={
-                  <AdminPage
-                    currentUser={currentUser}
-                    reports={reports}
-                    setReports={setReports}
-                    handleSuspendUser={handleSuspendUser}
-                    showAlert={showAlert}
-                  />
+                  <AdminPage currentUser={currentUser} />
                 }
               />
+
+              <Route path="/support" element={<SupportPage />} />
 
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </>
@@ -413,8 +325,6 @@ function App() {
                 element={
                   <AuthPage
                     setActiveTab={setActiveTab}
-                    onLoginSuccess={handleLoginSuccess}
-                    showAlert={showAlert}
                     initialMode="login"
                   />
                 }
@@ -424,8 +334,6 @@ function App() {
                 element={
                   <AuthPage
                     setActiveTab={setActiveTab}
-                    onLoginSuccess={handleLoginSuccess}
-                    showAlert={showAlert}
                     initialMode="signup"
                   />
                 }

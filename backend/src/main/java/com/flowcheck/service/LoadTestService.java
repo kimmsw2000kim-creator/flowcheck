@@ -27,6 +27,7 @@ public class LoadTestService {
         private final TestRequestRepository testRequestRepository;
         private final LoadTestReportRepository loadTestReportRepository;
         private final LoadTestStreamService loadTestStreamService;
+        private final CouponUsageLogRepository couponUsageLogRepository;
 
         private final ApplicationEventPublisher eventPublisher;
 
@@ -48,6 +49,8 @@ public class LoadTestService {
                                 .user(user)
                                 .targetUrl(request.getTargetUrl())
                                 .promptInput(safePrompt)
+                                // 테스트 종류 추가
+                                .testType("LOAD")
                                 .testStatus("PENDING")
                                 .updatedAt(OffsetDateTime.now())
                                 .build();
@@ -60,6 +63,12 @@ public class LoadTestService {
                         // 쿠폰 사용
                         UserCoupon couponToUse = availableCoupons.getFirst();
                         couponToUse.useChance();
+
+                        couponUsageLogRepository.save(CouponUsageLog.builder()
+                                .user(user)
+                                .couponType(CouponType.LOAD_TEST)
+                                .description("부하 테스트 실행 (" + request.getTargetUrl() + ")")
+                                .build());
 
                 } else if (user.getBalance() >= TEST_COST) {
                         // 잔액 사용
@@ -95,6 +104,11 @@ public class LoadTestService {
         public LoadTestResponse getTestResult(UUID requestId) {
                 TestRequest testRequest = testRequestRepository.findById(requestId)
                                 .orElseThrow(() -> new IllegalArgumentException("Invalid request ID"));
+
+                // 테스트 종류가 부하 테스트인지 확인하는 예외 처리
+                if (!"LOAD".equals(testRequest.getTestType())) {
+                        throw new IllegalStateException("해당 요청은 부하 테스트 타입이 아님");
+                }
 
                 String currentStatus = testRequest.getTestStatus();
                 String currentPhase = testRequest.getTestPhase();

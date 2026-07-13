@@ -93,4 +93,18 @@ public class User {
         this.status = UserStatus.ACTIVE;
         this.suspendedUntil = null;
     }
+
+    /*
+    user 룰 변경
+     */
+    public void changeRole(Role newRole) {
+        this.role = newRole;
+    }
+
+    /*
+    user 탈퇴 처리 (재회원가입 불가)
+     */
+    public void withdraw() {
+        this.status = UserStatus.WITHDRAWN;
+    }
 }

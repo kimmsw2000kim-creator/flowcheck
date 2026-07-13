@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import UserManagementTab from './UserManagementTab';
+import InquiryManagementTab from './InquiryManagementTab';
+import StatsManagementTab from './StatsManagementTab';
 
 interface AdminPageProps {
     currentUser: {
@@ -10,7 +12,7 @@ interface AdminPageProps {
 }
 
 export default function AdminPage({ currentUser }: AdminPageProps) {
-    const [activeTab, setActiveTab] = useState<'users'>('users');
+    const [activeTab, setActiveTab] = useState<'users' | 'inquiries' | 'stats'>('users');
 
     return (
         <section className="admin-page">
@@ -23,9 +25,23 @@ export default function AdminPage({ currentUser }: AdminPageProps) {
                 >
                     회원 관리
                 </button>
+                <button
+                    className={`nav-item ${activeTab === 'inquiries' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('inquiries')}
+                >
+                    문의 관리
+                </button>
+                <button
+                    className={`nav-item ${activeTab === 'stats' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('stats')}
+                >
+                    통계
+                </button>
             </div>
 
             {activeTab === 'users' && <UserManagementTab currentUser={currentUser} />}
+            {activeTab === 'inquiries' && <InquiryManagementTab />}
+            {activeTab === 'stats' && <StatsManagementTab />}
         </section>
     );
 }

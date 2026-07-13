@@ -31,21 +31,21 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
-    
+
     // WebClient (for Gemini API, Toss Payments, Supabase integrations)
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
 
     // Database
     runtimeOnly 'org.postgresql:postgresql'
-    
+
     // Lombok
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
 
     // JWT (JSON Web Token for Supabase JWT verification)
-    implementation 'io.jsonwebtoken:jjwt-api:0.12.5'
-    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.5'
-    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.5'
+    // implementation 'io.jsonwebtoken:jjwt-api:0.12.5'
+    // runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.5'
+    // runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.5'
 
     // OAuth2
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
