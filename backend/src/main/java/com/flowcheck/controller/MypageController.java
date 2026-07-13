@@ -1,6 +1,6 @@
 package com.flowcheck.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+
 import com.flowcheck.dto.mypage.MypageCouponHistoryResponseDTO;
 import com.flowcheck.dto.mypage.MypagePointHistoryResponseDTO;
 import com.flowcheck.dto.mypage.MypageResponseDTO;
@@ -21,7 +21,7 @@ import java.util.UUID;
 public class MypageController {
 
     private final MypageService myPageService;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+
 
     @GetMapping("/api/mypage")
     public ResponseEntity<MypageResponseDTO> getMyPage(

@@ -1,8 +1,8 @@
 package com.flowcheck.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+
 import com.flowcheck.dto.uiuxtest.*;
-import com.flowcheck.service.UiUxTestService;
+import com.flowcheck.service.UIUXTestService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -18,37 +18,37 @@ import java.util.UUID;
 
 @Tag(name = "UI Test Explorer", description = "자율형 UI 탐색 API")
 @RestController
-@RequestMapping("/api/ui-tests")
+@RequestMapping("/api/uiux-tests")
 @RequiredArgsConstructor
 @Slf4j
 @CrossOrigin(origins = { "http://localhost:5173", "https://flow-check.duckdns.org" })
-public class UiUxTestController {
+public class UIUXTestController {
 
-    private final UiUxTestService uiUxTestService;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final UIUXTestService UIUXTestService;
+
 
     @Operation(summary = "UI 탐색 테스트 시작", description = "자율형 AI 크롤링 및 UX 분석 테스트를 생성하고 시작 요청을 보냅니다.")
     @PostMapping
-    public ResponseEntity<?> startUiUxTest(
+    public ResponseEntity<?> startUIUXTest(
             @AuthenticationPrincipal Jwt jwt,
-            @Valid @RequestBody UiUxTestStartRequest request) {
+            @Valid @RequestBody UIUXTestStartRequest request) {
         try {
             UUID userId = UUID.fromString(jwt.getSubject());
-            UUID requestId = uiUxTestService.submitUiUxTest(userId, request);
+            UUID requestId = UIUXTestService.submitUIUXTest(userId, request);
             return ResponseEntity.status(HttpStatus.ACCEPTED).body(
-                    UiUxTestStartResponse.builder()
+                    UIUXTestStartResponse.builder()
                             .requestId(requestId)
                             .status("PENDING")
-                            .message("UI Autonomous Test exploration has been initiated.")
+                            .message("UI 자율 탐색 테스트가 시작되었습니다.")
                             .build());
         } catch (IllegalArgumentException e) {
-            log.error("Bad Request on UI test submission", e);
+            log.error("UI 테스트 제출 중 잘못된 요청 발생", e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         } catch (IllegalStateException e) {
-            log.warn("Payment required on UI test submission", e);
+            log.warn("UI 테스트 제출 시 결제(크레딧/쿠폰) 필요", e);
             return ResponseEntity.status(HttpStatus.PAYMENT_REQUIRED).body(e.getMessage());
         } catch (Exception e) {
-            log.error("Internal Server Error on UI test submission", e);
+            log.error("UI 테스트 제출 중 내부 서버 오류 발생", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
         }
     }
@@ -57,15 +57,15 @@ public class UiUxTestController {
     @GetMapping("/{requestId}/status")
     public ResponseEntity<?> getTestStatus(@PathVariable UUID requestId) {
         try {
-            // 해당 요청 ID의 최신 진행 상태와 스텝 정보를 서비스 계층에서 조회
-            UiUxTestStatusResponse response = uiUxTestService.getTestStatus(requestId);
+            // 핵심 로직: 해당 요청 ID의 최신 진행 상태와 스텝 정보를 서비스 계층에서 조회하여 반환
+            UIUXTestStatusResponse response = UIUXTestService.getTestStatus(requestId);
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
-            // 유효하지 않은 UUID 요청이거나 데이터가 없는 경우 404 (Not Found) 에러 반환
-            log.error("Test status not found: {}", e.getMessage());
+            // 핵심 로직: 유효하지 않은 UUID 요청이거나 데이터가 없는 경우 404 (Not Found) 에러 반환
+            log.error("테스트 상태를 찾을 수 없음: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         } catch (Exception e) {
-            log.error("Error retrieving test status", e);
+            log.error("테스트 상태 조회 중 오류 발생", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
         }
     }
@@ -76,13 +76,14 @@ public class UiUxTestController {
             @PathVariable UUID requestId,
             @RequestBody java.util.Map<String, Object> request) {
         try {
-            uiUxTestService.addStep(requestId, request);
+            // 핵심 로직: AI 서버에서 전달받은 스텝 로그를 저장
+            UIUXTestService.addStep(requestId, request);
             return ResponseEntity.ok().build();
         } catch (IllegalArgumentException e) {
-            log.warn("Invalid step submission: {}", e.getMessage());
+            log.warn("유효하지 않은 스텝 로그 제출: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         } catch (Exception e) {
-            log.error("Error submitting step", e);
+            log.error("스텝 로그 제출 중 오류 발생", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
         }
     }
@@ -91,16 +92,16 @@ public class UiUxTestController {
     @PostMapping("/{requestId}/report")
     public ResponseEntity<?> submitReport(
             @PathVariable UUID requestId,
-            @RequestBody UiUxTestReportSubmitRequest request) {
+            @RequestBody UIUXTestReportSubmitRequest request) {
         try {
-            // 전체 테스트 결과(리포트) 저장 및 상태를 COMPLETED로 변경
-            uiUxTestService.saveReport(requestId, request);
+            // 핵심 로직: 전체 테스트 결과(리포트) 저장 및 상태를 COMPLETED로 변경하여 테스트 종료 처리
+            UIUXTestService.saveReport(requestId, request);
             return ResponseEntity.ok().build();
         } catch (IllegalArgumentException e) {
-            log.warn("Invalid report submission: {}", e.getMessage());
+            log.warn("유효하지 않은 리포트 제출: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         } catch (Exception e) {
-            log.error("Error submitting report", e);
+            log.error("리포트 제출 중 오류 발생", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
         }
     }
@@ -111,13 +112,14 @@ public class UiUxTestController {
             @PathVariable UUID requestId,
             @RequestParam String reason) {
         try {
-            uiUxTestService.markAsFailed(requestId, reason);
+            // 핵심 로직: 테스트 실패 상태 기록 및 원인 저장
+            UIUXTestService.markAsFailed(requestId, reason);
             return ResponseEntity.ok().build();
         } catch (IllegalArgumentException e) {
-            log.warn("Invalid failure report: {}", e.getMessage());
+            log.warn("유효하지 않은 실패 보고: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         } catch (Exception e) {
-            log.error("Error reporting failure", e);
+            log.error("실패 보고 중 오류 발생", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
         }
     }

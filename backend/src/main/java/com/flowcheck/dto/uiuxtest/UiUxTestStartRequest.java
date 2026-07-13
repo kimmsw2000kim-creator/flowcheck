@@ -9,7 +9,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class UiUxTestStartRequest {
+public class UIUXTestStartRequest {
     private String targetUrl;
     private String promptInput;
 }

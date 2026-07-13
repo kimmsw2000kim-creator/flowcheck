@@ -37,7 +37,7 @@ def report_step(request_id: str, step: int, url: str, action: str, selector: str
         "error": error
     }
     try:
-        url_dest = f"{BACKEND_URL}/api/ui-tests/{request_id}/steps"
+        url_dest = f"{BACKEND_URL}/api/uiux-tests/{request_id}/steps"
         print(f"Reporting step {step} to backend: {url_dest}")
         r = httpx.post(url_dest, json=payload, timeout=5.0)
         print(f"Backend response: {r.status_code}")
@@ -52,7 +52,7 @@ def report_report(request_id: str, report_md: str):
         "reportMarkdown": report_md
     }
     try:
-        url_dest = f"{BACKEND_URL}/api/ui-tests/{request_id}/report"
+        url_dest = f"{BACKEND_URL}/api/uiux-tests/{request_id}/report"
         print(f"Reporting report to backend: {url_dest}")
         r = httpx.post(url_dest, json=payload, timeout=5.0)
         print(f"Backend response: {r.status_code}")
@@ -64,7 +64,7 @@ def report_failure(request_id: str, reason: str):
     자율 탐색 중 복구 불가능한 치명적 오류가 발생했을 때 실패 상태와 사유를 백엔드에 전송합니다.
     """
     try:
-        url_dest = f"{BACKEND_URL}/api/ui-tests/{request_id}/fail"
+        url_dest = f"{BACKEND_URL}/api/uiux-tests/{request_id}/fail"
         print(f"Reporting fail to backend: {url_dest}")
         r = httpx.post(url_dest, params={"reason": reason}, timeout=5.0)
         print(f"Backend response: {r.status_code}")
@@ -79,7 +79,7 @@ def upload_video_to_supabase(file_path: str, request_id: str) -> Optional[str]:
     supabase_url = os.getenv("SUPABASE_URL")
     supabase_key = os.getenv("SUPABASE_ANON_KEY")
     if not supabase_url or not supabase_key:
-        print("Supabase credentials not found in env.")
+        print("환경 변수에서 Supabase 인증 정보를 찾을 수 없습니다.")
         return None
         
     bucket_name = "ui-test-videos"
@@ -95,22 +95,22 @@ def upload_video_to_supabase(file_path: str, request_id: str) -> Optional[str]:
         with open(file_path, "rb") as f:
             file_data = f.read()
             
-        print(f"Uploading video {file_path} to Supabase Storage...")
+        print(f"Supabase Storage에 {file_path} 비디오 업로드 중...")
         r = httpx.post(url, headers=headers, content=file_data, timeout=30.0)
         
         if r.status_code == 200:
             public_url = f"{supabase_url}/storage/v1/object/public/{bucket_name}/{dest_path}"
-            print(f"Video uploaded successfully. Public URL: {public_url}")
+            print(f"비디오 업로드 성공. 공개 URL: {public_url}")
             return public_url
         else:
-            print(f"Failed to upload video to Supabase (Status: {r.status_code}): {r.text}")
-            print(f"Tip: Make sure the Supabase storage bucket named '{bucket_name}' exists and has public read access policies.")
+            print(f"Supabase에 비디오 업로드 실패 (상태 코드: {r.status_code}): {r.text}")
+            print(f"팁: '{bucket_name}' 이름의 Supabase 스토리지 버킷이 존재하고 퍼블릭 읽기 권한이 있는지 확인하세요.")
             return None
     except Exception as e:
-        print(f"Error uploading video: {e}")
+        print(f"비디오 업로드 중 오류 발생: {e}")
         return None
 
-def run_ui_agent(request_id: str, target_url: str):
+def run_uiux_test_service(request_id: str, target_url: str):
     """
     지정한 대상 URL에 대해 AI 기반의 UI/UX 자율 탐색 및 분석 테스트를 실행합니다.
     
@@ -132,10 +132,10 @@ def run_ui_agent(request_id: str, target_url: str):
     # 실행 시점에 .env 파일을 강제로 다시 읽어 캐싱 문제를 완전히 예방합니다.
     load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"), override=True)
     api_key = os.getenv("GEMINI_API_KEY")
-    # API key check
+    # 핵심 로직: API 키 유무를 확인하여 정상 모드 또는 전체 시뮬레이션 모드로 작동할지 결정
     has_api_key = True
     if not api_key:
-        print("GEMINI_API_KEY is not set in environment. Running in full simulation fallback mode.")
+        print("환경 변수에 GEMINI_API_KEY가 설정되지 않았습니다. 전체 시뮬레이션 모드로 실행합니다.")
         has_api_key = False
         
     client = None
@@ -167,8 +167,8 @@ def run_ui_agent(request_id: str, target_url: str):
             )
             page = context.new_page()
             
-            # Step 1: 대상 초기 페이지 오픈
-            print(f"Navigating to {target_url}...")
+            # 핵심 로직: 1단계 - 입력받은 타겟 URL로 초기 페이지를 로드하고 준비
+            print(f"{target_url} 주소로 이동 중...")
             try:
                 page.goto(target_url, timeout=20000, wait_until="load")
                 page.wait_for_timeout(2000)
@@ -252,9 +252,9 @@ def run_ui_agent(request_id: str, target_url: str):
                         )
                         
                         action_data = json.loads(response.text)
-                        print(f"Gemini response: {action_data}")
+                        print(f"Gemini 응답: {action_data}")
                     except Exception as e:
-                        print(f"Gemini API call failed ({e}). Switching to simulation fallback mode...")
+                        print(f"Gemini API 호출에 실패했습니다 ({e}). 시뮬레이션 모드로 전환합니다...")
                         api_error = str(e)
                         is_simulated_mode = True
 
@@ -284,7 +284,7 @@ def run_ui_agent(request_id: str, target_url: str):
                 text = action_data.get("text")
                 reason = action_data.get("reason", "No reason provided")
                 
-                # FINISH 액션 처리: 루프 탈출 및 종료
+                # 핵심 로직: FINISH 액션 수신 시 자율 탐색 루프를 탈출하고 탐색 종료
                 if action == "FINISH":
                     report_step(request_id, step_idx, current_url, "FINISH", reason=reason)
                     steps_history.append({
@@ -295,7 +295,7 @@ def run_ui_agent(request_id: str, target_url: str):
                     })
                     break
                 
-                # CLICK 액션 처리
+                # 핵심 로직: CLICK 액션 수신 시 Playwright를 통해 화면의 해당 CSS 선택자를 찾아 클릭 동작 수행
                 elif action == "CLICK":
                     if not selector:
                         report_step(request_id, step_idx, current_url, "CLICK", error="No selector provided by AI", reason=reason)
@@ -349,10 +349,10 @@ def run_ui_agent(request_id: str, target_url: str):
                             })
                             continue
                 
-                # TYPE 액션 처리
+                # 핵심 로직: TYPE 액션 수신 시 Playwright를 통해 지정된 폼에 텍스트를 입력하고 Enter 키 이벤트 수행
                 elif action == "TYPE":
                     if not selector or not text:
-                        report_step(request_id, step_idx, current_url, "TYPE", error="Missing selector or text input", reason=reason)
+                        report_step(request_id, step_idx, current_url, "TYPE", error="CSS 선택자 또는 텍스트가 누락되었습니다", reason=reason)
                         continue
                     
                     try:
@@ -404,8 +404,8 @@ def run_ui_agent(request_id: str, target_url: str):
                             })
                             continue
             
-            # 최종 마크다운 리포트 생성 및 저장
-            print("Generating final UX/UI audit report...")
+            # 핵심 로직: 탐색 히스토리를 바탕으로 Gemini 모델에게 종합 UX/UI 감사 보고서 생성을 요청
+            print("최종 UX/UI 감사 보고서 생성 중...")
             report_md = None
             if not is_simulated_mode and client:
                 history_str = json.dumps(steps_history, ensure_ascii=False, indent=2)
@@ -507,12 +507,12 @@ Respond ONLY with the filled-in markdown content above. Do not wrap in code fenc
 - ⭐ **4.2 / 5.0** (시뮬레이션 평정치)
 """
             
-            # 비디오 파일 경로 추출 및 브라우저 종료
+            # 핵심 로직: 탐색이 끝난 후 비디오 경로를 가져오고 자원을 반환(브라우저 컨텍스트 종료)
             video_path = page.video.path() if page.video else None
             context.close()
             browser.close()
             
-            # Supabase Storage 업로드 및 마크다운 보고서에 비디오 URL 바인딩
+            # 핵심 로직: 녹화된 비디오를 클라우드 스토리지(Supabase)에 업로드하고 마크다운 보고서 상단에 해당 URL을 첨부
             if video_path and os.path.exists(video_path):
                 public_url = upload_video_to_supabase(video_path, request_id)
                 if public_url:

@@ -29,7 +29,7 @@ export default function Header({ activeTab, setActiveTab }: HeaderProps) {
         <div className="nav-links">
           <button className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => handleNavClick('dashboard')}>대시보드</button>
           <button className={`nav-item ${activeTab === 'domains' ? 'active' : ''}`} onClick={() => handleNavClick('domains')}>도메인 관리</button>
-          <button className={`nav-item ${activeTab === 'uiUxTest' ? 'active' : ''}`} onClick={() => handleNavClick('uiUxTest')}>UI/UX 테스트</button>
+          <button className={`nav-item ${activeTab === 'UIUXTest' ? 'active' : ''}`} onClick={() => handleNavClick('UIUXTest')}>UI/UX 테스트</button>
           <button className={`nav-item ${activeTab === 'load' ? 'active' : ''}`} onClick={() => handleNavClick('load')}>부하 테스트</button>
           <button className={`nav-item ${activeTab === 'billing' ? 'active' : ''}`} onClick={() => handleNavClick('billing')}>크레딧 상점</button>
           <button className={`nav-item ${activeTab === 'community' ? 'active' : ''}`} onClick={() => handleNavClick('community')}>커뮤니티</button>

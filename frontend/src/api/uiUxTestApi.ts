@@ -1,12 +1,12 @@
 import apiClient from './client';
 
-export interface StartUiUxTestResponse {
+export interface StartUIUXTestResponse {
   requestId: string;
   status: string;
   message: string;
 }
 
-export interface UiUxTestStepData {
+export interface UIUXTestStepData {
   step: number;
   url: string;
   action: string;
@@ -16,19 +16,19 @@ export interface UiUxTestStepData {
   error?: string;
 }
 
-export interface UiUxTestStatusResponse {
+export interface UIUXTestStatusResponse {
   requestId: string;
   status: string;
   targetUrl: string;
   report?: string;
-  steps: UiUxTestStepData[];
+  steps: UIUXTestStepData[];
 }
 
 /**
  * UI 탐색 테스트를 시작합니다.
  */
-export async function startUiUxTest(targetUrl: string): Promise<StartUiUxTestResponse> {
-  const response = await apiClient.post('/api/ui-tests',
+export async function startUIUXTest(targetUrl: string): Promise<StartUIUXTestResponse> {
+  const response = await apiClient.post('/api/uiux-tests',
     { targetUrl }
   );
   return response.data;
@@ -37,7 +37,7 @@ export async function startUiUxTest(targetUrl: string): Promise<StartUiUxTestRes
 /**
  * 실시간 UI 탐색 테스트 상태 및 단계 정보를 조회합니다.
  */
-export async function getUiUxTestStatus(requestId: string): Promise<UiUxTestStatusResponse> {
-  const response = await apiClient.get(`/api/ui-tests/${requestId}/status`);
+export async function getUIUXTestStatus(requestId: string): Promise<UIUXTestStatusResponse> {
+  const response = await apiClient.get(`/api/uiux-tests/${requestId}/status`);
   return response.data;
 }

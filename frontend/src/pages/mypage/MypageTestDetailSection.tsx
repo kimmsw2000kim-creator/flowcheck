@@ -4,7 +4,7 @@ import apiClient from "../../api/client";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Legend } from 'recharts';
-import { getUiUxTestStatus } from '../../api/uiUxTestApi';
+import { getUIUXTestStatus } from '../../api/UIUXTestApi';
 import EmptyState from '../../components/common/EmptyState';
 
 interface LoadChartDataPoint {
@@ -41,7 +41,7 @@ function MypageTestDetailSection() {
                 .catch(() => setErrorMessage('부하 테스트 결과를 불러오지 못했습니다.'))
                 .finally(() => setLoading(false));
         } else {
-            getUiUxTestStatus(requestId)
+            getUIUXTestStatus(requestId)
                 .then((res) => {
                     const report = res.report || '';
                     if (report.includes('[VIDEO_URL]:')) {

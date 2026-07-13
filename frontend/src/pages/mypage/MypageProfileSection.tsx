@@ -39,7 +39,7 @@ function MypageProfileSection({ data }: MypageProfileSectionProps) {
             <>
             부하: {data.loadTestCouponCount}회 
             <br />
-            UI: {data.uiUxTestCouponCount}회
+            UI: {data.UIUXTestCouponCount}회
             </>
           }
         />

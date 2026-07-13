@@ -8,7 +8,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class UiUxTestStartResponse {
+public class UIUXTestStartResponse {
     private UUID requestId;
     private String status;
     private String message;

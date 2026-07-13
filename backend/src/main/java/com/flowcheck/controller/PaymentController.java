@@ -1,7 +1,7 @@
 package com.flowcheck.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+
 import com.flowcheck.dto.payment.*;
 import com.flowcheck.service.PaymentService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -26,7 +26,7 @@ import java.util.Map;
 public class PaymentController {
 
     private final PaymentService paymentService;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+
 
     /**
      * 결제 정보 생성

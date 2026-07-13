@@ -18,7 +18,7 @@ import java.util.UUID;
 public class MypageService {
         private final RegisteredSiteRepository registeredSiteRepository;
         private final TestRequestRepository testRequestRepository;
-        private final UiUxTestReportRepository uiUxTestReportRepository;
+
         private final UserCouponRepository userCouponRepository;
         private final UserRepository userRepository;
         private final CreditsLedgerRepository creditsLedgerRepository;
@@ -30,7 +30,7 @@ public class MypageService {
 
                 int couponCount = userCouponRepository.sumRemainingChancesByUserId(userId);
                 int loadTestCouponCount = userCouponRepository.sumRemainingChancesByUserIdAndCouponType(userId, CouponType.LOAD_TEST);
-                int uiUxTestCouponCount = userCouponRepository.sumRemainingChancesByUserIdAndCouponType(userId, CouponType.UIUX_TEST);
+                int UIUXTestCouponCount = userCouponRepository.sumRemainingChancesByUserIdAndCouponType(userId, CouponType.UIUX_TEST);
                 long registeredSiteCount = registeredSiteRepository.countByUser_UserId(userId);
                 
                 // 마스터 테이블인 test_requests 단일 개수로 총 실행 횟수 계산 변경
@@ -53,7 +53,7 @@ public class MypageService {
                                 user.getBalance(),
                                 couponCount,
                                 loadTestCouponCount,
-                                uiUxTestCouponCount,
+                                UIUXTestCouponCount,
                                 registeredSiteCount,
                                 testRunCount,
                                 sites);
@@ -82,10 +82,6 @@ public class MypageService {
                 // 2. UI/UX 테스트(UI) 이력 추출 (test_requests 테이블 내에서 UI 타입 필터링)
                 List<TestRequest> uiRequests = testRequestRepository.findByUserAndTestTypeOrderByCreatedAtAsc(user, "UIUX");
                 uiRequests.forEach(test -> {
-                        // 세부 분석 보고서 텍스트 추출 매핑 조정
-                        String reportMarkdown = uiUxTestReportRepository.findByTestRequestId(test.getId())
-                                        .map(UiUxTestReport::getAiUxReview)
-                                        .orElse("");
 
                         histories.add(new MypageTestHistoryResponseDTO(
                                         test.getId(),
@@ -107,14 +103,7 @@ public class MypageService {
                 return histories;
         }
 
-        private String summarizeReport(String report) {
-                if (report == null || report.isBlank()) {
-                        return null;
-                }
 
-                String firstLine = report.strip().lines().findFirst().orElse("");
-                return firstLine.length() > 120 ? firstLine.substring(0, 120) + "..." : firstLine;
-        }
 
         public List<MypagePointHistoryResponseDTO> getPointHistory(UUID userId) {
                 List<CreditsLedger> ledgers = creditsLedgerRepository.findByUser_UserIdOrderByCreatedAtDesc(userId);

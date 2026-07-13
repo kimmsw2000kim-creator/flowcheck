@@ -8,7 +8,7 @@ import Toast from './components/common/Toast';
 // Pages
 import DashboardPage from './pages/DashboardPage';
 import DomainsPage from './pages/DomainsPage';
-import UiUxTestPage from './pages/UiUxTestPage';
+import UIUXTestPage from './pages/UIUXTestPage';
 import LoadPage from './pages/LoadPage';
 import PaymentPage from './pages/PaymentPage';
 import CommunityPage from './pages/CommunityPage';
@@ -57,7 +57,7 @@ function App() {
     dashboard: '/dashboard',
     mypage: '/mypage',
     domains: '/domains',
-    uiUxTest: '/uiUxTest',
+    UIUXTest: '/UIUXTest',
     load: '/load',
     billing: '/billing',
     community: '/community',
@@ -134,7 +134,7 @@ function App() {
           balance: data.balance,
           coupons: data.couponCount,
           loadTestCoupons: data.loadTestCouponCount,
-          uiUxTestCoupons: data.uiUxTestCouponCount,
+          UIUXTestCoupons: data.UIUXTestCouponCount,
         });
       } catch (err) {
         console.error("Failed to load user profile session:", err);
@@ -177,7 +177,7 @@ function App() {
     };
   }, [resetAuthState, setAuthStatus, setCurrentUser]);
 
-  const [selectedUiUxTestDomain, setSelectedUiUxTestDomain] = useState<number>(1);
+  const [selectedUIUXTestDomain, setSelectedUIUXTestDomain] = useState<number>(1);
 
   const handleAddLedger = (ledgerItem: LedgerItem) => {
     setLedger(prev => [ledgerItem, ...prev]);
@@ -233,7 +233,7 @@ function App() {
                 element={
                   <DashboardPage
                     setActiveTab={setActiveTab}
-                    setSelectedUiUxTestDomain={setSelectedUiUxTestDomain}
+                    setSelectedUIUXTestDomain={setSelectedUIUXTestDomain}
                   />
                 }
               />
@@ -248,11 +248,11 @@ function App() {
               />
 
               <Route
-                path="/uiUxTest"
+                path="/UIUXTest"
                 element={
-                  <UiUxTestPage
-                    selectedUiUxTestDomain={selectedUiUxTestDomain}
-                    setSelectedUiUxTestDomain={setSelectedUiUxTestDomain}
+                  <UIUXTestPage
+                    selectedUIUXTestDomain={selectedUIUXTestDomain}
+                    setSelectedUIUXTestDomain={setSelectedUIUXTestDomain}
                     onAddLedger={handleAddLedger}
                   />
                 }
