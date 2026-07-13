@@ -58,8 +58,6 @@ export async function createPost({
     content: string;
     promoUrl?: string;
 }) {
-    const email = localStorage.getItem("email");
-
     const response = await fetch(`${API_BASE_URL}/api/posts`, {
         method: "POST",
         headers: authHeaders(),
@@ -67,7 +65,6 @@ export async function createPost({
             title,
             content,
             promoUrl,
-            email,
         }),
     });
 
