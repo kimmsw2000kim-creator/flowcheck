@@ -20,11 +20,16 @@ class UiTestRequest(BaseModel):
     requestId: str
     targetUrl: str
 
-load_dotenv()
+ENV_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
+load_dotenv(ENV_PATH)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+LOAD_TEST_CALLBACK_TOKEN = os.getenv("LOAD_TEST_CALLBACK_TOKEN")
 
 if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY .env 파일에 설정되지 않았습니다.")
+
+if not LOAD_TEST_CALLBACK_TOKEN:
+    raise ValueError("LOAD_TEST_CALLBACK_TOKEN이 설정되지 않았습니다.")
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 
@@ -32,7 +37,7 @@ app = FastAPI()
 
 @app.get("/api/debug-env")
 def debug_env():
-    env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
+    env_path = ENV_PATH
     exists = os.path.exists(env_path)
     key_in_file = None
     if exists:

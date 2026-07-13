@@ -1,5 +1,6 @@
 import uuid
 import json
+import logging
 import os
 import random
 import asyncio
@@ -11,6 +12,7 @@ from botocore.exceptions import ClientError
 from pydantic import BaseModel
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8080")
+logger = logging.getLogger(__name__)
 
 AWS_REGION = os.environ.get("AWS_REGION", "ap-northeast-2")
 
@@ -150,14 +152,39 @@ async def publish_progress(request_id: Optional[str], payload: LoadTestProgressU
     if not request_id:
         return
 
+    callback_token = os.getenv("LOAD_TEST_CALLBACK_TOKEN")
+    if not callback_token:
+        logger.error("LOAD_TEST_CALLBACK_TOKEN is not configured; progress callback skipped")
+        return
+
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            await client.post(
+            response = await client.post(
                 f"{BACKEND_URL}/api/load-tests/{request_id}/progress",
+                headers={"X-Internal-Api-Key": callback_token},
                 json=payload.model_dump(),
             )
-    except Exception:
-        return
+            response.raise_for_status()
+            logger.info(
+                "Progress callback delivered: request_id=%s phase=%s progress=%s",
+                request_id,
+                payload.phase,
+                payload.progress,
+            )
+    except httpx.HTTPStatusError as exc:
+        logger.warning(
+            "Progress callback rejected: request_id=%s phase=%s status=%s body=%s",
+            request_id,
+            payload.phase,
+            exc.response.status_code,
+            exc.response.text[:500],
+        )
+    except httpx.RequestError:
+        logger.exception(
+            "Progress callback failed: request_id=%s phase=%s",
+            request_id,
+            payload.phase,
+        )
 
 
 def extract_metric(metric_data):
