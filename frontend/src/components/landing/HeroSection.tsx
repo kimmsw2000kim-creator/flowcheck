@@ -28,7 +28,7 @@ export default function HeroSection() {
           </p>
           
           <div className={styles['hero-cta-group']}>
-            <button className={styles['btn-primary']} onClick={() => navigate('/dashboard')}>
+            <button className={styles['btn-primary']} onClick={() => navigate('/login')}>
               바로 테스트하러 가기
               <ArrowRight size={18} />
             </button>
