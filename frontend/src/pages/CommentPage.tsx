@@ -2,6 +2,12 @@ import React, { useEffect, useState } from "react";
 import { MessageCircle, ThumbsUp } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
+    showConfirmAlert,
+    showErrorAlert,
+    showSuccessAlert,
+    showWarningAlert,
+} from "../utils/alert";
+import {
     createComment,
     deleteComment,
     deletePost,
@@ -171,10 +177,16 @@ export default function CommentPage({
             const updatedPost = await getPost(selectedPost.id);
             setSelectedPost(updatedPost);
 
-            showAlert("댓글이 등록되었습니다.", "success");
+            await showSuccessAlert(
+                "댓글 등록 완료",
+                "댓글이 정상적으로 등록되었습니다."
+            );
         } catch (error) {
             console.error(error);
-            showAlert("댓글 작성에 실패했습니다.", "error");
+            await showErrorAlert(
+                "댓글 등록 실패",
+                "댓글 작성 중 오류가 발생했습니다."
+            );
         }
     };
 
@@ -197,14 +209,20 @@ export default function CommentPage({
             const commentData = await getComments(selectedPost.id);
             setComments(commentData || []);
 
-            showAlert("답글이 등록되었습니다.", "success");
+            await showSuccessAlert(
+                "답글 등록 완료",
+                "답글이 정상적으로 등록되었습니다."
+            );
         } catch (error) {
             console.error(error);
-            showAlert("답글 작성에 실패했습니다.", "error");
+            await showErrorAlert(
+                "답글 등록 실패",
+                "답글 작성 중 오류가 발생했습니다."
+            );
         }
     };
 
-    const handleEditPost = () => {
+    const handleEditPost = async () => {
         if (!selectedPost) return;
 
         const loginEmail = (currentUser.email || "")
@@ -220,7 +238,10 @@ export default function CommentPage({
             .toLowerCase();
 
         if (!loginEmail || loginEmail !== writerEmail) {
-            showAlert("본인이 작성한 게시글만 수정할 수 있습니다.", "error");
+            await showWarningAlert(
+                "수정 권한이 없습니다.",
+                "본인이 작성한 게시글만 수정할 수 있습니다."
+            );
             return;
         }
 
@@ -243,13 +264,20 @@ export default function CommentPage({
             .toLowerCase();
 
         if (!loginEmail || loginEmail !== writerEmail) {
-            showAlert("본인이 작성한 게시글만 삭제할 수 있습니다.", "error");
+            await showWarningAlert(
+                "삭제 권한이 없습니다.",
+                "본인이 작성한 게시글만 삭제할 수 있습니다."
+            );
             return;
         }
 
-        const confirmed = window.confirm(
-            "게시글을 삭제하시겠습니까?\n댓글과 좋아요 정보도 함께 삭제됩니다."
-        );
+        const confirmed = await showConfirmAlert({
+            title: "게시글을 삭제하시겠습니까?",
+            text: "댓글과 좋아요 정보도 함께 삭제됩니다.",
+            confirmText: "삭제",
+            cancelText: "취소",
+            danger: true,
+        });
 
         if (!confirmed) return;
 
@@ -264,15 +292,18 @@ export default function CommentPage({
 
             await loadPosts();
 
-            showAlert("게시글이 삭제되었습니다.", "success");
+            await showSuccessAlert(
+                "삭제 완료",
+                "게시글이 삭제되었습니다."
+            );
         } catch (error) {
             console.error("게시글 삭제 실패:", error);
 
-            showAlert(
+            await showErrorAlert(
+                "삭제 실패",
                 error instanceof Error
                     ? error.message
-                    : "게시글 삭제에 실패했습니다.",
-                "error"
+                    : "게시글 삭제에 실패했습니다."
             );
         }
     };
@@ -283,11 +314,15 @@ export default function CommentPage({
     ) => {
         if (!selectedPost) return;
 
-        const confirmed = window.confirm(
-            isReply
-                ? "이 답글을 삭제하시겠습니까?"
-                : "이 댓글을 삭제하시겠습니까?"
-        );
+        const confirmed = await showConfirmAlert({
+            title: isReply
+                ? "답글을 삭제하시겠습니까?"
+                : "댓글을 삭제하시겠습니까?",
+            text: "삭제한 내용은 복구할 수 없습니다.",
+            confirmText: "삭제",
+            cancelText: "취소",
+            danger: true,
+        });
 
         if (!confirmed) return;
 
@@ -302,19 +337,21 @@ export default function CommentPage({
 
             await loadPosts();
 
-            showAlert(
-                isReply ? "답글이 삭제되었습니다." : "댓글이 삭제되었습니다.",
-                "success"
+            await showSuccessAlert(
+                isReply ? "답글 삭제 완료" : "댓글 삭제 완료",
+                isReply
+                    ? "답글이 삭제되었습니다."
+                    : "댓글이 삭제되었습니다."
             );
         } catch (error) {
             console.error("댓글 삭제 오류:", error);
 
-            const message =
+            await showErrorAlert(
+                isReply ? "답글 삭제 실패" : "댓글 삭제 실패",
                 error instanceof Error
                     ? error.message
-                    : "댓글 삭제에 실패했습니다.";
-
-            showAlert(message, "error");
+                    : "삭제 중 오류가 발생했습니다."
+            );
         }
     };
 

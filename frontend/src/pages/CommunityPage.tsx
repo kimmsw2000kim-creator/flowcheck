@@ -2,6 +2,13 @@ import React, { useEffect, useState } from "react";
 import { AlertCircle, MessageCircle, Share2, ThumbsUp } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
+  showConfirmAlert,
+  showErrorAlert,
+  showSuccessAlert,
+  showWarningAlert,
+  showToast,
+} from "../utils/alert";
+import {
   createComment,
   createPost,
   deleteComment,
@@ -55,7 +62,10 @@ interface CommunityPageProps {
     balance: number;
     coupons: number;
   };
-  onUserUpdate: (updatedUser: { balance: number; coupons: number }) => void;
+  onUserUpdate: (updatedUser: {
+    balance: number;
+    coupons: number;
+  }) => void;
   ledger: LedgerItem[];
   onAddLedger: (ledgerItem: LedgerItem) => void;
   showAlert: (message: string, type?: string) => void;
@@ -262,7 +272,7 @@ export default function CommunityPage({
     }
   };
 
-  const handleEditPost = () => {
+  const handleEditPost = async () => {
     if (!activePost || activePost.id === "new") return;
 
     const loginEmail = (currentUser.email || "")
@@ -278,9 +288,9 @@ export default function CommunityPage({
       .toLowerCase();
 
     if (!loginEmail || loginEmail !== writerEmail) {
-      showAlert(
-        "본인이 작성한 게시글만 수정할 수 있습니다.",
-        "error"
+      await showWarningAlert(
+        "수정 권한이 없습니다.",
+        "본인이 작성한 게시글만 수정할 수 있습니다."
       );
       return;
     }
@@ -304,13 +314,20 @@ export default function CommunityPage({
       .toLowerCase();
 
     if (!loginEmail || loginEmail !== writerEmail) {
-      showAlert("본인이 작성한 게시글만 삭제할 수 있습니다.", "error");
+      await showWarningAlert(
+        "삭제 권한이 없습니다.",
+        "본인이 작성한 게시글만 삭제할 수 있습니다."
+      );
       return;
     }
 
-    const confirmed = window.confirm(
-      "게시글을 삭제하시겠습니까?\n댓글과 좋아요 정보도 함께 삭제됩니다."
-    );
+    const confirmed = await showConfirmAlert({
+      title: "게시글을 삭제하시겠습니까?",
+      text: "댓글과 좋아요 정보도 함께 삭제됩니다.",
+      confirmText: "삭제",
+      cancelText: "취소",
+      danger: true,
+    });
 
     if (!confirmed) return;
 

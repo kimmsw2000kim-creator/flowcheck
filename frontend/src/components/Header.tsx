@@ -1,29 +1,62 @@
-import { Activity } from 'lucide-react';
-import { useUserStore } from '../store/userStore';
+import { Activity } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useUserStore } from "../store/userStore";
 
 interface HeaderProps {
   activeTab: string;
-  setActiveTab: (tab: string) => void;
 }
 
-export default function Header({ activeTab, setActiveTab }: HeaderProps) {
+const ROUTES: Record<string, string> = {
+  dashboard: "/dashboard",
+  domains: "/domains",
+  UIUXTest: "/UIUXTest",
+  load: "/load",
+  billing: "/billing",
+  community: "/community",
+  comment: "/comment",
+  support: "/support",
+  admin: "/admin",
+  mypage: "/mypage",
+  login: "/login",
+  signup: "/signup",
+};
+
+export default function Header({ activeTab }: HeaderProps) {
+  const navigate = useNavigate();
+
   const { currentUser, authStatus, toggleRole } = useUserStore();
-  const isLoggedIn = authStatus === 'authenticated';
+
+  const isLoggedIn = authStatus === "authenticated";
 
   const handleNavClick = (tab: string) => {
-    setActiveTab(tab);
+    navigate(ROUTES[tab] ?? "/dashboard");
+  };
+
+  const getNavClassName = (tab: string) => {
+    return `nav-item ${activeTab === tab ? "active" : ""}`;
   };
 
   return (
     <nav className="navbar">
-      <div
+      <button
+        type="button"
         className="logo"
-        style={{ cursor: 'pointer' }}
-        onClick={() => handleNavClick('dashboard')}
+        onClick={() =>
+          handleNavClick(isLoggedIn ? "dashboard" : "login")
+        }
+        style={{
+          cursor: "pointer",
+          background: "transparent",
+          border: "none",
+        }}
       >
-        <Activity size={24} style={{ color: 'var(--accent)' }} />
+        <Activity
+          size={24}
+          style={{ color: "var(--accent)" }}
+        />
+
         <span>FlowCheck</span>
-      </div>
+      </button>
 
       {isLoggedIn && (
         <div className="nav-links">
@@ -41,37 +74,71 @@ export default function Header({ activeTab, setActiveTab }: HeaderProps) {
         </div>
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "0.75rem",
+        }}
+      >
         {isLoggedIn ? (
           <>
             <div className="user-profile">
-              <span style={{ color: 'var(--text-secondary)' }}>{currentUser.email}</span>
-              <span className="role-badge">{currentUser.role === 'ADMIN' ? '관리자' : '일반 사용자'}</span>
-              <button onClick={toggleRole} className="btn btn-secondary" style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem', borderRadius: '1rem' }}>
+              <span
+                style={{
+                  color: "var(--text-secondary)",
+                }}
+              >
+                {currentUser.email}
+              </span>
+
+              <span className="role-badge">
+                {currentUser.role === "ADMIN"
+                  ? "관리자"
+                  : "일반 사용자"}
+              </span>
+
+              <button
+                type="button"
+                onClick={toggleRole}
+                className="btn btn-secondary"
+                style={{
+                  padding: "0.2rem 0.5rem",
+                  fontSize: "0.8rem",
+                  borderRadius: "1rem",
+                }}
+              >
                 역할 전환
               </button>
             </div>
-            {currentUser.role === 'ADMIN' && (
-              <div className="admin">
-                <button
-                  onClick={() => handleNavClick('admin')}
-                  className={`nav-item ${activeTab === 'admin' ? 'active' : ''}`}
-                >
-                  관리자
-                </button>
-              </div>
+
+            {currentUser.role === "ADMIN" && (
+              <button
+                type="button"
+                onClick={() => handleNavClick("admin")}
+                className={getNavClassName("admin")}
+              >
+                관리자
+              </button>
             )}
+
             <button
-              onClick={() => handleNavClick('mypage')}
-              className={`nav-item ${activeTab === 'mypage' ? 'active' : ''}`}
+              type="button"
+              onClick={() => handleNavClick("mypage")}
+              className={getNavClassName("mypage")}
             >
               마이페이지
             </button>
           </>
         ) : (
           <button
-            onClick={() => handleNavClick('login')}
-            className={`nav-item ${activeTab === 'login' || activeTab === 'signup' ? 'active' : ''}`}
+            type="button"
+            onClick={() => handleNavClick("login")}
+            className={`nav-item ${activeTab === "login" ||
+              activeTab === "signup"
+              ? "active"
+              : ""
+              }`}
           >
             로그인/회원가입
           </button>

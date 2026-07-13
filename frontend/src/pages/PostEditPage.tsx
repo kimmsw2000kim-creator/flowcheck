@@ -4,6 +4,11 @@ import {
     useNavigate,
     useParams,
 } from "react-router-dom";
+import {
+    showErrorAlert,
+    showSuccessAlert,
+    showWarningAlert,
+} from "../utils/alert";
 import { getPost, updatePost } from "../api/communityApi";
 
 export default function PostEditPage() {
@@ -55,12 +60,18 @@ export default function PostEditPage() {
         if (!postId || submitting) return;
 
         if (!title.trim()) {
-            alert("제목을 입력해주세요.");
+            await showWarningAlert(
+                "제목을 입력해주세요.",
+                "게시글 제목은 비워둘 수 없습니다."
+            );
             return;
         }
 
         if (!content.trim()) {
-            alert("내용을 입력해주세요.");
+            await showWarningAlert(
+                "내용을 입력해주세요.",
+                "게시글 내용을 작성해주세요."
+            );
             return;
         }
 
@@ -72,16 +83,20 @@ export default function PostEditPage() {
                 content: content.trim(),
             });
 
-            alert("게시글이 수정되었습니다.");
+            await showSuccessAlert(
+                "수정 완료",
+                "게시글이 정상적으로 수정되었습니다."
+            );
 
             navigate(returnPath);
         } catch (error) {
             console.error("게시글 수정 실패:", error);
 
-            alert(
+            await showErrorAlert(
+                "수정 실패",
                 error instanceof Error
                     ? error.message
-                    : "게시글 수정에 실패했습니다."
+                    : "게시글 수정 중 오류가 발생했습니다."
             );
         } finally {
             setSubmitting(false);
