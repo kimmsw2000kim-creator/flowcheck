@@ -44,3 +44,4 @@ export interface MypageCouponHistoryItem {
     description: string;
     usedAt: string;
 }
+
