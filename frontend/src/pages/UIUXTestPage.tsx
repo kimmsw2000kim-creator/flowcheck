@@ -8,12 +8,6 @@ import { startUIUXTest, getUIUXTestStatus, UIUXTestStepData } from '../api/UIUXT
 import Button from '../components/common/Button';
 import TextField from '../components/common/TextField';
 
-interface Domain {
-  id: number;
-  domainUrl: string;
-  verified: boolean;
-}
-
 import { useUserStore } from '../store/userStore';
 import { useAlertStore } from '../store/alertStore';
 
@@ -22,13 +16,11 @@ import { useDomains } from '../hooks/useDomains';
 interface UIUXTestPageProps {
   selectedUIUXTestDomain: number;
   setSelectedUIUXTestDomain: (id: number) => void;
-  onAddLedger: (ledgerItem: any) => void;
 }
 
 export default function UIUXTestPage({
   selectedUIUXTestDomain,
   setSelectedUIUXTestDomain,
-  onAddLedger,
 }: UIUXTestPageProps) {
   const currentUser = useUserStore((state) => state.currentUser);
   const onUserUpdate = useUserStore((state) => state.updateUserBalanceAndCoupons);
