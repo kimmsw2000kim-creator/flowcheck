@@ -20,6 +20,8 @@ interface UserState {
   authStatus: AuthStatus;
   setAuthStatus: (status: AuthStatus) => void;
   setCurrentUser: (user: Partial<CurrentUser>) => void;
+  startSession: (user: { id: string; email: string }) => void;
+  finishSession: (userId: string, user?: Partial<CurrentUser>) => void;
   resetAuthState: () => void;
   updateUserBalanceAndCoupons: (updated: {
     balance: number;
@@ -65,6 +67,27 @@ export const useUserStore = create<UserState>((set) => ({
     set((state) => ({
       currentUser: { ...state.currentUser, ...user },
     })),
+  startSession: (user) =>
+    set((state) => {
+      const isSameUser = state.currentUser.id === user.id;
+      return {
+        currentUser: isSameUser
+          ? { ...state.currentUser, email: user.email }
+          : { ...createInitialUser(), id: user.id, email: user.email },
+        authStatus:
+          isSameUser && state.authStatus === 'authenticated'
+            ? 'authenticated'
+            : 'checking',
+      };
+    }),
+  finishSession: (userId, user = {}) =>
+    set((state) => {
+      if (state.currentUser.id !== userId) return state;
+      return {
+        currentUser: { ...state.currentUser, ...user, id: userId },
+        authStatus: 'authenticated',
+      };
+    }),
   resetAuthState: () => {
     clearLegacyAuthStorage();
     set(anonymousAuthState());
@@ -85,24 +108,26 @@ export const useUserStore = create<UserState>((set) => ({
             : state.currentUser.UIUXTestCoupons,
       },
     })),
-  loginSuccess: (email, token, userId) => {
+  loginSuccess: (email, _token, userId) => {
     set((state) => ({
-      currentUser: {
-        ...state.currentUser,
-        id: userId ?? state.currentUser.id,
-        email,
-      },
-      authStatus: 'authenticated',
+      currentUser:
+        userId && userId !== state.currentUser.id
+          ? { ...createInitialUser(), id: userId, email }
+          : { ...state.currentUser, id: userId ?? state.currentUser.id, email },
+      authStatus:
+        userId === state.currentUser.id && state.authStatus === 'authenticated'
+          ? 'authenticated'
+          : 'checking',
     }));
   },
   logout: async () => {
+    clearLegacyAuthStorage();
+    set(anonymousAuthState());
+
     try {
       await supabase.auth.signOut();
     } catch (error) {
       console.error('Failed to sign out from Supabase:', error);
-    } finally {
-      clearLegacyAuthStorage();
-      set(anonymousAuthState());
     }
   },
   toggleRole: () =>

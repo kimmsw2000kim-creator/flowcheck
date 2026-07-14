@@ -1,9 +1,10 @@
 import type { MypageData, MypagePointHistoryItem, MypageTestHistoryItem, MypageCouponHistoryItem } from '../types/mypage';
+import type { AxiosRequestConfig } from 'axios';
 import apiClient from './client';
 
-export async function fetchMypage(): Promise<MypageData> {
+export async function fetchMypage(config?: AxiosRequestConfig): Promise<MypageData> {
     try {
-        const response = await apiClient.get<MypageData>('/api/mypage');
+        const response = await apiClient.get<MypageData>('/api/mypage', config);
         return response.data;
     } catch (error: any) {
         const message =

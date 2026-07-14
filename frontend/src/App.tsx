@@ -1,5 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
-import type { Session } from '@supabase/supabase-js';
+import { useState } from 'react';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
@@ -27,16 +26,7 @@ import CommentPage from "./pages/CommentPage";
 // Types & Utils
 import { useUserStore } from './store/userStore';
 import { useAlertStore } from './store/alertStore';
-import apiClient from './api/client';
-import { supabase } from './lib/supabaseClient';
-
-interface LedgerItem {
-  id: number;
-  amount: number;
-  type: string;
-  description: string;
-  createdAt: string;
-}
+import { useSessionBootstrap } from './hooks/useSessionBootstrap';
 
 // 신고
 interface Report {
@@ -50,6 +40,8 @@ interface Report {
 }
 
 function App() {
+  useSessionBootstrap();
+
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -81,131 +73,15 @@ function App() {
 
   const currentUser = useUserStore((state) => state.currentUser);
   const authStatus = useUserStore((state) => state.authStatus);
-  const setAuthStatus = useUserStore((state) => state.setAuthStatus);
-  const setCurrentUser = useUserStore((state) => state.setCurrentUser);
-  const resetAuthState = useUserStore((state) => state.resetAuthState);
   const alertMsg = useAlertStore((state) => state.alertMsg);
   const showAlert = useAlertStore((state) => state.showAlert);
 
-  const [ledger, setLedger] = useState<LedgerItem[]>([]);
-  const [reports, setReports] = useState<Report[]>([]);
-  const lastSessionTokenRef = useRef<string | null | undefined>(undefined);
+  const [, setReports] = useState<Report[]>([]);
 
   const isLoggedIn = authStatus === 'authenticated';
   const isLandingPage = !isLoggedIn && location.pathname === '/';
 
-  // 유저 정보와 결제 내역 불러오기
-  useEffect(() => {
-    let isMounted = true;
-
-    const applySession = async (session: Session | null) => {
-      const sessionToken = session?.access_token ?? null;
-
-      if (lastSessionTokenRef.current === sessionToken) return;
-      lastSessionTokenRef.current = sessionToken;
-
-      if (!session) {
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("email");
-
-        setLedger([]);
-        resetAuthState();
-        return;
-      }
-
-      const sessionUser = session.user;
-
-      localStorage.setItem("accessToken", session.access_token);
-      localStorage.setItem("email", sessionUser.email ?? "");
-
-      const authConfig = {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      };
-
-      setCurrentUser({
-        id: sessionUser.id,
-        email: sessionUser.email ?? "",
-      });
-
-      setAuthStatus("authenticated");
-
-      try {
-        const res = await apiClient.get("/api/mypage", authConfig);
-
-        if (!isMounted) return;
-
-        const data = res.data;
-
-        setCurrentUser({
-          id: sessionUser.id,
-          email: data.email ?? sessionUser.email ?? "",
-          role: data.role,
-          status: data.status,
-          balance: data.balance,
-          coupons: data.couponCount,
-          loadTestCoupons: data.loadTestCouponCount,
-          UIUXTestCoupons: data.UIUXTestCouponCount,
-        });
-      } catch (err) {
-        console.error("Failed to load user profile session:", err);
-      }
-
-      try {
-        const res = await apiClient.get("/api/payment/ledger", authConfig);
-
-        if (!isMounted) return;
-
-        setLedger(res.data);
-      } catch (err) {
-        console.error("Failed to load ledger history:", err);
-      }
-    };
-
-    setAuthStatus('checking');
-
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      if (!isMounted) return;
-
-      if (error) {
-        console.error("Failed to check Supabase session:", error);
-        applySession(null);
-        return;
-      }
-
-      applySession(session);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      window.setTimeout(() => {
-        if (!isMounted) return;
-        applySession(session);
-      }, 0);
-    });
-
-    return () => {
-      isMounted = false;
-      subscription.unsubscribe();
-    };
-  }, [resetAuthState, setAuthStatus, setCurrentUser]);
-
   const [selectedUIUXTestDomain, setSelectedUIUXTestDomain] = useState<number>(1);
-
-  const handleAddLedger = (ledgerItem: LedgerItem) => {
-    setLedger(prev => [ledgerItem, ...prev]);
-  };
-
-  const handleUserUpdate = (updatedUser: {
-    balance: number;
-    coupons: number;
-  }) => {
-    setCurrentUser({
-      ...currentUser,
-      balance: updatedUser.balance,
-      coupons: updatedUser.coupons,
-    });
-  };
 
   const handleSubmitReport = (type: string, id: number) => {
     const report: Report = {
@@ -275,28 +151,18 @@ function App() {
                   <UIUXTestPage
                     selectedUIUXTestDomain={selectedUIUXTestDomain}
                     setSelectedUIUXTestDomain={setSelectedUIUXTestDomain}
-                    onAddLedger={handleAddLedger}
                   />
                 }
               />
 
               <Route
                 path="/load"
-                element={
-                  <LoadPage
-                    onAddLedger={handleAddLedger}
-                  />
-                }
+                element={<LoadPage />}
               />
 
               <Route
                 path="/billing"
-                element={
-                  <PaymentPage
-                    ledger={ledger}
-                    onAddLedger={handleAddLedger}
-                  />
-                }
+                element={<PaymentPage />}
               />
 
               {/* Community Tab Sub-routing System */}
@@ -305,9 +171,6 @@ function App() {
                 element={
                   <CommunityPage
                     currentUser={currentUser}
-                    onUserUpdate={handleUserUpdate}
-                    ledger={ledger}
-                    onAddLedger={handleAddLedger}
                     showAlert={showAlert}
                     handleSubmitReport={handleSubmitReport}
                   />
@@ -332,7 +195,7 @@ function App() {
               <Route
                 path="/admin"
                 element={
-                  <AdminPage currentUser={currentUser} />
+                  <AdminPage />
                 }
               />
 
