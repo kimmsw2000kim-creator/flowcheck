@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { Play, CheckCircle, AlertCircle, RefreshCw, Globe, Monitor, Terminal, FileText, Ticket, Video } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Play, CheckCircle, AlertCircle, RefreshCw, Globe, Monitor, Terminal, FileText, Ticket, Video, Activity, Layout, Eye, Zap, ChevronDown, ChevronUp } from 'lucide-react';
 import apiClient from "../api/client";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import axios from 'axios';
-import { startUIUXTest, getUIUXTestStatus, UIUXTestStepData } from '../api/UIUXTestApi';
+import { startUIUXTest, getUIUXTestStatus, UIUXTestStepData, UIUXTestStatusResponse, UIUXTestDefect, UIUXTestScores } from '../api/UIUXTestApi';
 import Button from '../components/common/Button';
 import TextField from '../components/common/TextField';
-
+import CustomVideoPlayer from '../components/video/CustomVideoPlayer';
+import UIUXScoreRadarChart from '../components/dashboard/UIUXScoreRadarChart';
+import UIUXScoreBarChart from '../components/dashboard/UIUXScoreBarChart';
 interface Domain {
   id: number;
   domainUrl: string;
@@ -16,7 +18,6 @@ interface Domain {
 
 import { useUserStore } from '../store/userStore';
 import { useAlertStore } from '../store/alertStore';
-
 import { useDomains } from '../hooks/useDomains';
 
 interface UIUXTestPageProps {
@@ -24,6 +25,7 @@ interface UIUXTestPageProps {
   setSelectedUIUXTestDomain: (id: number) => void;
   onAddLedger: (ledgerItem: any) => void;
 }
+
 
 export default function UIUXTestPage({
   selectedUIUXTestDomain,
@@ -35,29 +37,26 @@ export default function UIUXTestPage({
   const showAlert = useAlertStore((state) => state.showAlert);
   const { domains } = useDomains();
   const [targetUrl, setTargetUrl] = useState<string>('');
-  const [UIUXTestStatus, setUIUXTestStatus] = useState<string>('idle'); // idle, running, success, error
+  const [UIUXTestStatus, setUIUXTestStatus] = useState<string>('idle');
   const [UIUXTestSteps, setUIUXTestSteps] = useState<UIUXTestStepData[]>([]);
-  const [UIUXTestReportMarkdown, setUIUXTestReportMarkdown] = useState<string>('');
+  const [reportData, setReportData] = useState<UIUXTestStatusResponse | null>(null);
 
-  // ✅ interval ID를 useRef로 관리 — React 비동기 state와 무관하게 즉시 clearInterval 가능
-  const intervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
-  const pollErrorCountRef = React.useRef(0);
-  const pollCountRef = React.useRef(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollErrorCountRef = useRef(0);
+  const pollCountRef = useRef(0);
+  const isSubmittingRef = useRef(false);
+  const stepsEndRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
-  // ✅ 제출 중 중복 클릭 방지 (React state보다 빠르게 동기적으로 차단)
-  const isSubmittingRef = React.useRef(false);
+  const [activeDefectId, setActiveDefectId] = useState<number | null>(null);
+  const [showHeuristics, setShowHeuristics] = useState(false);
 
-  // ✅ 새로운 스텝 추가 시 자동 스크롤을 위한 Ref
-  const stepsEndRef = React.useRef<HTMLDivElement>(null);
-
-  // 스텝 배열이 갱신될 때마다 자동으로 스크롤 하단으로 이동
   useEffect(() => {
     if (stepsEndRef.current) {
       stepsEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [UIUXTestSteps]);
 
-  /** interval을 완전히 정지하는 헬퍼 함수 */
   const stopPolling = React.useCallback(() => {
     if (intervalRef.current !== null) {
       clearInterval(intervalRef.current);
@@ -65,7 +64,6 @@ export default function UIUXTestPage({
     }
   }, []);
 
-  // 도메인 선택 변경 시 URL 입력창 자동 반영
   useEffect(() => {
     const selected = domains.find(d => d.id === selectedUIUXTestDomain);
     if (selected) {
@@ -73,18 +71,15 @@ export default function UIUXTestPage({
     }
   }, [selectedUIUXTestDomain, domains]);
 
-  // 언마운트 시 폴링 리소스 정리
   useEffect(() => {
     return () => { stopPolling(); };
   }, [stopPolling]);
 
   const handleRunUIUXTest = async () => {
-    // ✅ 이중 가드 1: 이미 제출 중이면 즉시 차단 (비동기 중복 클릭 방지)
     if (isSubmittingRef.current) {
       showAlert('이미 테스트 요청이 처리 중입니다. 잠시 기다려 주세요.', 'error');
       return;
     }
-    // ✅ 이중 가드 2: 이미 running 상태면 추가 시작 불가
     if (UIUXTestStatus === 'running') {
       showAlert('테스트가 이미 실행 중입니다.', 'error');
       return;
@@ -95,13 +90,11 @@ export default function UIUXTestPage({
       return;
     }
 
-    // 간단한 URL 형식 검증
     if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
       showAlert('올바른 URL 형식(http:// 또는 https://)으로 입력해 주세요.', 'error');
       return;
     }
 
-    // 쿠폰/크레딧 체크 및 차감
     if (currentUser.UIUXTestCoupons <= 0 && currentUser.balance < 1000) {
       showAlert('UI/UX 테스트 쿠폰 또는 크레딧 잔액이 부족합니다.', 'error');
       return;
@@ -109,17 +102,15 @@ export default function UIUXTestPage({
 
     setUIUXTestStatus('running');
     setUIUXTestSteps([]);
-    setUIUXTestReportMarkdown('');
-    isSubmittingRef.current = true; // ✅ 제출 잠금
+    setReportData(null);
+    isSubmittingRef.current = true;
 
     try {
-      // 2. 백엔드 호출
       const startRes = await startUIUXTest(targetUrl);
       const requestId = startRes.requestId;
 
       showAlert('자율형 AI UI 테스트 탐색 에이전트가 가동되었습니다!', 'success');
 
-      // 잔액/쿠폰 정보 갱신
       try {
         const mypageRes = await apiClient.get('/api/mypage');
         onUserUpdate({
@@ -129,108 +120,106 @@ export default function UIUXTestPage({
           UIUXTestCoupons: mypageRes.data.UIUXTestCouponCount
         });
       } catch (err) {
-        console.error('Failed to sync user state after starting UI test:', err);
+        console.error('Failed to sync user state:', err);
       }
 
-      // 3. 폴링 시작 (1.5초 주기)
-      // ✅ 기존 interval이 살아있으면 먼저 정지
       stopPolling();
       pollErrorCountRef.current = 0;
       pollCountRef.current = 0;
-      const MAX_POLL_ERRORS = 5;  // 연속 에러 5회 → 중단
-      const MAX_POLL_COUNT = 480; // 최대 12분 (480 * 1.5s)
+      const MAX_POLL_ERRORS = 5;
+      const MAX_POLL_COUNT = 480;
 
       intervalRef.current = setInterval(async () => {
         pollCountRef.current += 1;
 
-        // 최대 폴링 횟수 초과 시 강제 중단
         if (pollCountRef.current > MAX_POLL_COUNT) {
-          console.warn('Max polling count exceeded. Stopping polling.');
           stopPolling();
           setUIUXTestStatus('error');
-          setUIUXTestReportMarkdown('# 타임아웃\n\n테스트가 12분 이상 응답이 없어 자동으로 중단되었습니다.');
           showAlert('테스트 응답 대기 시간이 초과되었습니다.', 'error');
           return;
         }
 
         try {
           const statusRes = await getUIUXTestStatus(requestId);
-          pollErrorCountRef.current = 0; // 성공 시 에러 카운터 리셋
+          pollErrorCountRef.current = 0;
           setUIUXTestSteps(statusRes.steps || []);
 
           if (statusRes.status === 'COMPLETED') {
-            stopPolling(); // ✅ ref 기반으로 즉시 중단
+            stopPolling();
             setUIUXTestStatus('success');
-            setUIUXTestReportMarkdown(statusRes.report || '');
+            setReportData(statusRes);
             showAlert('자율형 AI UI 테스트가 완료되었습니다!', 'success');
           } else if (statusRes.status === 'FAILED') {
-            stopPolling(); // ✅ ref 기반으로 즉시 중단
+            stopPolling();
             setUIUXTestStatus('error');
-            setUIUXTestReportMarkdown(statusRes.report || '# 테스트 실패\n\nAI 에이전트 탐색 중 비정상 종료되거나 에러가 발생했습니다.');
             showAlert('AI UI 테스트 도중 에러가 발생하였습니다.', 'error');
           }
         } catch (pollErr) {
           pollErrorCountRef.current += 1;
-          console.error(`Status polling error (${pollErrorCountRef.current}/${MAX_POLL_ERRORS}):`, pollErr);
-
-          // 연속 에러가 한도 초과 시 폴링 중단
           if (pollErrorCountRef.current >= MAX_POLL_ERRORS) {
-            console.error('Too many consecutive polling errors. Stopping polling.');
-            stopPolling(); // ✅ ref 기반으로 즉시 중단
+            stopPolling();
             setUIUXTestStatus('error');
-            setUIUXTestReportMarkdown('# 연결 오류\n\n서버와의 통신이 반복적으로 실패하여 테스트 상태 조회를 중단하였습니다.');
             showAlert('서버 통신 오류로 상태 조회가 중단되었습니다.', 'error');
           }
         }
       }, 1500);
 
     } catch (err: any) {
-      console.error('Failed to start UI Test:', err);
       setUIUXTestStatus('error');
-      const errorMessage = axios.isAxiosError(err)
-        ? (typeof err.response?.data === 'string' ? err.response.data : err.response?.data?.message)
-        : err.message;
-      showAlert(errorMessage || 'AI 서버를 호출하지 못했습니다.', 'error');
+      let errorMessage = 'AI 서버를 호출하지 못했습니다.';
+      if (err.response && err.response.data) {
+        if (typeof err.response.data === 'string') {
+          errorMessage = err.response.data;
+        } else if (err.response.data.message) {
+          errorMessage = err.response.data.message;
+        }
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      showAlert(errorMessage, 'error');
     } finally {
-      isSubmittingRef.current = false; // ✅ 성공/실패 모두 잠금 해제
+      isSubmittingRef.current = false;
     }
   };
 
-  // 비디오 녹화본 URL 추출 파싱 (백엔드 추가 컬럼 없이 report 내 마킹 데이터 활용)
-  const hasVideoUrl = UIUXTestReportMarkdown.includes('[VIDEO_URL]:');
-  let videoUrl = '';
-  let cleanReportMarkdown = UIUXTestReportMarkdown;
+  const handleVideoTimeUpdate = (currentTime: number) => {
+    if (!reportData?.defects) return;
+    
+    // Find the closest defect within a 2-second window
+    let currentDefect = reportData.defects.find(d => 
+      Math.abs(d.timestampOffset - currentTime) < 1.0
+    );
+    
+    setActiveDefectId(currentDefect?.id || null);
+  };
 
-  if (hasVideoUrl) {
-    const parts = UIUXTestReportMarkdown.split('[VIDEO_URL]:');
-    const afterTag = parts[1];
-    const firstNewlineIdx = afterTag.indexOf('\n');
+  const customVideoRef = useRef<any>(null);
 
-    if (firstNewlineIdx !== -1) {
-      videoUrl = afterTag.substring(0, firstNewlineIdx).trim();
-      // VIDEO_URL 태그 이후 첫 줄바꿈 다음부터가 실제 보고서 내용
-      cleanReportMarkdown = (parts[0] + afterTag.substring(firstNewlineIdx)).trim();
-    } else {
-      videoUrl = afterTag.trim();
-      cleanReportMarkdown = parts[0].trim();
+  const handleDefectClick = (offset: number) => {
+    setActiveDefectId(reportData?.defects?.find(d => d.timestampOffset === offset)?.id || null);
+    if (customVideoRef.current) {
+      customVideoRef.current.seekTo(offset);
     }
-  }
+  };
+
+  const formatTimeForDisplay = (time: number) => {
+    if (isNaN(time)) return "0:00";
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
+    return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+  };
 
   return (
-    <div style={{ textAlign: 'left' }}>
+    <div style={{ textAlign: 'left', paddingBottom: '4rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
         <h2 style={{ fontSize: '1.75rem', margin: 0 }}>AI 자율형 UI 테스트 익스플로러 (Playwright + Gemini)</h2>
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', fontSize: '0.85rem', backgroundColor: 'var(--bg-secondary)', padding: '0.5rem 0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
-          <Monitor size={14} style={{ color: 'var(--accent-hover)' }} />
-          <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>로컬 브라우저 구동 모드 (headless=False)</span>
-        </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '2rem' }}>
-        <div>
-          <div className="card">
+      <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 2.6fr 0.6fr', gap: '1.5rem', marginBottom: '2rem', alignItems: 'stretch' }}>
+        {/* Column 1: Start Form */}
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
             <h3 style={{ marginBottom: '1.25rem' }}>AI UI 테스트 시작</h3>
-
             <div className="form-group">
               <label className="form-label">인증 도메인 불러오기</label>
               <select
@@ -243,13 +232,6 @@ export default function UIUXTestPage({
                 {domains.filter(d => d.verified).map(d => (
                   <option key={d.id} value={d.id}>{d.domainUrl}</option>
                 ))}
-                {domains.filter(d => !d.verified).length > 0 && (
-                  <optgroup label="미인증 도메인 (소유권 검증 필요)">
-                    {domains.filter(d => !d.verified).map(d => (
-                      <option key={d.id} value={d.id} disabled>{d.domainUrl}</option>
-                    ))}
-                  </optgroup>
-                )}
               </select>
             </div>
 
@@ -264,18 +246,16 @@ export default function UIUXTestPage({
               style={{ marginTop: '0.25rem' }}
             />
 
-            {/* 쿠폰 및 크레딧 현황 카드 */}
             <div style={{
               background: 'var(--bg-tertiary)',
               border: `1.5px solid ${currentUser.UIUXTestCoupons > 0 ? 'var(--accent)' : currentUser.balance >= 1000 ? '#f59e0b' : '#ef4444'}`,
               borderRadius: '0.75rem',
               padding: '1rem 1.25rem',
+              marginTop: '1.25rem',
               marginBottom: '1.25rem',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)' }}>
-                  <Ticket size={16} /> 보유 현황
-                </span>
+                <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)' }}>🎟️ 보유 현황</span>
                 <span style={{
                   fontSize: '0.75rem',
                   fontWeight: 600,
@@ -290,7 +270,7 @@ export default function UIUXTestPage({
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '0.75rem' }}>
                 <div style={{ background: 'var(--bg-secondary)', borderRadius: '0.5rem', padding: '0.6rem 0.8rem' }}>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>UI/UX 쿠폰</div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>UI/UX 테스트 쿠폰</div>
                   <div style={{ fontWeight: 800, fontSize: '1.1rem', color: currentUser.UIUXTestCoupons > 0 ? 'var(--accent)' : 'var(--text-muted)' }}>
                     {currentUser.UIUXTestCoupons}회
                   </div>
@@ -305,7 +285,7 @@ export default function UIUXTestPage({
 
               <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', borderTop: '1px solid var(--border)', paddingTop: '0.6rem' }}>
                 {currentUser.UIUXTestCoupons > 0
-                  ? <>이번 테스트에 <strong style={{ color: 'var(--accent)' }}>UI/UX 쿠폰 1회</strong>가 소모됩니다. (잔여 {currentUser.UIUXTestCoupons - 1}회)</>
+                  ? <>이번 테스트에 <strong style={{ color: 'var(--accent)' }}>UI/UX 테스트 쿠폰 1회</strong>가 소모됩니다. (잔여 {currentUser.UIUXTestCoupons - 1}회)</>
                   : <>이번 테스트에 <strong style={{ color: '#f59e0b' }}>1,000 크레딧</strong>이 소모됩니다.</>
                 }
               </div>
@@ -313,10 +293,10 @@ export default function UIUXTestPage({
 
             <Button
               variant="primary"
-              style={{ width: '100%' }}
+              style={{ width: '100%', marginTop: 'auto' }}
               onClick={handleRunUIUXTest}
               isLoading={UIUXTestStatus === 'running'}
-              loadingText="탐색 에이전트 구동 중..."
+              loadingText="에이전트 구동 중..."
               icon={Play}
             >
               <span>UI 테스트 시작</span>
@@ -324,137 +304,216 @@ export default function UIUXTestPage({
           </div>
         </div>
 
-        <div>
-          <div className="card" style={{ minHeight: '450px', display: 'flex', flexDirection: 'column' }}>
-            <h3 style={{ marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Terminal size={18} style={{ color: 'var(--text-secondary)' }} />
-              <span>실시간 탐색 상황 (Telemetry)</span>
-            </h3>
-
-            {UIUXTestStatus === 'idle' && (
-              <div style={{ color: 'var(--text-muted)', textAlign: 'center', margin: 'auto' }}>
-                <Play size={48} style={{ margin: '0 auto 1rem', opacity: 0.3 }} />
-                <p>UI/UX 테스트를 시작하면 실시간 DOM 탐색 진행 상황이 표시됩니다.</p>
-              </div>
-            )}
-
-            {UIUXTestStatus === 'running' && UIUXTestSteps.length === 0 && (
-              <div style={{ color: 'var(--text-muted)', textAlign: 'center', margin: 'auto' }}>
-                <RefreshCw className="animate-spin" size={48} style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
-                <p>브라우저를 초기화하고 대상 주소로 이동하는 중입니다...</p>
-              </div>
-            )}
-
-            {(UIUXTestStatus === 'running' || UIUXTestSteps.length > 0) && (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                {UIUXTestStatus === 'running' && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--accent-hover)', marginBottom: '1.5rem', fontSize: '0.9rem', fontWeight: 500 }}>
-                    <RefreshCw className="animate-spin" size={16} />
-                    <span>Gemini AI와 Playwright가 화면 구조를 파악하고 이벤트를 유도하고 있습니다.</span>
-                  </div>
-                )}
-
-                <div className="timeline" style={{ flex: 1, overflowY: 'auto', maxHeight: '400px' }}>
-                  {UIUXTestSteps.map((step, idx) => (
-                    <div className="timeline-step" key={idx} style={{ marginBottom: '1.5rem', paddingLeft: '1.5rem', position: 'relative' }}>
-                      <div className="timeline-dot" style={{
-                        position: 'absolute',
-                        left: 0,
-                        top: '4px',
-                        width: '10px',
-                        height: '10px',
-                        borderRadius: '50%',
-                        backgroundColor: step.error ? 'var(--error)' : 'var(--success)',
-                        boxShadow: step.error ? '0 0 8px var(--error)' : '0 0 8px var(--success)'
-                      }}></div>
-                      <div className="timeline-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                        <span className="timeline-action" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                          단계 {step.step}: {step.action}
-                        </span>
-                        <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', wordBreak: 'break-all' }}>{step.url}</span>
-                      </div>
-                      <div className="timeline-desc" style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
-                        {step.error ? (
-                          <div style={{ color: 'var(--error)', backgroundColor: 'var(--error-bg)', padding: '0.5rem 0.75rem', borderRadius: '0.25rem', marginTop: '0.25rem', border: '1px solid var(--error)' }}>
-                            <strong>오류 발생:</strong> {step.error}
-                          </div>
-                        ) : (
-                          <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '0.5rem 0.75rem', borderRadius: '0.25rem', border: '1px solid var(--border)' }}>
-                            {step.selector && (
-                              <p style={{ margin: '0 0 0.25rem' }}>
-                                <strong>선택자 (Selector):</strong> <code style={{ backgroundColor: 'rgba(255,255,255,0.1)', padding: '0.1rem 0.3rem', borderRadius: '0.2rem' }}>{step.selector}</code>
-                                {step.text && <span> | <strong>입력 내용:</strong> "{step.text}"</span>}
-                              </p>
-                            )}
-                            <p style={{ margin: 0 }}>
-                              <strong>판단 근거 (Reasoning):</strong> {step.reason}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                  <div ref={stepsEndRef} />
+        {/* Column 2: Live Video Stream */}
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <div className="card" style={{ flex: 1, padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', border: '2px solid var(--border)' }}>
+            <div style={{ padding: '0.75rem', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Monitor size={16} /> 실시간 탐색 스트림 (Live VNC)
+            </div>
+            <div style={{ flex: 1, backgroundColor: '#000', position: 'relative', minHeight: '350px' }}>
+              {UIUXTestStatus === 'running' ? (
+                <iframe 
+                  src={UIUXTestSteps.find(step => step.vncUrl)?.vncUrl || "http://localhost:6080/vnc.html?autoconnect=true&resize=scale"} 
+                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }} 
+                  title="Live Test Stream"
+                  allowFullScreen
+                />
+              ) : (
+                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
+                  <Video size={40} style={{ opacity: 0.3, marginBottom: '0.75rem' }} />
+                  <div style={{ width: '100%', textAlign: 'center', fontSize: '0.9rem' }}>오프라인 (테스트를 시작해주세요)</div>
                 </div>
+              )}
+            </div>
+          </div>
+        </div>
 
-                {UIUXTestStatus === 'success' && (
-                  <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--border)', paddingTop: '1.5rem' }}>
-                    <div style={{ color: 'var(--success)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-                      <CheckCircle size={18} />
-                      <span>자율형 AI UI 테스트가 완료되었습니다! 아래 종합 리포트를 확인해 주세요.</span>
-                    </div>
-                    <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.5rem', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', color: 'var(--text-primary)' }}>
-                        <FileText size={18} />
-                        <h4 style={{ margin: 0 }}>Gemini UI/UX 종합 감사 보고서</h4>
-                      </div>
-
-                      {videoUrl && (
-                        <div style={{ marginBottom: '1.5rem', border: '1px solid var(--border)', borderRadius: '0.5rem', overflow: 'hidden', backgroundColor: '#000000' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', backgroundColor: 'var(--bg-tertiary)', borderBottom: '1px solid var(--border)', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                            <Video size={16} /> AI 탐색 테스트 녹화 비디오 (Supabase Storage)
-                          </div>
-                          <video src={videoUrl} controls width="100%" style={{ display: 'block', maxHeight: '500px', margin: '0 auto' }} />
-                        </div>
-                      )}
-
-                      <div style={{
-                        fontSize: '0.9rem',
-                        color: 'var(--text-secondary)',
-                        lineHeight: '1.8',
-                      }} className="report-markdown">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {cleanReportMarkdown}
-                        </ReactMarkdown>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {UIUXTestStatus === 'error' && (
-                  <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--border)', paddingTop: '1.5rem' }}>
-                    <div style={{ color: 'var(--error)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-                      <AlertCircle size={18} />
-                      <span>테스트 실행에 실패하였습니다.</span>
-                    </div>
-                    <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.5rem', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
-                      <div style={{
-                        fontSize: '0.9rem',
-                        color: 'var(--text-secondary)',
-                        lineHeight: '1.8',
-                      }} className="report-markdown">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {cleanReportMarkdown}
-                        </ReactMarkdown>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
+        {/* Column 3: Telemetry */}
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '1rem', backgroundColor: 'var(--bg-primary)' }}>
+            <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-primary)', fontSize: '0.9rem' }}>
+              <Terminal size={14} style={{ color: 'var(--text-secondary)' }} />
+              <span>로그</span>
+            </h3>
+            <div className="timeline" style={{ flex: 1, overflowY: 'auto', maxHeight: '350px', paddingRight: '0.2rem' }}>
+              {UIUXTestStatus === 'running' && UIUXTestSteps.length === 0 && (
+                <div style={{ color: 'var(--text-muted)', textAlign: 'center', marginTop: '2rem', fontSize: '0.8rem' }}>
+                  <RefreshCw className="animate-spin" size={20} style={{ margin: '0 auto 0.5rem', opacity: 0.5, display: 'block' }} />
+                  <p>초기화 중...</p>
+                </div>
+              )}
+              {UIUXTestSteps.map((step, idx) => (
+                <div key={idx} style={{ 
+                  marginBottom: '0.5rem', 
+                  padding: '0.5rem', 
+                  backgroundColor: 'var(--bg-secondary)', 
+                  borderLeft: '3px solid var(--accent)', 
+                  borderRadius: '0 0.4rem 0.4rem 0',
+                  fontSize: '0.75rem',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}>
+                  <strong style={{ color: 'var(--accent)' }}>스텝 {step.step}:</strong> {step.action}
+                </div>
+              ))}
+              <div ref={stepsEndRef} />
+            </div>
           </div>
         </div>
       </div>
+
+      {(UIUXTestStatus === 'success' || UIUXTestStatus === 'running') && (
+        <div style={{ marginTop: '2rem', animation: 'fadeIn 0.5s ease-out' }}>
+          {UIUXTestStatus === 'success' && reportData && (
+            <>
+              <h2 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Activity size={24} style={{ color: 'var(--accent)' }}/> 4대 스코어 대시보드
+              </h2>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', marginBottom: '2rem', alignItems: 'center' }}>
+                <div style={{ padding: '0', background: 'transparent' }}>
+                  <UIUXScoreRadarChart scores={reportData.scores!} />
+                </div>
+                <div style={{ padding: '0', background: 'transparent' }}>
+                  <UIUXScoreBarChart scores={reportData.scores!} />
+                </div>
+              </div>
+            </>
+          )}
+
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '2rem', marginBottom: '2rem', alignItems: 'stretch' }}>
+            <div className="card" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ padding: '1rem', backgroundColor: 'var(--bg-tertiary)', borderBottom: '1px solid var(--border)', fontWeight: 600 }}>
+                최종 결과 비디오 (Interactive Timeline)
+              </div>
+              <div style={{ flex: 1, backgroundColor: '#000', display: 'flex', minHeight: '400px' }}>
+                {reportData?.videoUrl ? (
+                  <CustomVideoPlayer 
+                    ref={customVideoRef}
+                    src={reportData.videoUrl}
+                    defects={reportData.defects}
+                    activeDefectId={activeDefectId}
+                    onTimeUpdate={handleVideoTimeUpdate}
+                    onDefectClick={(offset) => {
+                      setActiveDefectId(reportData.defects?.find(d => d.timestampOffset === offset)?.id || null);
+                      if (customVideoRef.current) customVideoRef.current.seekTo(offset);
+                    }}
+                  />
+                ) : (
+                  <div style={{ padding: '3rem', width: '100%', textAlign: 'center', color: 'var(--text-muted)', alignSelf: 'center' }}>
+                    비디오 기록이 없습니다.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
+              <h3 style={{ marginBottom: '1rem' }}>결함 타임라인</h3>
+              <div style={{ flex: 1, overflowY: 'auto', maxHeight: '500px', paddingRight: '0.5rem' }}>
+                {UIUXTestStatus === 'running' ? (
+                  <div style={{ color: 'var(--text-muted)', textAlign: 'center', marginTop: '2rem' }}>
+                    <RefreshCw className="animate-spin" size={24} style={{ margin: '0 auto 1rem', opacity: 0.5, display: 'block' }} />
+                    <p>테스트 진행 중... 실시간으로 결함을 분석합니다.</p>
+                  </div>
+                ) : reportData?.defects && reportData.defects.length > 0 ? reportData.defects.map(defect => (
+                  <div 
+                    key={defect.id} 
+                    onClick={() => handleDefectClick(defect.timestampOffset)}
+                    style={{ 
+                      padding: '1.25rem', 
+                      marginBottom: '1rem', 
+                      borderRadius: '0.75rem', 
+                      cursor: 'pointer',
+                      border: activeDefectId === defect.id ? '2px solid var(--accent)' : '1px solid var(--border)',
+                      backgroundColor: activeDefectId === defect.id ? 'var(--bg-secondary)' : 'var(--bg-primary)',
+                      boxShadow: activeDefectId === defect.id ? '0 4px 15px rgba(99, 102, 241, 0.15)' : 'none',
+                      transform: activeDefectId === defect.id ? 'scale(1.02)' : 'scale(1)',
+                      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', alignItems: 'center' }}>
+                      <span style={{ 
+                        fontSize: '0.75rem', 
+                        fontWeight: 800, 
+                        padding: '0.2rem 0.6rem', 
+                        borderRadius: '1rem',
+                        backgroundColor: defect.severity === 'CRITICAL' ? 'rgba(239, 68, 68, 0.1)' : defect.severity === 'MAJOR' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(234, 179, 8, 0.1)',
+                        color: defect.severity === 'CRITICAL' ? '#ef4444' : defect.severity === 'MAJOR' ? '#f59e0b' : '#eab308',
+                        border: `1px solid ${defect.severity === 'CRITICAL' ? 'rgba(239, 68, 68, 0.2)' : defect.severity === 'MAJOR' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(234, 179, 8, 0.2)'}`
+                      }}>
+                        {defect.severity}
+                      </span>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, background: 'var(--bg-tertiary)', padding: '0.1rem 0.5rem', borderRadius: '4px' }}>
+                        {formatTimeForDisplay(defect.timestampOffset)}
+                      </span>
+                    </div>
+                    <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: '0.4rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <AlertCircle size={16} style={{ color: defect.severity === 'CRITICAL' ? '#ef4444' : defect.severity === 'MAJOR' ? '#f59e0b' : '#eab308' }} />
+                      {defect.category}
+                    </div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>{defect.description}</div>
+                  </div>
+                )) : (
+                  <div style={{ color: 'var(--text-muted)', textAlign: 'center', marginTop: '2rem' }}>발견된 결함이 없습니다.</div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {UIUXTestStatus === 'success' && reportData && (
+            <div className="card" style={{ padding: '0', display: 'flex', flexDirection: 'column' }}>
+              <div 
+                style={{ padding: '1.25rem 1.5rem', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--bg-tertiary)', borderBottom: showHeuristics ? '1px solid var(--border)' : 'none' }}
+                onClick={() => setShowHeuristics(!showHeuristics)}
+              >
+                <h3 style={{ margin: 0, fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <FileText size={18} style={{ color: 'var(--accent)' }}/> 닐슨 10대 휴리스틱 상세 보고서
+                </h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>자세히 보기</span>
+                  {showHeuristics ? <ChevronUp /> : <ChevronDown />}
+                </div>
+              </div>
+              {showHeuristics && (
+                <div style={{ padding: '1.5rem', backgroundColor: 'var(--bg-primary)' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem' }}>
+                    {reportData.report?.split('\n')
+                      .filter(line => line.trim().startsWith('- ') && !line.includes('종합 사용성 점수') && !line.includes('특이사항 없음'))
+                      .map((item, idx) => {
+                        const content = item.replace(/^- /, '').trim();
+                        if (!content) return null;
+                        return (
+                          <div key={idx} style={{ 
+                            padding: '1.25rem', 
+                            backgroundColor: 'var(--bg-secondary)', 
+                            borderRadius: '0.75rem', 
+                            border: '1px solid var(--border)',
+                            display: 'flex',
+                            gap: '1rem',
+                            alignItems: 'flex-start'
+                          }}>
+                            <div style={{ padding: '0.5rem', backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: '0.5rem', color: 'var(--accent)' }}>
+                              <Layout size={20} />
+                            </div>
+                            <div style={{ flex: 1, fontSize: '0.9rem', color: 'var(--text-primary)', lineHeight: '1.5' }}>
+                              {content}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    {(!reportData.report || reportData.report.includes('특이사항 없음') || reportData.report.includes('평가 생성 중 오류')) && (
+                      <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', width: '100%', gridColumn: '1 / -1' }}>
+                        발견된 주요 사용성 위반 사항이 없거나 평가가 비활성화되었습니다.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

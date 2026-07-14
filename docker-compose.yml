@@ -20,6 +20,11 @@ services:
 
   frontend:
     container_name: flowcheck-frontend
+    build:
+      context: ./frontend
+      args:
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
     image: ${DOCKER_USERNAME}/${FRONTEND_IMAGE:-flowcheck-frontend}:latest
     restart: on-failure:3
     networks:
@@ -27,6 +32,8 @@ services:
 
   backend:
     container_name: flowcheck-backend
+    build:
+      context: ./backend
     image: ${DOCKER_USERNAME}/${BACKEND_IMAGE:-flowcheck-backend}:latest
     restart: on-failure:3
     env_file:
@@ -47,6 +54,8 @@ services:
 
   ai:
     container_name: flowcheck-ai
+    build:
+      context: ./ai
     image: ${DOCKER_USERNAME}/${AI_IMAGE:-flowcheck-ai}:latest
     restart: on-failure:3
     env_file:

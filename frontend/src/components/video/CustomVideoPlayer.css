@@ -1,0 +1,172 @@
+.custom-video-container {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  background-color: #000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  aspect-ratio: 16 / 9;
+}
+
+.custom-video-container.hide-cursor {
+  cursor: none;
+}
+
+.custom-video-element {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.video-controls-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0) 100%);
+  padding: 20px 15px 10px;
+  display: flex;
+  flex-direction: column;
+  transition: opacity 0.3s ease;
+  z-index: 10;
+}
+
+.video-controls-overlay.hide {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.video-controls-overlay.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.video-progress-container {
+  position: relative;
+  width: 100%;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+
+.video-progress-bar {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  transition: height 0.1s;
+}
+
+.video-progress-bar::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ff0000;
+  cursor: pointer;
+  transition: transform 0.1s;
+  box-shadow: 0 0 5px rgba(0,0,0,0.5);
+}
+
+.video-progress-container:hover .video-progress-bar {
+  height: 6px;
+}
+
+.video-progress-container:hover .video-progress-bar::-webkit-slider-thumb {
+  transform: scale(1.3);
+}
+
+.defect-marker {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid #fff;
+  z-index: 2;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.defect-marker:hover, .defect-marker.active {
+  transform: translate(-50%, -50%) scale(1.8);
+  box-shadow: 0 0 8px rgba(255,255,255,0.8);
+  z-index: 3;
+}
+
+.defect-marker-tooltip {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(20, 20, 20, 0.95);
+  backdrop-filter: blur(4px);
+  padding: 10px 12px;
+  border-radius: 6px;
+  min-width: 180px;
+  max-width: 250px;
+  color: white;
+  pointer-events: none;
+  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+}
+
+.tooltip-title {
+  font-weight: 700;
+  font-size: 0.85rem;
+  margin-bottom: 4px;
+}
+
+.tooltip-desc {
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.8);
+  line-height: 1.3;
+}
+
+.video-controls-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.video-controls-left, .video-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.control-btn {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  opacity: 0.9;
+  transition: opacity 0.2s, transform 0.1s;
+}
+
+.control-btn:hover {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.video-time {
+  color: white;
+  font-size: 0.85rem;
+  font-family: 'Inter', sans-serif;
+  margin-left: 5px;
+  opacity: 0.9;
+}

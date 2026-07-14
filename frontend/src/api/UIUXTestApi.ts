@@ -16,12 +16,32 @@ export interface UIUXTestStepData {
   error?: string;
 }
 
+export interface UIUXTestScores {
+  usability: number;
+  accessibility: number;
+  efficiency: number;
+  performance: number;
+}
+
+export interface UIUXTestDefect {
+  id?: number;
+  category: string;
+  selector: string;
+  severity: string;
+  description: string;
+  timestampOffset: number;
+}
+
 export interface UIUXTestStatusResponse {
   requestId: string;
   status: string;
   targetUrl: string;
   report?: string;
   steps: UIUXTestStepData[];
+  scores?: UIUXTestScores;
+  videoUrl?: string;
+  deviceInfo?: any;
+  defects?: UIUXTestDefect[];
 }
 
 /**

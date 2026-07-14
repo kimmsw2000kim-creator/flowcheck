@@ -29,6 +29,7 @@ public class UIUXTestService {
     private final CreditsLedgerRepository creditsLedgerRepository;
     private final TestRequestRepository testRequestRepository;
     private final UIUXTestReportRepository UIUXTestReportRepository;
+    private final UIUXTestDefectRepository uiuxTestDefectRepository;
     private final RestClient restClient;
     private final CouponUsageLogRepository couponUsageLogRepository;
     private final ObjectMapper objectMapper;
@@ -173,13 +174,47 @@ public class UIUXTestService {
 
         String reportMarkdown = "";
         List<Map<String, Object>> stepsList = new java.util.ArrayList<>();
+        String videoUrl = null;
+        Map<String, Object> deviceInfo = null;
+        UIUXTestStatusResponse.ScoresDto scores = null;
+        List<UIUXTestStatusResponse.DefectDto> defectDtos = new java.util.ArrayList<>();
+        
         var reportOpt = UIUXTestReportRepository.findByTestRequestId(requestId);
         if (reportOpt.isPresent()) {
-            reportMarkdown = reportOpt.get().getAiUxReview();
+            UIUXTestReport report = reportOpt.get();
+            reportMarkdown = report.getUiuxTestReview() != null ? report.getUiuxTestReview() : "";
             try {
-                stepsList = objectMapper.readValue(reportOpt.get().getRawLogs(), new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
+                stepsList = objectMapper.readValue(report.getRawLogs(), new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
             } catch (Exception e) {
                 log.warn("테스트 상태 조회를 위한 rawLogs 파싱 실패", e);
+            }
+            videoUrl = report.getVideoUrl();
+            try {
+                if (report.getDeviceInfo() != null) {
+                    deviceInfo = objectMapper.readValue(report.getDeviceInfo(), new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+                }
+            } catch (Exception e) {
+                log.warn("deviceInfo 파싱 실패", e);
+            }
+            if (report.getScoreUsability() != null) {
+                scores = UIUXTestStatusResponse.ScoresDto.builder()
+                        .usability(report.getScoreUsability())
+                        .accessibility(report.getScoreAccessibility())
+                        .efficiency(report.getScoreEfficiency())
+                        .performance(report.getScorePerformance())
+                        .build();
+            }
+            
+            List<UIUXTestDefect> defects = uiuxTestDefectRepository.findByTestRequestId(requestId);
+            for (UIUXTestDefect defect : defects) {
+                defectDtos.add(UIUXTestStatusResponse.DefectDto.builder()
+                        .id(defect.getId())
+                        .category(defect.getCategory())
+                        .selector(defect.getSelector())
+                        .severity(defect.getSeverity())
+                        .description(defect.getDescription())
+                        .timestampOffset(defect.getTimestampOffset())
+                        .build());
             }
         }
 
@@ -189,6 +224,10 @@ public class UIUXTestService {
                 .targetUrl(testRequest.getTargetUrl())
                 .report(reportMarkdown)
                 .steps(stepsList)
+                .scores(scores)
+                .videoUrl(videoUrl)
+                .deviceInfo(deviceInfo)
+                .defects(defectDtos)
                 .build();
     }
 
@@ -203,39 +242,56 @@ public class UIUXTestService {
         }
 
         var reportOpt = UIUXTestReportRepository.findByTestRequestId(requestId);
-        UIUXTestReport report;
-        if (reportOpt.isPresent()) {
-            report = reportOpt.get();
-        } else {
-            report = UIUXTestReport.builder()
-                    .testRequest(testRequest)
-                    .totalSteps(0)
-                    .defectCount(0)
-                    .executionTime(0)
-                    .rawLogs("[]")
-                    .aiUxReview("")
-                    .build();
+        UIUXTestReport report = reportOpt.orElseGet(() -> UIUXTestReport.builder()
+                .testRequest(testRequest)
+                .rawLogs("[]")
+                .uiuxTestReview("")
+                .build());
+
+        report.setVideoUrl(request.getVideoUrl());
+        if (request.getUiuxTestReview() != null) {
+            report.setUiuxTestReview(request.getUiuxTestReview());
+        }
+        
+        if (request.getScores() != null) {
+            report.setScoreUsability(request.getScores().getUsability());
+            report.setScoreAccessibility(request.getScores().getAccessibility());
+            report.setScoreEfficiency(request.getScores().getEfficiency());
+            report.setScorePerformance(request.getScores().getPerformance());
         }
 
-        UIUXTestReport finalReport = UIUXTestReport.builder()
-                .id(report.getId())
-                .testRequest(testRequest)
-                .totalSteps(report.getTotalSteps())
-                .defectCount(report.getDefectCount())
-                .executionTime(report.getExecutionTime())
-                .rawLogs(report.getRawLogs())
-                .aiUxReview(request.getReportMarkdown() != null ? request.getReportMarkdown() : "")
-                .build();
-        UIUXTestReportRepository.save(finalReport);
+        if (request.getDeviceInfo() != null) {
+            try {
+                report.setDeviceInfo(objectMapper.writeValueAsString(request.getDeviceInfo()));
+            } catch (Exception e) {
+                log.warn("deviceInfo 저장 실패", e);
+            }
+        }
 
-        // 핵심 로직: 테스트 완료 상태로 변경하고 최종 Markdown 리뷰 저장
+        UIUXTestReportRepository.save(report);
+
+        // Delete existing defects if any and save new ones
+        uiuxTestDefectRepository.deleteByTestRequestId(requestId);
+        if (request.getDefects() != null && !request.getDefects().isEmpty()) {
+            List<UIUXTestDefect> defectsToSave = request.getDefects().stream().map(dto -> UIUXTestDefect.builder()
+                    .testRequest(testRequest)
+                    .category(dto.getCategory())
+                    .selector(dto.getSelector())
+                    .severity(dto.getSeverity())
+                    .description(dto.getDescription())
+                    .timestampOffset(dto.getTimestampOffset())
+                    .build()).toList();
+            uiuxTestDefectRepository.saveAll(defectsToSave);
+        }
+
+        // 핵심 로직: 테스트 완료 상태로 변경
         if (!"FAILED".equals(testRequest.getTestStatus())) {
             testRequest.changeStatus("COMPLETED");
             testRequest.changePhase("FINISHED");
             testRequest.changeProgress(100);
         }
         testRequestRepository.save(testRequest);
-        log.info("요청 ID {}에 대한 최종 UI/UX 마크다운 리뷰 저장 및 요청 컨텍스트 완료됨", requestId);
+        log.info("요청 ID {}에 대한 최종 UI/UX 데이터 저장 및 요청 컨텍스트 완료됨", requestId);
     }
 
     @Transactional
@@ -246,11 +302,8 @@ public class UIUXTestService {
         UIUXTestReport report = UIUXTestReportRepository.findByTestRequestId(requestId).orElseGet(() ->
                 UIUXTestReportRepository.save(UIUXTestReport.builder()
                         .testRequest(testRequest)
-                        .totalSteps(0)
-                        .defectCount(0)
-                        .executionTime(0)
                         .rawLogs("[]")
-                        .aiUxReview("")
+                        .uiuxTestReview("")
                         .build())
         );
 
@@ -265,7 +318,6 @@ public class UIUXTestService {
 
         try {
             report.setRawLogs(objectMapper.writeValueAsString(logs));
-            report.setTotalSteps(logs.size());
         } catch (Exception e) {
             log.error("rawLogs 저장 실패", e);
         }
@@ -300,27 +352,15 @@ public class UIUXTestService {
         } else {
             report = UIUXTestReport.builder()
                     .testRequest(testRequest)
-                    .totalSteps(0)
-                    .defectCount(0)
-                    .executionTime(0)
                     .rawLogs("[]")
-                    .aiUxReview("")
                     .build();
         }
 
-        String summaryError = report.getAiUxReview();
-        if (summaryError == null || summaryError.trim().isEmpty()) {
-            summaryError = "# UI Test Audit Report - FAILED\n\n**Reason:** " + reason;
-        }
-
+        // Failure case can optionally create a defect or just log
         UIUXTestReport failedReport = UIUXTestReport.builder()
                 .id(report.getId())
                 .testRequest(testRequest)
-                .totalSteps(report.getTotalSteps())
-                .defectCount(report.getDefectCount())
-                .executionTime(report.getExecutionTime())
                 .rawLogs(report.getRawLogs())
-                .aiUxReview(summaryError)
                 .build();
         UIUXTestReportRepository.save(failedReport);
         log.info("UI 컨텍스트 요청 {}을(를) FAILED로 표시했습니다. 사유: {}", requestId, reason);
