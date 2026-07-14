@@ -3,6 +3,8 @@ import { EventStreamContentType, fetchEventSource } from '@microsoft/fetch-event
 import { TrendingUp, RefreshCw } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import axios from 'axios';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import Button from '../components/common/Button';
 import EmptyState from '../components/common/EmptyState';
 import apiClient from '../api/client';
@@ -24,6 +26,13 @@ interface LoadMetrics {
   maxTps: number;
   avgResponse: number;
   errorRate: number;
+  performanceScore: number;
+  performanceGrade: string;
+  scoreLabel: string;
+  scoreBreakdown: {
+    reliabilityScore: number;
+    latencyScore: number;
+  };
   bottleneckComment: string;
 }
 
@@ -36,6 +45,13 @@ interface LoadTestStreamPayload {
     maxTps: number;
     avgResponse: number;
     errorRate: number;
+    performanceScore: number;
+    performanceGrade: string;
+    scoreLabel: string;
+    scoreBreakdown: {
+      reliabilityScore: number;
+      latencyScore: number;
+    };
     bottleneckComment: string;
     points: LoadChartDataPoint[];
   };
@@ -237,6 +253,10 @@ export default function LoadPage({
                     maxTps: testResults.maxTps,
                     avgResponse: testResults.avgResponse,
                     errorRate: testResults.errorRate,
+                    performanceScore: testResults.performanceScore,
+                    performanceGrade: testResults.performanceGrade,
+                    scoreLabel: testResults.scoreLabel,
+                    scoreBreakdown: testResults.scoreBreakdown,
                     bottleneckComment: testResults.bottleneckComment
                   });
                   setLoadChartData(testResults.points);
@@ -471,25 +491,12 @@ export default function LoadPage({
 
             {loadStatus === 'success' && loadMetrics && (
               <div>
-                <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
-                  <div className="card" style={{ padding: '1rem', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>최대 초당 처리량 (Max TPS)</div>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--success)' }}>{loadMetrics.maxTps.toFixed(1)} req/s</div>
-                  </div>
-                  <div className="card" style={{ padding: '1rem', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>평균 응답 속도</div>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{loadMetrics.avgResponse.toFixed(0)} ms</div>
-                  </div>
-                  <div className="card" style={{ padding: '1rem', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>에러율</div>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 700, color: loadMetrics.errorRate > 0 ? 'var(--error)' : 'var(--success)' }}>
-                      {loadMetrics.errorRate.toFixed(1)}%
-                    </div>
-                  </div>
+                <div className={`report-markdown load-report-markdown grade-${loadMetrics.performanceGrade?.toLowerCase() ?? 'unknown'}`}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{loadMetrics.bottleneckComment}</ReactMarkdown>
                 </div>
 
                 {/* Line Chart */}
-                <div style={{ height: '300px', width: '100%', marginBottom: '2rem' }}>
+                <div style={{ height: '300px', width: '100%', marginTop: '2rem' }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={loadChartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -502,10 +509,6 @@ export default function LoadPage({
                       <Line yAxisId="right" type="monotone" dataKey="tps" name="초당 처리량 (TPS)" stroke="var(--success)" />
                     </LineChart>
                   </ResponsiveContainer>
-                </div>
-
-                <div className="markdown-body" style={{ background: 'var(--bg-tertiary)', padding: '1.5rem', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
-                  <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{loadMetrics.bottleneckComment}</pre>
                 </div>
               </div>
             )}

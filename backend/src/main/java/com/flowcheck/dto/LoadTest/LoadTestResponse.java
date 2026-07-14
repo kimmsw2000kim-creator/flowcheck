@@ -23,9 +23,20 @@ public class LoadTestResponse {
         private Integer maxTps;
         private Double avgResponse;
         private Double errorRate;
+        private Integer performanceScore;
+        private String performanceGrade;
+        private String scoreLabel;
+        private ScoreBreakdown scoreBreakdown;
         @JsonAlias("bottleneck_comment")
         private String bottleneckComment;
         private List<ChartPoint> points;
+    }
+
+    @Getter
+    @Builder
+    public static class ScoreBreakdown {
+        private Integer reliabilityScore;
+        private Integer latencyScore;
     }
 
     @Getter
