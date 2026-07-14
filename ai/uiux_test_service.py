@@ -66,15 +66,20 @@ def run_local_docker_task(request_id: str, target_url: str):
     print(f"[LOCAL DOCKER] Triggering UI Agent for requestId: {request_id}, targetUrl: {target_url}")
     try:
         env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
+        ai_dir = os.path.abspath(os.path.dirname(__file__))
+        container_backend_url = BACKEND_URL.replace("localhost", "host.docker.internal").replace("127.0.0.1", "host.docker.internal")
+        vnc_url = "http://127.0.0.1:6080/vnc.html?autoconnect=true&resize=scale"
         
         # 6080 포트는 호스트의 비어있는 포트로 매핑하거나, 고정 6080 사용 (로컬 테스트용이므로 하나만 돈다고 가정)
         cmd = [
             "docker", "run", "-d", "--rm",
-            "-v", f"{os.getcwd()}:/app",
+            "-v", f"{ai_dir}:/app",
             "-p", "6080:6080",
             "--env-file", env_path,
             "-e", f"REQUEST_ID={request_id}",
             "-e", f"TARGET_URL={target_url}",
+            "-e", f"BACKEND_URL={container_backend_url}",
+            "-e", f"VNC_URL={vnc_url}",
             "-e", "PLAYWRIGHT_HEADLESS=false",
             "flowcheck-ai",
             "python", "run_playwright_job.py"
@@ -84,7 +89,6 @@ def run_local_docker_task(request_id: str, target_url: str):
         print("Local Docker container started successfully.")
         
         # 로컬 환경이므로 Public IP 대신 localhost 사용
-        vnc_url = "http://127.0.0.1:6080/vnc.html?autoconnect=true&resize=scale"
         report_step(request_id, 0, target_url, "STARTING_VNC", reason="로컬 도커 브라우저 할당 완료 및 VNC 접속 대기 중", vnc_url=vnc_url)
         
     except Exception as e:

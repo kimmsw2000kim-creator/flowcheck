@@ -244,6 +244,10 @@ public class UIUXTestService {
         var reportOpt = UIUXTestReportRepository.findByTestRequestId(requestId);
         UIUXTestReport report = reportOpt.orElseGet(() -> UIUXTestReport.builder()
                 .testRequest(testRequest)
+                .scoreUsability(0)
+                .scoreAccessibility(0)
+                .scoreEfficiency(0)
+                .scorePerformance(0)
                 .rawLogs("[]")
                 .uiuxTestReview("")
                 .build());
@@ -265,6 +269,32 @@ public class UIUXTestService {
                 report.setDeviceInfo(objectMapper.writeValueAsString(request.getDeviceInfo()));
             } catch (Exception e) {
                 log.warn("deviceInfo 저장 실패", e);
+            }
+        }
+
+        if (request.getSteps() != null && !request.getSteps().isEmpty()) {
+            try {
+                List<Map<String, Object>> logs = new java.util.ArrayList<>();
+                if (report.getRawLogs() != null && !report.getRawLogs().isBlank()) {
+                    logs = objectMapper.readValue(report.getRawLogs(), new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
+                }
+
+                java.util.Set<String> existingStepKeys = new java.util.HashSet<>();
+                for (Map<String, Object> logEntry : logs) {
+                    existingStepKeys.add(stepKey(logEntry));
+                }
+
+                for (Map<String, Object> submittedStep : request.getSteps()) {
+                    String key = stepKey(submittedStep);
+                    if (!existingStepKeys.contains(key)) {
+                        logs.add(submittedStep);
+                        existingStepKeys.add(key);
+                    }
+                }
+
+                report.setRawLogs(objectMapper.writeValueAsString(logs));
+            } catch (Exception e) {
+                log.warn("리포트에 포함된 steps를 rawLogs에 병합하지 못했습니다.", e);
             }
         }
 
@@ -302,6 +332,10 @@ public class UIUXTestService {
         UIUXTestReport report = UIUXTestReportRepository.findByTestRequestId(requestId).orElseGet(() ->
                 UIUXTestReportRepository.save(UIUXTestReport.builder()
                         .testRequest(testRequest)
+                        .scoreUsability(0)
+                        .scoreAccessibility(0)
+                        .scoreEfficiency(0)
+                        .scorePerformance(0)
                         .rawLogs("[]")
                         .uiuxTestReview("")
                         .build())
@@ -352,7 +386,12 @@ public class UIUXTestService {
         } else {
             report = UIUXTestReport.builder()
                     .testRequest(testRequest)
+                    .scoreUsability(0)
+                    .scoreAccessibility(0)
+                    .scoreEfficiency(0)
+                    .scorePerformance(0)
                     .rawLogs("[]")
+                    .uiuxTestReview("")
                     .build();
         }
 
@@ -360,10 +399,19 @@ public class UIUXTestService {
         UIUXTestReport failedReport = UIUXTestReport.builder()
                 .id(report.getId())
                 .testRequest(testRequest)
+                .scoreUsability(report.getScoreUsability() != null ? report.getScoreUsability() : 0)
+                .scoreAccessibility(report.getScoreAccessibility() != null ? report.getScoreAccessibility() : 0)
+                .scoreEfficiency(report.getScoreEfficiency() != null ? report.getScoreEfficiency() : 0)
+                .scorePerformance(report.getScorePerformance() != null ? report.getScorePerformance() : 0)
                 .rawLogs(report.getRawLogs())
+                .uiuxTestReview(report.getUiuxTestReview() != null ? report.getUiuxTestReview() : "")
                 .build();
         UIUXTestReportRepository.save(failedReport);
         log.info("UI 컨텍스트 요청 {}을(를) FAILED로 표시했습니다. 사유: {}", requestId, reason);
+    }
+
+    private String stepKey(Map<String, Object> step) {
+        return String.valueOf(step.get("step")) + ":" + String.valueOf(step.get("action"));
     }
 
     private void deleteVideoFromSupabase(UUID requestId) {

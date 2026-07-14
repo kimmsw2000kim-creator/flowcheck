@@ -41,7 +41,7 @@ class UIUXTestReportData(BaseModel):
     video_url: Optional[str] = None
     defects: List[UIUXTestDefect]
 
-def report_step(request_id: str, step: int, url: str, action: str, selector: str = None, text: str = None, reason: str = None, error: str = None):
+def report_step(request_id: str, step: int, url: str, action: str, selector: str = None, text: str = None, reason: str = None, error: str = None, vnc_url: str = None):
     payload = {
         "step": step,
         "url": url,
@@ -51,10 +51,13 @@ def report_step(request_id: str, step: int, url: str, action: str, selector: str
         "reason": reason,
         "error": error
     }
+    if vnc_url:
+        payload["vncUrl"] = vnc_url
     try:
         url_dest = f"{BACKEND_URL}/api/uiux-tests/{request_id}/steps"
         print(f"Reporting step {step} to backend: {url_dest}")
         r = httpx.post(url_dest, json=payload, timeout=5.0)
+        r.raise_for_status()
     except Exception as e:
         print(f"Failed to send step: {e}")
 
@@ -147,6 +150,9 @@ def main():
         sys.exit(1)
 
     print(f"Starting UI Agent via Fargate Script for requestId: {request_id}, targetUrl: {target_url}")
+    vnc_url = os.getenv("VNC_URL")
+    if vnc_url:
+        report_step(request_id, 0, target_url, "STARTING_VNC", reason="브라우저 컨테이너가 시작되어 VNC 스트림을 준비합니다.", vnc_url=vnc_url)
     api_key = os.getenv("GEMINI_API_KEY")
     has_api_key = True
     if not api_key:
@@ -159,6 +165,8 @@ def main():
         client = genai.Client(api_key=api_key, http_options={'httpx_client': custom_client})
         
     steps_history = []
+    if vnc_url:
+        steps_history.append({"step": 0, "url": target_url, "action": "STARTING_VNC", "reason": "브라우저 컨테이너가 시작되어 VNC 스트림을 준비합니다.", "vncUrl": vnc_url})
     failed_selectors = []
     is_simulated_mode = not has_api_key
     api_error = None
@@ -356,6 +364,7 @@ def main():
                 },
                 "videoUrl": public_url,
                 "uiuxTestReview": final_evaluation_md,
+                "steps": steps_history,
                 "defects": [{
                     "category": d.category,
                     "selector": d.selector,

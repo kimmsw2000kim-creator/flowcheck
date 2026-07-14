@@ -1,5 +1,4 @@
 import React, { useRef, useState, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { Play, Pause, Volume2, VolumeX, Maximize } from 'lucide-react';
 import { UIUXTestDefect } from '../../api/UIUXTestApi';
 import './CustomVideoPlayer.css';
 
@@ -39,7 +38,7 @@ const CustomVideoPlayer = forwardRef<CustomVideoPlayerRef, CustomVideoPlayerProp
     }
   }));
 
-  const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -191,10 +190,10 @@ const CustomVideoPlayer = forwardRef<CustomVideoPlayerRef, CustomVideoPlayerProp
         <div className="video-controls-row">
           <div className="video-controls-left">
             <button className="control-btn" onClick={togglePlay}>
-              {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}
+              {isPlaying ? '일시정지' : '재생'}
             </button>
             <button className="control-btn" onClick={toggleMute}>
-              {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+              {isMuted ? '음소거 해제' : '음소거'}
             </button>
             <div className="video-time">
               {formatTime(currentTime)} / {formatTime(duration)}
@@ -202,7 +201,7 @@ const CustomVideoPlayer = forwardRef<CustomVideoPlayerRef, CustomVideoPlayerProp
           </div>
           <div className="video-controls-right">
             <button className="control-btn" onClick={toggleFullscreen}>
-              <Maximize size={20} />
+              전체화면
             </button>
           </div>
         </div>

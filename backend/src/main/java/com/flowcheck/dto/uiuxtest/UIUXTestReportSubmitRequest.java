@@ -16,6 +16,8 @@ public class UIUXTestReportSubmitRequest {
     @com.fasterxml.jackson.annotation.JsonProperty("uiuxTestReview")
     private String uiuxTestReview;
     
+    private java.util.List<java.util.Map<String, Object>> steps;
+
     private java.util.List<DefectDto> defects;
 
     @Getter
