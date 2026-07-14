@@ -1,16 +1,12 @@
 import React from 'react';
-import { CheckCircle, RefreshCw, Trash2 } from 'lucide-react';
-import { Domain } from '../types/domain';
+import { CheckCircle, Trash2 } from 'lucide-react';
 import Button from '../components/common/Button';
 import TextField from '../components/common/TextField';
 import StatusBadge from '../components/common/StatusBadge';
 
 import { useDomains } from '../hooks/useDomains';
 
-interface DomainsPageProps {
-}
-
-export default function DomainsPage({}: DomainsPageProps) {
+export default function DomainsPage() {
   const {
     domains,
     newDomainUrl,

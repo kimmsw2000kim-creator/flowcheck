@@ -1,15 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { fetchAdminUsers, changeUserRole, suspendUser, activateUser, AdminUser, withdrawUser } from '../../api/adminApi';
 
-interface UserManagementTabProps {
-    currentUser: {
-        role: string;
-        id: string;
-        email: string;
-    };
-}
-
-export default function UserManagementTab({ currentUser }: UserManagementTabProps) {
+export default function UserManagementTab() {
     const [users, setUsers] = useState<AdminUser[]>([]);
     useEffect(() => {
         fetchAdminUsers().then(setUsers);

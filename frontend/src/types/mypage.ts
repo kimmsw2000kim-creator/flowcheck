@@ -8,6 +8,8 @@ export interface SiteSummary {
 
 export interface MypageData {
   email: string;
+  role?: string;
+  status?: string;
   balance: number;
   couponCount: number;
   loadTestCouponCount: number;
@@ -33,15 +35,14 @@ export interface MypageTestHistoryItem {
 export interface MypagePointHistoryItem {
   ledgerId: number;
   amount: number;
-  transactionType : string;
+  transactionType: string;
   description: string;
   createdAt: string;
 }
 
 export interface MypageCouponHistoryItem {
-    logId: number;
-    couponType: string;
-    description: string;
-    usedAt: string;
+  logId: number;
+  couponType: string;
+  description: string;
+  usedAt: string;
 }
-
