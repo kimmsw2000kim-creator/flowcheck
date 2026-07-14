@@ -35,14 +35,14 @@ export interface MypageTestHistoryItem {
 export interface MypagePointHistoryItem {
   ledgerId: number;
   amount: number;
-  transactionType : string;
+  transactionType: string;
   description: string;
   createdAt: string;
 }
 
 export interface MypageCouponHistoryItem {
-    logId: number;
-    couponType: string;
-    description: string;
-    usedAt: string;
+  logId: number;
+  couponType: string;
+  description: string;
+  usedAt: string;
 }
