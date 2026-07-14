@@ -1,4 +1,5 @@
-import { CreditCard, RefreshCw, ShieldCheck } from 'lucide-react';
+import { CreditCard, ShieldCheck } from 'lucide-react';
+import Button from '../common/Button';
 import type { CreditProduct } from '../../types/payment';
 
 interface TossPaymentPanelProps {
@@ -87,18 +88,18 @@ export default function TossPaymentPanel({
           <div id="agreement" style={{ backgroundColor: 'var(--bg-tertiary)', padding: '0.75rem', borderRadius: '0.5rem', marginBottom: '1.5rem' }} />
 
           <div style={{ display: 'flex', gap: '0.75rem' }}>
-            <button
+            <Button
               onClick={() => void onRequestPayment()}
-              className="btn btn-primary"
+              variant="primary"
+              isLoading={!widgetReady}
+              loadingText={`${product.price.toLocaleString()}원 결제하기`}
               style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.85rem', fontSize: '1rem' }}
-              disabled={!widgetReady}
             >
-              {!widgetReady && <RefreshCw className="animate-spin" size={16} />}
               <span>{product.price.toLocaleString()}원 결제하기</span>
-            </button>
-            <button onClick={onCancel} className="btn btn-secondary" style={{ flex: 0.3 }}>
+            </Button>
+            <Button onClick={onCancel} variant="secondary" style={{ flex: 0.3 }}>
               취소
-            </button>
+            </Button>
           </div>
         </div>
 

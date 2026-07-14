@@ -1,4 +1,5 @@
 import { Gift } from 'lucide-react';
+import Button from '../common/Button';
 import type { CouponType } from '../../types/payment';
 
 interface CouponPackageSectionProps {
@@ -18,9 +19,9 @@ function CouponCard({ title, price, count, couponType, onBuyCoupons }: CouponCar
     <div className="card" style={{ background: 'var(--bg-tertiary)', textAlign: 'center', border: '1px dashed var(--border)', borderRadius: '0.75rem', padding: '1.25rem' }}>
       <div style={{ fontWeight: 800, fontSize: '1.05rem', marginBottom: '0.25rem', color: 'var(--text-primary)' }}>{title}</div>
       <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '1.25rem' }}>가격: {price} 크레딧</div>
-      <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => void onBuyCoupons(count, couponType)}>
+      <Button style={{ width: '100%' }} onClick={() => void onBuyCoupons(count, couponType)}>
         구매하기
-      </button>
+      </Button>
     </div>
   );
 }
