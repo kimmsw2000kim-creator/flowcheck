@@ -6,11 +6,11 @@ import { buyPaymentCoupons, confirmPayment, initiatePayment } from '../api/payme
 import { fetchMypage } from '../api/mypageApi';
 import { supabase } from '../lib/supabaseClient';
 import { useAlertStore } from '../store/alertStore';
+import { useLedgerStore } from '../store/ledgerStore';
 import { useUserStore } from '../store/userStore';
 import type {
   CouponType,
   CreditProduct,
-  LedgerItem,
   PaymentInitiateResponse,
   VirtualAccountDetails,
 } from '../types/payment';
@@ -48,24 +48,11 @@ const creditProducts: CreditProduct[] = [
   },
 ];
 
-interface UsePaymentOptions {
-  ledgerCount: number;
-  onAddLedger: (ledgerItem: LedgerItem) => void;
-}
-
 function getErrorMessage(error: unknown): string {
   if (axios.isAxiosError<{ message?: string }>(error)) {
     return error.response?.data?.message || error.message;
   }
   return error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.';
-}
-
-function getCreditsForAmount(amount: number): number {
-  return creditProducts.find((product) => product.price === amount)?.credits ?? amount;
-}
-
-function createLedgerTimestamp(): string {
-  return new Date().toISOString().replace('T', ' ').substring(0, 16);
 }
 
 function clearWidgetContainers(): void {
@@ -75,9 +62,10 @@ function clearWidgetContainers(): void {
   if (agreementElement) agreementElement.innerHTML = '';
 }
 
-export function usePayment({ ledgerCount, onAddLedger }: UsePaymentOptions) {
+export function usePayment() {
   const currentUser = useUserStore((state) => state.currentUser);
   const updateUser = useUserStore((state) => state.updateUserBalanceAndCoupons);
+  const refreshServerEntries = useLedgerStore((state) => state.refreshServerEntries);
   const showAlert = useAlertStore((state) => state.showAlert);
 
   const [selectedProduct, setSelectedProduct] = useState<CreditProduct | null>(null);
@@ -90,16 +78,12 @@ export function usePayment({ ledgerCount, onAddLedger }: UsePaymentOptions) {
   const confirmationKeyRef = useRef<string | null>(null);
   const initiationSequenceRef = useRef(0);
 
-  const addLedgerEntry = useCallback((entry: Omit<LedgerItem, 'id' | 'createdAt'>) => {
-    onAddLedger({
-      ...entry,
-      id: ledgerCount + 1,
-      createdAt: createLedgerTimestamp(),
-    });
-  }, [ledgerCount, onAddLedger]);
-
   const syncCurrentUser = useCallback(async () => {
+    const expectedUserId = useUserStore.getState().currentUser.id;
     const profile = await fetchMypage();
+    if (useUserStore.getState().currentUser.id !== expectedUserId) {
+      throw new Error('사용자 세션이 변경되어 프로필 응답을 무시했습니다.');
+    }
     updateUser({
       balance: profile.balance,
       coupons: profile.couponCount,
@@ -107,6 +91,17 @@ export function usePayment({ ledgerCount, onAddLedger }: UsePaymentOptions) {
       UIUXTestCoupons: profile.UIUXTestCouponCount,
     });
   }, [updateUser]);
+
+  const syncFinancialState = useCallback(async () => {
+    const results = await Promise.allSettled([
+      syncCurrentUser(),
+      refreshServerEntries(),
+    ]);
+    const failedResult = results.find((result) => result.status === 'rejected');
+    if (failedResult?.status === 'rejected') {
+      throw failedResult.reason;
+    }
+  }, [refreshServerEntries, syncCurrentUser]);
 
   useEffect(() => {
     const queryParams = new URLSearchParams(window.location.search);
@@ -150,23 +145,12 @@ export function usePayment({ ledgerCount, onAddLedger }: UsePaymentOptions) {
         const response = await confirmPayment({ paymentKey, orderId, amount });
 
         if (response.status === 'DONE') {
-          const creditsAwarded = getCreditsForAmount(amount);
           try {
-            await syncCurrentUser();
-            addLedgerEntry({
-              amount: creditsAwarded,
-              type: 'CHARGE',
-              description: `토스페이먼츠 결제 완료 - 주문번호: ${orderId}`,
-            });
+            await syncFinancialState();
             showAlert('결제가 성공적으로 완료되었습니다! 크레딧이 충전되었습니다.', 'success');
           } catch (error) {
-            console.error('Failed to sync updated balance:', error);
-            const latestUser = useUserStore.getState().currentUser;
-            updateUser({
-              balance: latestUser.balance + creditsAwarded,
-              coupons: latestUser.coupons,
-            });
-            showAlert('결제가 완료되었습니다! (잔액 동기화 실패, 새로고침 필요)', 'warning');
+            console.error('Failed to sync payment state:', error);
+            showAlert('결제가 완료되었습니다! (정보 동기화 실패, 새로고침 필요)', 'warning');
           }
           return;
         }
@@ -198,7 +182,7 @@ export function usePayment({ ledgerCount, onAddLedger }: UsePaymentOptions) {
     };
 
     void processConfirmation();
-  }, [addLedgerEntry, showAlert, syncCurrentUser, updateUser]);
+  }, [showAlert, syncFinancialState]);
 
   useEffect(() => {
     const sequence = ++initiationSequenceRef.current;
@@ -352,34 +336,17 @@ export function usePayment({ ledgerCount, onAddLedger }: UsePaymentOptions) {
     try {
       await buyPaymentCoupons(count, couponType);
       try {
-        await syncCurrentUser();
+        await syncFinancialState();
+        showAlert(`테스트 쿠폰 ${count}회권을 성공적으로 구매하였습니다!`);
       } catch (error) {
-        console.error('Failed to sync balance after coupon buy:', error);
-        const latestUser = useUserStore.getState().currentUser;
-        updateUser({
-          balance: latestUser.balance - cost,
-          coupons: latestUser.coupons + count,
-        });
-        addLedgerEntry({
-          amount: -cost,
-          type: 'COUPON_BUY',
-          description: `선결제 테스트 쿠폰 구매: ${count}회권 (${couponType === 'LOAD_TEST' ? '부하' : 'UI'})`,
-        });
-        showAlert(`테스트 쿠폰 ${count}회권을 성공적으로 구매하였습니다! (잔액 동기화 실패)`, 'warning');
-        return;
+        console.error('Failed to sync payment state after coupon buy:', error);
+        showAlert(`테스트 쿠폰 ${count}회권 구매가 완료되었습니다. (정보 동기화 실패, 새로고침 필요)`, 'warning');
       }
-
-      addLedgerEntry({
-        amount: -cost,
-        type: 'COUPON_BUY',
-        description: `선결제 테스트 쿠폰 구매: ${count}회권 (${couponType === 'LOAD_TEST' ? '부하' : 'UI'})`,
-      });
-      showAlert(`테스트 쿠폰 ${count}회권을 성공적으로 구매하였습니다!`);
     } catch (error) {
       console.error('Coupon purchase failed:', error);
       showAlert(`쿠폰 구매 처리에 실패했습니다: ${getErrorMessage(error)}`, 'error');
     }
-  }, [addLedgerEntry, showAlert, syncCurrentUser, updateUser]);
+  }, [showAlert, syncFinancialState]);
 
   return {
     currentUser,

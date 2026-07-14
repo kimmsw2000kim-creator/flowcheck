@@ -1,6 +1,8 @@
 import apiClient from './client';
+import type { AxiosRequestConfig } from 'axios';
 import type {
   CouponType,
+  LedgerItem,
   PaymentConfirmResponse,
   PaymentInitiateResponse,
 } from '../types/payment';
@@ -38,4 +40,11 @@ export async function buyPaymentCoupons(
   couponType: CouponType,
 ): Promise<void> {
   await apiClient.post('/api/payment/buy-coupons', { count, couponType });
+}
+
+export async function fetchCreditsLedger(
+  config?: AxiosRequestConfig,
+): Promise<LedgerItem[]> {
+  const response = await apiClient.get<LedgerItem[]>('/api/payment/ledger', config);
+  return response.data;
 }

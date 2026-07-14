@@ -1,9 +1,5 @@
 import { History } from 'lucide-react';
-import type { LedgerItem } from '../../types/payment';
-
-interface LedgerHistoryTableProps {
-  ledger: LedgerItem[];
-}
+import { useLedgerStore } from '../../store/ledgerStore';
 
 function getLedgerTypeLabel(type: string): string {
   if (type === 'CHARGE') return '크레딧 충전';
@@ -13,7 +9,9 @@ function getLedgerTypeLabel(type: string): string {
   return type;
 }
 
-export default function LedgerHistoryTable({ ledger }: LedgerHistoryTableProps) {
+export default function LedgerHistoryTable() {
+  const ledger = useLedgerStore((state) => state.entries);
+
   return (
     <div className="card" style={{ borderRadius: '1rem', padding: '1.75rem', backgroundColor: 'var(--bg-secondary)', boxShadow: 'var(--card-shadow)' }}>
       <h3 style={{ marginBottom: '1.25rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.15rem' }}>

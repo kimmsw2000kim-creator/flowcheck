@@ -6,14 +6,7 @@ import PaymentBalanceHeader from '../components/payment/PaymentBalanceHeader';
 import TossPaymentPanel from '../components/payment/TossPaymentPanel';
 import VirtualAccountCard from '../components/payment/VirtualAccountCard';
 import { usePayment } from '../hooks/usePayment';
-import type { LedgerItem } from '../types/payment';
-
-interface PaymentPageProps {
-  ledger: LedgerItem[];
-  onAddLedger: (ledgerItem: LedgerItem) => void;
-}
-
-export default function PaymentPage({ ledger, onAddLedger }: PaymentPageProps) {
+export default function PaymentPage() {
   const {
     currentUser,
     products,
@@ -26,7 +19,7 @@ export default function PaymentPage({ ledger, onAddLedger }: PaymentPageProps) {
     cancelPayment,
     requestPayment,
     buyCoupons,
-  } = usePayment({ ledgerCount: ledger.length, onAddLedger });
+  } = usePayment();
 
   return (
     <div style={{ textAlign: 'left', maxWidth: '1200px', margin: '0 auto', padding: '1rem 0' }}>
@@ -71,7 +64,7 @@ export default function PaymentPage({ ledger, onAddLedger }: PaymentPageProps) {
           <CouponPackageSection onBuyCoupons={buyCoupons} />
         </div>
 
-        <LedgerHistoryTable ledger={ledger} />
+        <LedgerHistoryTable />
       </div>
     </div>
   );

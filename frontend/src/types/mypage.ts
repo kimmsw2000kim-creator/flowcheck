@@ -8,6 +8,8 @@ export interface SiteSummary {
 
 export interface MypageData {
   email: string;
+  role?: string;
+  status?: string;
   balance: number;
   couponCount: number;
   loadTestCouponCount: number;

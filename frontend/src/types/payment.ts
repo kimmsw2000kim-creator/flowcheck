@@ -4,6 +4,7 @@ export interface LedgerItem {
   type: string;
   description: string;
   createdAt: string;
+  source?: 'server' | 'optimistic';
 }
 
 export interface CreditProduct {

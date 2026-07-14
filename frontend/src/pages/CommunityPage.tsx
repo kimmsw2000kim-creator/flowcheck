@@ -16,7 +16,8 @@ import {
   getPosts,
   likePost,
 } from "../api/communityApi";
-import type { LedgerItem } from "../types/payment";
+import { useLedgerStore } from "../store/ledgerStore";
+import { useUserStore } from "../store/userStore";
 
 interface Post {
   id: number;
@@ -52,25 +53,23 @@ interface CommunityPageProps {
     balance: number;
     coupons: number;
   };
-  onUserUpdate: (updatedUser: {
-    balance: number;
-    coupons: number;
-  }) => void;
-  ledger: LedgerItem[];
-  onAddLedger: (ledgerItem: LedgerItem) => void;
   showAlert: (message: string, type?: string) => void;
   handleSubmitReport: (type: string, id: number) => void;
 }
 
 export default function CommunityPage({
   currentUser,
-  onUserUpdate,
-  ledger,
-  onAddLedger,
   showAlert,
   handleSubmitReport,
 }: CommunityPageProps) {
   const navigate = useNavigate();
+  const ledger = useLedgerStore((state) => state.entries);
+  const addOptimisticReward = useLedgerStore(
+    (state) => state.addOptimisticReward
+  );
+  const updateUser = useUserStore(
+    (state) => state.updateUserBalanceAndCoupons
+  );
   const [posts, setPosts] = useState<Post[]>([]);
   const [activePost, setActivePost] = useState<Post | { id: "new" } | null>(
     null
@@ -184,17 +183,15 @@ export default function CommunityPage({
       const duplicate = ledger.some((l) => l.type === "REWARD_POST");
 
       if (!duplicate) {
-        onUserUpdate({
+        updateUser({
           balance: currentUser.balance + 20000,
           coupons: currentUser.coupons,
         });
 
-        onAddLedger({
-          id: ledger.length + 1,
+        addOptimisticReward({
           amount: 20000,
           type: "REWARD_POST",
           description: "홍보 게시판 첫 글 등록 보상",
-          createdAt: new Date().toISOString().substring(0, 16),
         });
 
         showAlert(
@@ -364,17 +361,15 @@ export default function CommunityPage({
       );
 
       if (!duplicateCommentReward) {
-        onUserUpdate({
+        updateUser({
           balance: currentUser.balance + 5000,
           coupons: currentUser.coupons,
         });
 
-        onAddLedger({
-          id: ledger.length + 1,
+        addOptimisticReward({
           amount: 5000,
           type: "REWARD_COMMENT",
           description: `게시글: ${activePost.id} 첫 피드백 댓글 리워드`,
-          createdAt: new Date().toISOString().substring(0, 16),
         });
 
         showAlert(
