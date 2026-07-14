@@ -448,14 +448,22 @@ export default function UIUXTestPage({
 
               {showHeuristics && (
                 <div className="uiux-report-details">
-                  {reportData.report?.split('\n')
-                    .filter((line) => line.trim().startsWith('- '))
-                    .map((item, index) => {
-                      const content = item.replace(/^- /, '').trim();
-                      if (!content) return null;
-                      return <p key={index}>{content}</p>;
-                    })}
-                  {!reportData.report && <p>상세 보고서가 없습니다.</p>}
+                  {reportData.report?.trim() ? (
+                    reportData.report
+                      .split('\n')
+                      .map((line) => line.trim())
+                      .filter(Boolean)
+                      .map((line, index) => {
+                        const normalized = line
+                          .replace(/^#{1,6}\s*/, '')
+                          .replace(/^[-*]\s*/, '')
+                          .replace(/\*\*/g, '');
+
+                        return <p key={index}>{normalized}</p>;
+                      })
+                  ) : (
+                    <p>상세 보고서가 없습니다.</p>
+                  )}
                 </div>
               )}
             </div>
