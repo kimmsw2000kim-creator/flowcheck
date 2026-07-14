@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import Header from './components/Header';
 import Footer from './components/Footer';
@@ -29,14 +29,7 @@ import { useUserStore } from './store/userStore';
 import { useAlertStore } from './store/alertStore';
 import apiClient from './api/client';
 import { supabase } from './lib/supabaseClient';
-
-interface LedgerItem {
-  id: number;
-  amount: number;
-  type: string;
-  description: string;
-  createdAt: string;
-}
+import type { LedgerItem } from './types/payment';
 
 // 신고
 interface Report {
@@ -192,9 +185,9 @@ function App() {
 
   const [selectedUIUXTestDomain, setSelectedUIUXTestDomain] = useState<number>(1);
 
-  const handleAddLedger = (ledgerItem: LedgerItem) => {
+  const handleAddLedger = useCallback((ledgerItem: LedgerItem) => {
     setLedger(prev => [ledgerItem, ...prev]);
-  };
+  }, []);
 
   const handleUserUpdate = (updatedUser: {
     balance: number;

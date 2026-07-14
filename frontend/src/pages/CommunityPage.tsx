@@ -16,6 +16,7 @@ import {
   getPosts,
   likePost,
 } from "../api/communityApi";
+import type { LedgerItem } from "../types/payment";
 
 interface Post {
   id: number;
@@ -42,14 +43,6 @@ interface Comment {
   parentId: number | null;
   createdAt: string;
   replies?: Comment[];
-}
-
-interface LedgerItem {
-  id: number;
-  amount: number;
-  type: string;
-  description: string;
-  createdAt: string;
 }
 
 interface CommunityPageProps {
