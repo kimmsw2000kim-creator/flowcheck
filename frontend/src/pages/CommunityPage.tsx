@@ -3,10 +3,7 @@ import { AlertCircle, MessageCircle, Share2, ThumbsUp } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
   showConfirmAlert,
-  showErrorAlert,
-  showSuccessAlert,
   showWarningAlert,
-  showToast,
 } from "../utils/alert";
 import {
   createComment,

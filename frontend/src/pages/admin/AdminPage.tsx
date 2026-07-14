@@ -3,15 +3,7 @@ import UserManagementTab from './UserManagementTab';
 import InquiryManagementTab from './InquiryManagementTab';
 import StatsManagementTab from './StatsManagementTab';
 
-interface AdminPageProps {
-    currentUser: {
-        role: string;
-        id: string;
-        email: string;
-    };
-}
-
-export default function AdminPage({ currentUser }: AdminPageProps) {
+export default function AdminPage() {
     const [activeTab, setActiveTab] = useState<'users' | 'inquiries' | 'stats'>('users');
 
     return (
@@ -39,7 +31,7 @@ export default function AdminPage({ currentUser }: AdminPageProps) {
                 </button>
             </div>
 
-            {activeTab === 'users' && <UserManagementTab currentUser={currentUser} />}
+            {activeTab === 'users' && <UserManagementTab />}
             {activeTab === 'inquiries' && <InquiryManagementTab />}
             {activeTab === 'stats' && <StatsManagementTab />}
         </section>

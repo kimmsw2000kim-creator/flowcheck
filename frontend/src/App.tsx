@@ -88,7 +88,7 @@ function App() {
   const showAlert = useAlertStore((state) => state.showAlert);
 
   const [ledger, setLedger] = useState<LedgerItem[]>([]);
-  const [reports, setReports] = useState<Report[]>([]);
+  const [, setReports] = useState<Report[]>([]);
   const lastSessionTokenRef = useRef<string | null | undefined>(undefined);
 
   const isLoggedIn = authStatus === 'authenticated';
@@ -275,18 +275,13 @@ function App() {
                   <UIUXTestPage
                     selectedUIUXTestDomain={selectedUIUXTestDomain}
                     setSelectedUIUXTestDomain={setSelectedUIUXTestDomain}
-                    onAddLedger={handleAddLedger}
                   />
                 }
               />
 
               <Route
                 path="/load"
-                element={
-                  <LoadPage
-                    onAddLedger={handleAddLedger}
-                  />
-                }
+                element={<LoadPage />}
               />
 
               <Route
@@ -332,7 +327,7 @@ function App() {
               <Route
                 path="/admin"
                 element={
-                  <AdminPage currentUser={currentUser} />
+                  <AdminPage />
                 }
               />
 

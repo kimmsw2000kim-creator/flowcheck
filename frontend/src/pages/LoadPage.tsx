@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { EventStreamContentType, fetchEventSource } from '@microsoft/fetch-event-source';
-import { TrendingUp, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
@@ -9,12 +9,6 @@ import Button from '../components/common/Button';
 import EmptyState from '../components/common/EmptyState';
 import apiClient from '../api/client';
 import { getSupabaseAccessToken } from '../api/sessionApi';
-
-interface Domain {
-  id: number;
-  domainUrl: string;
-  verified: boolean;
-}
 
 interface LoadChartDataPoint {
   time: string;
@@ -90,15 +84,8 @@ import { useAlertStore } from '../store/alertStore';
 
 import { useDomains } from '../hooks/useDomains';
 
-interface LoadPageProps {
-  onAddLedger: (ledgerItem: any) => void;
-}
-
-export default function LoadPage({
-  onAddLedger
-}: LoadPageProps) {
+export default function LoadPage() {
   const currentUser = useUserStore((state) => state.currentUser);
-  const onUserUpdate = useUserStore((state) => state.updateUserBalanceAndCoupons);
   const showAlert = useAlertStore((state) => state.showAlert);
   const { domains } = useDomains();
 

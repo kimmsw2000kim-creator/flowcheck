@@ -3,13 +3,6 @@ import { useUserStore } from '../store/userStore';
 
 import { useDomains } from '../hooks/useDomains';
 
-interface Domain {
-  id: number;
-  domainUrl: string;
-  verified: boolean;
-  createdAt: string;
-}
-
 interface DashboardPageProps {
   setActiveTab: (tab: string) => void;
   setSelectedUIUXTestDomain: (id: number) => void;
