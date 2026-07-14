@@ -7,7 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.MediaType;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
@@ -15,6 +15,7 @@ import org.springframework.web.client.RestClient;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -33,9 +34,7 @@ public class UIUXTestService {
     private final RestClient restClient;
     private final CouponUsageLogRepository couponUsageLogRepository;
     private final ObjectMapper objectMapper;
-
-    @Value("${fastapi.url}")
-    private String fastApiUrl;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${supabase.url:}")
     private String supabaseUrl;
@@ -137,29 +136,7 @@ public class UIUXTestService {
         TestRequest savedRequest = testRequestRepository.save(testRequest);
         UUID requestId = savedRequest.getId();
 
-        try {
-            Map<String, String> payload = Map.of(
-                    "requestId", requestId.toString(),
-                    "targetUrl", request.getTargetUrl(),
-                    "promptInput", request.getPromptInput() != null ? request.getPromptInput() : "");
-            // 핵심 로직: FastAPI 서버로 UI 테스트 실행 비동기 요청 전송
-            log.info("요청 ID {}에 대해 FastAPI 엔드포인트 /api/uiux-tests 호출 중...", requestId);
-            restClient.post()
-                    .uri(fastApiUrl + "/api/uiux-tests")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(payload)
-                    .retrieve()
-                    .toBodilessEntity();
-            log.info("요청 ID {}에 대해 FastAPI가 성공적으로 트리거되었습니다.", requestId);
-
-        } catch (Exception e) {
-            log.error("요청 ID {}에 대해 AI 서버 트리거 실패", requestId, e);
-            savedRequest.changeStatus("FAILED");
-            savedRequest.changePhase("FAILED");
-            testRequestRepository.save(savedRequest);
-            throw new RuntimeException("현재 AI 서버를 사용할 수 없습니다: " + e.getMessage(), e);
-        }
-
+        eventPublisher.publishEvent(new UIUXTestSubmittedEvent(requestId, request));
         return requestId;
     }
 
@@ -412,6 +389,51 @@ public class UIUXTestService {
 
     private String stepKey(Map<String, Object> step) {
         return String.valueOf(step.get("step")) + ":" + String.valueOf(step.get("action"));
+    }
+
+    @Transactional(readOnly = true)
+    public URI getLiveVncBaseUri(UUID requestId) {
+        TestRequest testRequest = testRequestRepository.findById(requestId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 테스트 요청입니다."));
+
+        if (!TEST_TYPE_UIUX.equals(testRequest.getTestType())) {
+            throw new IllegalArgumentException("UIUX 테스트 요청이 아닙니다.");
+        }
+
+        UIUXTestReport report = UIUXTestReportRepository.findByTestRequestId(requestId)
+                .orElseThrow(() -> new IllegalStateException("아직 VNC 스트림이 준비되지 않았습니다."));
+
+        List<Map<String, Object>> logs;
+        try {
+            logs = objectMapper.readValue(report.getRawLogs(), new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
+        } catch (Exception e) {
+            throw new IllegalStateException("VNC 스트림 로그를 읽을 수 없습니다.", e);
+        }
+
+        for (int i = logs.size() - 1; i >= 0; i--) {
+            Object rawVncUrl = logs.get(i).get("vncUrl");
+            if (rawVncUrl instanceof String vncUrl && !vncUrl.isBlank()) {
+                return validateVncBaseUri(vncUrl);
+            }
+        }
+
+        throw new IllegalStateException("아직 VNC 스트림 URL이 준비되지 않았습니다.");
+    }
+
+    private URI validateVncBaseUri(String rawVncUrl) {
+        URI uri = URI.create(rawVncUrl);
+        String scheme = uri.getScheme();
+        String host = uri.getHost();
+        int port = uri.getPort();
+
+        boolean isLocalLoopback = "127.0.0.1".equals(host) || "localhost".equalsIgnoreCase(host);
+        boolean isAllowedPort = port == 6080 || (isLocalLoopback && port > 0);
+
+        if (!"http".equalsIgnoreCase(scheme) || host == null || !isAllowedPort) {
+            throw new IllegalStateException("허용되지 않는 VNC 스트림 URL입니다.");
+        }
+
+        return URI.create("http://" + host + ":" + port);
     }
 
     private void deleteVideoFromSupabase(UUID requestId) {

@@ -15,6 +15,7 @@ export interface UIUXTestStepData {
   reason?: string;
   error?: string;
   vncUrl?: string;
+  screenshotUrl?: string;
 }
 
 export interface UIUXTestScores {

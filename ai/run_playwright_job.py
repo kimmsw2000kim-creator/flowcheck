@@ -3,6 +3,7 @@ import sys
 import json
 import httpx
 import time
+import base64
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from playwright.sync_api import sync_playwright
@@ -41,7 +42,17 @@ class UIUXTestReportData(BaseModel):
     video_url: Optional[str] = None
     defects: List[UIUXTestDefect]
 
-def report_step(request_id: str, step: int, url: str, action: str, selector: str = None, text: str = None, reason: str = None, error: str = None, vnc_url: str = None):
+def capture_live_frame(page) -> Optional[str]:
+    try:
+        screenshot = page.screenshot(type="jpeg", quality=45, full_page=False)
+        encoded = base64.b64encode(screenshot).decode("ascii")
+        return f"data:image/jpeg;base64,{encoded}"
+    except Exception as e:
+        print(f"Failed to capture live frame: {e}")
+        return None
+
+
+def report_step(request_id: str, step: int, url: str, action: str, selector: str = None, text: str = None, reason: str = None, error: str = None, vnc_url: str = None, screenshot_url: str = None):
     payload = {
         "step": step,
         "url": url,
@@ -53,6 +64,8 @@ def report_step(request_id: str, step: int, url: str, action: str, selector: str
     }
     if vnc_url:
         payload["vncUrl"] = vnc_url
+    if screenshot_url:
+        payload["screenshotUrl"] = screenshot_url
     try:
         url_dest = f"{BACKEND_URL}/api/uiux-tests/{request_id}/steps"
         print(f"Reporting step {step} to backend: {url_dest}")
@@ -153,6 +166,8 @@ def main():
     vnc_url = os.getenv("VNC_URL")
     if vnc_url:
         report_step(request_id, 0, target_url, "STARTING_VNC", reason="브라우저 컨테이너가 시작되어 VNC 스트림을 준비합니다.", vnc_url=vnc_url)
+    else:
+        report_step(request_id, 0, target_url, "STARTING_BROWSER", reason="브라우저 컨테이너가 시작되어 실시간 화면 캡처를 준비합니다.")
     api_key = os.getenv("GEMINI_API_KEY")
     has_api_key = True
     if not api_key:
@@ -164,9 +179,13 @@ def main():
         custom_client = httpx.Client(verify=False)
         client = genai.Client(api_key=api_key, http_options={'httpx_client': custom_client})
         
-    steps_history = []
-    if vnc_url:
-        steps_history.append({"step": 0, "url": target_url, "action": "STARTING_VNC", "reason": "브라우저 컨테이너가 시작되어 VNC 스트림을 준비합니다.", "vncUrl": vnc_url})
+    steps_history = [{
+        "step": 0,
+        "url": target_url,
+        "action": "STARTING_VNC" if vnc_url else "STARTING_BROWSER",
+        "reason": "브라우저 컨테이너가 시작되어 VNC 스트림을 준비합니다." if vnc_url else "브라우저 컨테이너가 시작되어 실시간 화면 캡처를 준비합니다.",
+        **({"vncUrl": vnc_url} if vnc_url else {})
+    }]
     failed_selectors = []
     is_simulated_mode = not has_api_key
     api_error = None
@@ -215,7 +234,7 @@ def main():
                 browser.close()
                 sys.exit(1)
 
-            report_step(request_id, 1, page.url, "OPEN_URL", reason="대상의 초기 페이지를 성공적으로 로드하였습니다.")
+            report_step(request_id, 1, page.url, "OPEN_URL", reason="대상의 초기 페이지를 성공적으로 로드하였습니다.", screenshot_url=capture_live_frame(page))
             steps_history.append({"step": 1, "url": page.url, "action": "OPEN_URL", "reason": "대상의 초기 페이지를 성공적으로 로드하였습니다."})
             
             accessibility_score = calculate_accessibility_score(page, add_defect, start_time)
@@ -262,7 +281,7 @@ def main():
                 current_offset = int(time.time() - start_time)
                 
                 if action == "FINISH":
-                    report_step(request_id, step_idx, current_url, "FINISH", reason=reason)
+                    report_step(request_id, step_idx, current_url, "FINISH", reason=reason, screenshot_url=capture_live_frame(page))
                     steps_history.append({"step": step_idx, "action": "FINISH"})
                     break
                 
@@ -273,8 +292,9 @@ def main():
                         nav_start = time.time()
                         page.wait_for_selector(selector, timeout=3000)
                         page.click(selector)
+                        page.wait_for_timeout(500)
                         performance_times.append(time.time() - nav_start)
-                        report_step(request_id, step_idx, current_url, "CLICK", selector=selector, reason=reason)
+                        report_step(request_id, step_idx, page.url, "CLICK", selector=selector, reason=reason, screenshot_url=capture_live_frame(page))
                         steps_history.append({"step": step_idx, "action": "CLICK", "selector": selector})
                     except Exception as e:
                         if not is_simulated_mode:
@@ -290,8 +310,9 @@ def main():
                         page.wait_for_selector(selector, timeout=3000)
                         page.fill(selector, text)
                         page.press(selector, "Enter")
+                        page.wait_for_timeout(500)
                         performance_times.append(time.time() - nav_start)
-                        report_step(request_id, step_idx, current_url, "TYPE", selector=selector, text=text, reason=reason)
+                        report_step(request_id, step_idx, page.url, "TYPE", selector=selector, text=text, reason=reason, screenshot_url=capture_live_frame(page))
                         steps_history.append({"step": step_idx, "action": "TYPE", "selector": selector})
                     except Exception as e:
                         if not is_simulated_mode:
@@ -333,8 +354,9 @@ def main():
                     final_evaluation_md = f"* 평가 생성 중 오류가 발생했습니다: {e}"
             
             # 사용자 경험을 위해 컨테이너가 즉시 종료되지 않고 30초간 최종 화면을 유지하도록 대기
-            print("Test finished. Keeping VNC alive for 30 seconds...")
-            time.sleep(30)
+            keepalive_seconds = int(os.getenv("VNC_KEEPALIVE_SECONDS", "180"))
+            print(f"Test finished. Keeping VNC alive for {keepalive_seconds} seconds...")
+            time.sleep(keepalive_seconds)
 
             video_path = page.video.path() if page.video else None
             context.close()

@@ -208,12 +208,21 @@
   min-height: 360px;
 }
 
-.uiux-youtube-frame iframe {
+.uiux-youtube-frame iframe,
+.uiux-live-screenshot {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
+}
+
+.uiux-youtube-frame iframe {
   border: 0;
+  background: #000;
+}
+
+.uiux-live-screenshot {
+  object-fit: contain;
   background: #000;
 }
 

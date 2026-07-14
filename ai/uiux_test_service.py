@@ -36,7 +36,6 @@ def report_step(request_id: str, step: int, url: str, action: str, selector: str
     }
     if vnc_url:
         payload["vncUrl"] = vnc_url
-        
     try:
         url_dest = f"{BACKEND_URL}/api/uiux-tests/{request_id}/steps"
         print(f"Reporting step {step} to backend: {url_dest}")
@@ -68,27 +67,32 @@ def run_local_docker_task(request_id: str, target_url: str):
         env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
         ai_dir = os.path.abspath(os.path.dirname(__file__))
         container_backend_url = BACKEND_URL.replace("localhost", "host.docker.internal").replace("127.0.0.1", "host.docker.internal")
-        vnc_url = "http://127.0.0.1:6080/vnc.html?autoconnect=true&resize=scale"
-        
-        # 6080 포트는 호스트의 비어있는 포트로 매핑하거나, 고정 6080 사용 (로컬 테스트용이므로 하나만 돈다고 가정)
         cmd = [
             "docker", "run", "-d", "--rm",
             "-v", f"{ai_dir}:/app",
-            "-p", "6080:6080",
+            "-p", "127.0.0.1::6080",
             "--env-file", env_path,
             "-e", f"REQUEST_ID={request_id}",
             "-e", f"TARGET_URL={target_url}",
             "-e", f"BACKEND_URL={container_backend_url}",
-            "-e", f"VNC_URL={vnc_url}",
             "-e", "PLAYWRIGHT_HEADLESS=false",
+            "-e", f"VNC_KEEPALIVE_SECONDS={os.getenv('VNC_KEEPALIVE_SECONDS', '180')}",
             "flowcheck-ai",
             "python", "run_playwright_job.py"
         ]
         
-        subprocess.run(cmd, check=True)
-        print("Local Docker container started successfully.")
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        container_id = result.stdout.strip()
+        port_result = subprocess.run(
+            ["docker", "port", container_id, "6080/tcp"],
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        host_port = port_result.stdout.strip().rsplit(":", 1)[-1]
+        vnc_url = f"http://127.0.0.1:{host_port}/vnc.html?autoconnect=true&resize=scale"
+        print(f"Local Docker container started successfully: {container_id}, VNC={vnc_url}")
         
-        # 로컬 환경이므로 Public IP 대신 localhost 사용
         report_step(request_id, 0, target_url, "STARTING_VNC", reason="로컬 도커 브라우저 할당 완료 및 VNC 접속 대기 중", vnc_url=vnc_url)
         
     except Exception as e:
@@ -123,7 +127,9 @@ def run_fargate_task(request_id: str, target_url: str):
                         'environment': [
                             {'name': 'REQUEST_ID', 'value': request_id},
                             {'name': 'TARGET_URL', 'value': target_url},
-                            {'name': 'PLAYWRIGHT_HEADLESS', 'value': 'false'}
+                            {'name': 'BACKEND_URL', 'value': BACKEND_URL},
+                            {'name': 'PLAYWRIGHT_HEADLESS', 'value': 'false'},
+                            {'name': 'VNC_KEEPALIVE_SECONDS', 'value': os.getenv('VNC_KEEPALIVE_SECONDS', '180')}
                         ]
                     }
                 ]
@@ -132,14 +138,14 @@ def run_fargate_task(request_id: str, target_url: str):
         
         task_arn = response['tasks'][0]['taskArn']
         print(f"Started Fargate Task: {task_arn}")
-        
+
         waiter = ecs_client.get_waiter('tasks_running')
         waiter.wait(
             cluster=ECS_CLUSTER,
             tasks=[task_arn],
             WaiterConfig={'Delay': 3, 'MaxAttempts': 40}
         )
-        
+
         task_desc = ecs_client.describe_tasks(cluster=ECS_CLUSTER, tasks=[task_arn])['tasks'][0]
         eni_id = None
         for attachment in task_desc.get('attachments', []):
@@ -148,16 +154,16 @@ def run_fargate_task(request_id: str, target_url: str):
                     if detail.get('name') == 'networkInterfaceId':
                         eni_id = detail.get('value')
                         break
-        
+
         if not eni_id:
             raise Exception("ENI ID를 찾을 수 없습니다.")
-            
+
         eni_info = ec2_client.describe_network_interfaces(NetworkInterfaceIds=[eni_id])
         public_ip = eni_info['NetworkInterfaces'][0].get('Association', {}).get('PublicIp')
-        
+
         if not public_ip:
             raise Exception("Public IP가 할당되지 않았습니다.")
-            
+
         print(f"Fargate Task is RUNNING. Public IP: {public_ip}")
         vnc_url = f"http://{public_ip}:6080/vnc.html?autoconnect=true&resize=scale"
         report_step(request_id, 0, target_url, "STARTING_VNC", reason="클라우드 브라우저 할당 완료 및 VNC 접속 대기 중", vnc_url=vnc_url)

@@ -21,6 +21,7 @@ from load_test_service import (
 class UiTestRequest(BaseModel):
     requestId: str
     targetUrl: str
+    promptInput: Optional[str] = ""
 
 class ChatRequest(BaseModel):
     message: str

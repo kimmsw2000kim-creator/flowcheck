@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import apiClient from '../api/client';
+import ApiURL from '../api/ApiURL';
 import { startUIUXTest, getUIUXTestStatus, UIUXTestStepData, UIUXTestStatusResponse } from '../api/UIUXTestApi';
 import TextField from '../components/common/TextField';
 import CustomVideoPlayer from '../components/video/CustomVideoPlayer';
@@ -16,15 +17,45 @@ interface UIUXTestPageProps {
   onAddLedger: (ledgerItem: any) => void;
 }
 
-const getLocalVncUrl = () => {
-  if (!['localhost', '127.0.0.1'].includes(window.location.hostname)) {
-    return null;
+const formatStepNumber = (step: number) => String(step).padStart(2, '0');
+
+const getLiveVncProxyOrigin = () => {
+  if (window.location.hostname === 'localhost' && window.location.port === '5173') {
+    return 'http://localhost:8080';
   }
 
-  return `http://${window.location.hostname}:6080/vnc.html?autoconnect=true&resize=scale`;
+  if (window.location.hostname === '127.0.0.1' && window.location.port === '5173') {
+    return 'http://127.0.0.1:8080';
+  }
+
+  return ApiURL;
 };
 
-const formatStepNumber = (step: number) => String(step).padStart(2, '0');
+const buildLiveVncProxyUrl = (requestId: string) => {
+  const path = `/api/uiux-tests/${requestId}/vnc/vnc.html`;
+  const websocketPath = `/api/uiux-tests/${requestId}/vnc/websockify`;
+  return `${getLiveVncProxyOrigin()}${path}?autoconnect=true&resize=scale&path=${encodeURIComponent(websocketPath)}`;
+};
+
+const isLocalBrowser = () => ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
+const getDirectLocalVncUrl = (steps: UIUXTestStepData[]) => {
+  if (!isLocalBrowser()) return null;
+
+  const directUrl = [...steps]
+    .reverse()
+    .find((step) => typeof step.vncUrl === 'string' && step.vncUrl.length > 0)
+    ?.vncUrl;
+
+  if (!directUrl) return null;
+
+  try {
+    const parsed = new URL(directUrl);
+    return ['localhost', '127.0.0.1'].includes(parsed.hostname) ? directUrl : null;
+  } catch {
+    return null;
+  }
+};
 
 const formatTimeForDisplay = (time: number) => {
   if (Number.isNaN(time)) return '0:00';
@@ -45,6 +76,7 @@ export default function UIUXTestPage({
   const [targetUrl, setTargetUrl] = useState('');
   const [UIUXTestStatus, setUIUXTestStatus] = useState('idle');
   const [UIUXTestSteps, setUIUXTestSteps] = useState<UIUXTestStepData[]>([]);
+  const [currentRequestId, setCurrentRequestId] = useState<string | null>(null);
   const [reportData, setReportData] = useState<UIUXTestStatusResponse | null>(null);
   const [activeDefectId, setActiveDefectId] = useState<number | null>(null);
   const [showHeuristics, setShowHeuristics] = useState(false);
@@ -71,9 +103,14 @@ export default function UIUXTestPage({
 
   useEffect(() => () => stopPolling(), [stopPolling]);
 
-  const stepVncUrl = UIUXTestSteps.find((step) => typeof step.vncUrl === 'string' && step.vncUrl.length > 0)?.vncUrl;
-  const liveVncUrl = stepVncUrl || (UIUXTestStatus === 'running' ? getLocalVncUrl() : null);
   const isRunning = UIUXTestStatus === 'running';
+  const hasLiveVncUrl = UIUXTestSteps.some((step) => typeof step.vncUrl === 'string' && step.vncUrl.length > 0);
+  const directLocalVncUrl = getDirectLocalVncUrl(UIUXTestSteps);
+  const liveVncProxyUrl = directLocalVncUrl || (currentRequestId && hasLiveVncUrl ? buildLiveVncProxyUrl(currentRequestId) : null);
+  const latestLiveFrame = [...UIUXTestSteps]
+    .reverse()
+    .find((step) => typeof step.screenshotUrl === 'string' && step.screenshotUrl.startsWith('data:image/'))
+    ?.screenshotUrl;
 
   const handleRunUIUXTest = async () => {
     if (isSubmittingRef.current) {
@@ -104,11 +141,13 @@ export default function UIUXTestPage({
     setUIUXTestStatus('running');
     setUIUXTestSteps([]);
     setReportData(null);
+    setCurrentRequestId(null);
     isSubmittingRef.current = true;
 
     try {
       const startRes = await startUIUXTest(targetUrl);
       const requestId = startRes.requestId;
+      setCurrentRequestId(requestId);
 
       showAlert('AI UI 테스트 에이전트가 시작되었습니다.', 'success');
 
@@ -262,7 +301,7 @@ export default function UIUXTestPage({
         <main className="uiux-card uiux-live-card">
           <div className="uiux-card-header">
             <div>
-              <span className="uiux-eyebrow">Live VNC</span>
+              <span className="uiux-eyebrow">Live Stream</span>
               <h3>실시간 탐색 스트림</h3>
             </div>
             <span className={`uiux-status-pill uiux-status-${UIUXTestStatus}`}>
@@ -271,10 +310,12 @@ export default function UIUXTestPage({
           </div>
 
           <div className="uiux-youtube-frame uiux-live-frame">
-            {isRunning && liveVncUrl ? (
-              <iframe src={liveVncUrl} title="Live Test Stream" allowFullScreen />
+            {isRunning && liveVncProxyUrl ? (
+              <iframe key={liveVncProxyUrl} src={liveVncProxyUrl} title="Live Test Stream" allowFullScreen />
+            ) : latestLiveFrame ? (
+              <img className="uiux-live-screenshot" src={latestLiveFrame} alt="Live UI exploration frame" />
             ) : isRunning ? (
-              renderPlayerPlaceholder('VNC 스트림 준비 중', '브라우저 컨테이너가 시작되면 실시간 화면이 자동으로 연결됩니다.')
+              renderPlayerPlaceholder('실시간 영상 준비 중', '브라우저 컨테이너가 시작되면 VNC 영상 스트림이 자동으로 연결됩니다.')
             ) : (
               <div className="uiux-player-idle">
                 <strong>대기 중</strong>
