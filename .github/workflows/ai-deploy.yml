@@ -6,6 +6,7 @@ on:
     paths:
       - "ai/**"
       - "docker-compose.yml"
+      - "nginx.conf"
       - ".github/workflows/ai-deploy.yml"
   workflow_dispatch:
 
@@ -75,6 +76,15 @@ jobs:
           printf 'FRONTEND_IMAGE=%s\n' "$FRONTEND_IMAGE" >> deployment.env
           printf 'BACKEND_IMAGE=%s\n' "$BACKEND_IMAGE" >> deployment.env
           printf 'AI_IMAGE=%s\n' "$AI_IMAGE" >> deployment.env
+          printf 'USE_FARGATE=true\n' >> deployment.env
+          if ! grep -q "^BACKEND_PUBLIC_URL=" deployment.env; then
+            DOMAIN_VALUE=$(grep "^DOMAIN=" deployment.env | tail -n 1 | cut -d "=" -f2- | tr -d '\r')
+            if [ -n "$DOMAIN_VALUE" ]; then
+              printf 'BACKEND_PUBLIC_URL=https://%s\n' "$DOMAIN_VALUE" >> deployment.env
+            fi
+          fi
+          grep -q "^ECS_UIUX_TASK_FAMILY=" deployment.env || printf 'ECS_UIUX_TASK_FAMILY=flowcheck-uiux-task\n' >> deployment.env
+          grep -q "^ECS_UIUX_CONTAINER_NAME=" deployment.env || printf 'ECS_UIUX_CONTAINER_NAME=flowcheck-ai\n' >> deployment.env
 
       - name: Prepare EC2 directory
         uses: appleboy/ssh-action@v1.2.0
@@ -91,7 +101,7 @@ jobs:
           host: ${{ secrets.AWS_HOST }}
           username: ${{ secrets.AWS_USER }}
           key: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
-          source: "docker-compose.yml,deployment.env"
+          source: "docker-compose.yml,nginx.conf,deployment.env"
           target: ${{ env.REMOTE_APP_DIR }}
 
       - name: Deploy AI
@@ -115,6 +125,8 @@ jobs:
               docker login -u "$DOCKER_USERNAME" --password-stdin
 
             docker compose --env-file ./.env pull ai
+            docker compose --env-file ./.env run --rm --no-deps ai python uiux_task_definition_service.py
             docker compose --env-file ./.env up -d --no-deps ai
+            docker compose --env-file ./.env up -d --no-deps --force-recreate nginx
             docker compose --env-file ./.env ps ai
             docker image prune -f

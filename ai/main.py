@@ -21,6 +21,7 @@ from load_test_service import (
 class UiTestRequest(BaseModel):
     requestId: str
     targetUrl: str
+    promptInput: Optional[str] = ""
 
 class ChatRequest(BaseModel):
     message: str
@@ -31,7 +32,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 LOAD_TEST_CALLBACK_TOKEN = os.getenv("LOAD_TEST_CALLBACK_TOKEN")
 
 if not GEMINI_API_KEY:
-    raise ValueError("GEMINI_API_KEY .env 파일에 설정되지 않았습니다.")
+    raise ValueError("GEMINI_API_KEY가 .env 파일에 설정되지 않았습니다.")
 
 if not LOAD_TEST_CALLBACK_TOKEN:
     raise ValueError("LOAD_TEST_CALLBACK_TOKEN이 설정되지 않았습니다.")
@@ -85,25 +86,25 @@ class LoadTestRequest(BaseModel):
 
 @app.post("/api/load-tests", response_model=TestResultsResponse)
 async def run_load_test(request: LoadTestRequest):
-    print(f"Spring Boot로부터 요청 수신: {request.targetUrl}, vusers={request.vusers}")
+    print(f"Spring Boot로부터 부하 테스트 요청 수신: {request.targetUrl}, vusers={request.vusers}", flush=True)
     try:
-        print("Gemini API 호출 중... (k6 스크립트 생성)")
+        print("Gemini API 호출 중... (k6 스크립트 생성)", flush=True)
         result = await run_load_test_pipeline(client, request)
     except (LoadTestGenerationError, LoadTestExecutionError) as e:
-        print(f"부하 테스트 처리 중 오류 발생: {e}")
+        print(f"부하 테스트 처리 중 오류 발생: {e}", flush=True)
         raise RuntimeError(str(e))
 
-    print("테스트 완료! 정밀 결과를 반환합니다.")
+    print("테스트 완료! 정리된 결과를 반환합니다.", flush=True)
     return result
 
 @app.post("/api/uiux-tests")
 async def run_uiux_test(request: UiTestRequest, background_tasks: BackgroundTasks):
-    print(f"UIUX 테스트 요청 수신됨: {request}")
+    print(f"UIUX 테스트 요청 수신됨: {request}", flush=True)
     background_tasks.add_task(run_uiux_test_service, request.requestId, request.targetUrl)
     return {"status": "started"}
 
 @app.post("/api/chat")
 async def chat_endpoint(request: ChatRequest):
-    print(f"챗봇 메시지 수신: {request.message[:20]}...")
+    print(f"챗봇 메시지 수신: {request.message[:20]}...", flush=True)
     response_text = generate_chat_response(request.message, client)
     return {"response": response_text}

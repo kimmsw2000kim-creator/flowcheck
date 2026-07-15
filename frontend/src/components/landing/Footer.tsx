@@ -22,7 +22,7 @@ export default function Footer() {
           <ul className={styles['footer-links-list']}>
             <li><Link to="/domains" className={styles['footer-link']}>도메인 소유권 검증</Link></li>
             <li><Link to="/load" className={styles['footer-link']}>실시간 부하 테스트</Link></li>
-            <li><Link to="/UIUXtest" className={styles['footer-link']}>UI 회귀 스크린샷 비교</Link></li>
+            <li><Link to="/UIUXTest" className={styles['footer-link']}>UI 회귀 스크린샷 비교</Link></li>
             <li><Link to="/dashboard" className={styles['footer-link']}>성능 모니터링</Link></li>
           </ul>
         </div>
