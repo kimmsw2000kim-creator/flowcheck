@@ -18,7 +18,7 @@ import type {
 const PAYMENT_METHOD_SELECTOR = '#payment-method';
 const AGREEMENT_SELECTOR = '#agreement';
 
-const creditProducts: CreditProduct[] = [
+export const CREDIT_PRODUCTS: readonly CreditProduct[] = [
   {
     id: 'CREDIT_10K',
     title: '스타터 코인팩',
@@ -350,7 +350,7 @@ export function usePayment() {
 
   return {
     currentUser,
-    products: creditProducts,
+    products: CREDIT_PRODUCTS,
     selectedProduct,
     paymentOrder,
     isProcessing: confirmationLoading || initiationLoading,

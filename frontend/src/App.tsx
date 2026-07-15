@@ -24,6 +24,7 @@ import LandingPage from './pages/LandingPage';
 import CommentPage from "./pages/CommentPage";
 import CommunityHubPage from './pages/community/CommunityHubPage';
 import './styles/CommunityPages.css';
+import './styles/AppShell.css';
 
 // Types & Utils
 import { useUserStore } from './store/userStore';
@@ -105,8 +106,8 @@ function App() {
       <div className="app-container">
         {alertMsg && <Toast message={alertMsg.message} type={alertMsg.type} />}
         <main className="main-content">
-          <div style={{ textAlign: 'center', padding: '4rem 0', color: 'var(--text-secondary)' }}>
-            Loading...
+          <div className="app-loading-state" role="status" aria-live="polite">
+            앱을 불러오는 중입니다.
           </div>
         </main>
       </div>
@@ -240,7 +241,7 @@ function App() {
         </Routes>
       </main>
 
-      {isLoggedIn && <Footer />}
+      {isLoggedIn && <Footer variant="compact" />}
       <Chatbot />
     </div>
   );

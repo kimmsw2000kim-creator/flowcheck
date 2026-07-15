@@ -3,7 +3,7 @@ import type { CreditProduct } from '../../types/payment';
 import { Badge, Card } from '../common';
 
 interface CreditPackageSelectorProps {
-  products: CreditProduct[];
+  products: readonly CreditProduct[];
   selectedProduct: CreditProduct | null;
   onSelectProduct: (product: CreditProduct) => void;
 }
