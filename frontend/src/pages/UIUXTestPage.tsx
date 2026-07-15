@@ -279,18 +279,6 @@ export default function UIUXTestPage({
 
       showAlert('AI UI/UX 테스트 에이전트가 시작되었습니다.', 'success');
 
-      try {
-        const mypageRes = await apiClient.get('/api/mypage');
-        onUserUpdate({
-          balance: mypageRes.data.balance,
-          coupons: mypageRes.data.couponCount,
-          loadTestCoupons: mypageRes.data.loadTestCouponCount,
-          UIUXTestCoupons: mypageRes.data.UIUXTestCouponCount,
-        });
-      } catch (err) {
-        console.error('Failed to sync user state:', err);
-      }
-
       stopPolling();
       pollErrorCountRef.current = 0;
       pollCountRef.current = 0;
@@ -345,7 +333,19 @@ export default function UIUXTestPage({
         }
       };
 
-      scheduleNextPoll();
+      pollStatus();
+
+      try {
+        const mypageRes = await apiClient.get('/api/mypage');
+        onUserUpdate({
+          balance: mypageRes.data.balance,
+          coupons: mypageRes.data.couponCount,
+          loadTestCoupons: mypageRes.data.loadTestCouponCount,
+          UIUXTestCoupons: mypageRes.data.UIUXTestCouponCount,
+        });
+      } catch (err) {
+        console.error('Failed to sync user state:', err);
+      }
     } catch (err: any) {
       setUIUXTestStatus('error');
       let errorMessage = 'AI 서버를 호출하지 못했습니다.';
