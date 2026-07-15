@@ -22,6 +22,7 @@ import AuthPage from './pages/AuthPage';
 import AuthCallback from './pages/AuthCallback';
 import LandingPage from './pages/LandingPage';
 import CommentPage from "./pages/CommentPage";
+import CommunityHubPage from './pages/community/CommunityHubPage';
 
 // Types & Utils
 import { useUserStore } from './store/userStore';
@@ -165,6 +166,12 @@ function App() {
                 element={<PaymentPage />}
               />
 
+
+              {/* 새 커뮤니티 화면의 임시 확인 경로 */}
+              <Route
+                path="/community-preview"
+                element={<CommunityHubPage />}
+              />
               {/* Community Tab Sub-routing System */}
               <Route
                 path="/community"

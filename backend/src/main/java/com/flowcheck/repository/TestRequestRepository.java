@@ -28,4 +28,19 @@ public interface TestRequestRepository extends JpaRepository<TestRequest, UUID> 
             String testType,
             List<String> testStatuses,
             OffsetDateTime createdAt);
+
+    /*
+     * 테스트 종류와 관계없이 현재 사용자가 소유한 테스트를 조회합니다.
+     * 테스트 공유 게시글을 만들 때 소유권 확인에 사용합니다.
+     */
+    Optional<TestRequest> findByIdAndUser_UserId(
+            UUID requestId,
+            UUID userId
+    );
+
+    /*
+     * 게시글에 연결된 테스트 요청을 조회합니다.
+     * 게시글 응답의 testRequestId를 만들 때 사용합니다.
+     */
+    Optional<TestRequest> findByCommunityPost_PostId(Long postId);
 }
