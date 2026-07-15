@@ -1,5 +1,11 @@
+<<<<<<< HEAD
 const configuredApiUrl =
     import.meta.env.VITE_API_BASE_URL?.trim().replace(/\/+$/, "");
+=======
+import ApiURL from './ApiURL';
+
+const API_BASE_URL = ApiURL;
+>>>>>>> dev
 
 /**
  * 개발 환경

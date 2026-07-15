@@ -100,8 +100,6 @@ function MypageTestHistorySection() {
                 <div className={styles['test-history-list']}>
                     {tests.map((test) => {
                         const progress = test.progress ?? 0;
-                        const isFailed = test.status === 'FAILED';
-                        const isDone = test.status === 'COMPLETED';
                         const phase = test.phase ? phaseLabels[test.phase] || test.phase : null;
 
                         return (

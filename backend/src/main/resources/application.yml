@@ -47,6 +47,9 @@ external:
 fastapi:
   url: ${FASTAPI_URL:http://localhost:8000}
 
+internal:
+  load-test-callback-token: ${LOAD_TEST_CALLBACK_TOKEN:}
+
 ---
 # 배포 환경(prod) 오버라이드: 개발 설정과 분리
 spring:

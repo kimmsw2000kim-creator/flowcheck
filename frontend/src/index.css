@@ -629,6 +629,78 @@ body {
   font-weight: 600;
 }
 
+/* Load test score report */
+.load-report-markdown {
+  margin-top: 1rem;
+  padding: 1rem 0 1.5rem;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  overflow-wrap: anywhere;
+}
+
+.load-report-markdown h1 {
+  margin-top: 0;
+  font-size: 1.25rem;
+}
+
+.load-report-markdown blockquote {
+  margin: 1rem 0 1.25rem;
+  padding: 0.85rem 1rem;
+  border-left-width: 4px;
+  border-radius: 0 0.25rem 0.25rem 0;
+}
+
+.load-report-markdown blockquote p {
+  margin: 0;
+  font-size: 1.2rem;
+  line-height: 1.5;
+}
+
+.load-report-markdown.grade-a blockquote {
+  color: #0f766e;
+  background: var(--success-bg);
+  border-left-color: var(--success);
+}
+
+.load-report-markdown.grade-b blockquote {
+  color: #0369a1;
+  background: var(--accent-glow);
+  border-left-color: var(--accent);
+}
+
+.load-report-markdown.grade-c blockquote,
+.load-report-markdown.grade-d blockquote {
+  color: #b45309;
+  background: var(--warning-bg);
+  border-left-color: var(--warning);
+}
+
+.load-report-markdown.grade-f blockquote {
+  color: #b91c1c;
+  background: var(--error-bg);
+  border-left-color: var(--error);
+}
+
+.load-report-markdown table {
+  min-width: 540px;
+}
+
+.load-report-markdown td strong {
+  font-size: 0.95rem;
+}
+
+.load-report-markdown em {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 720px) {
+  .load-report-markdown blockquote p {
+    font-size: 1.05rem;
+  }
+}
+
 .flowcheck-alert-popup {
     width: min(440px, calc(100vw - 32px)) !important;
     padding: 2rem !important;

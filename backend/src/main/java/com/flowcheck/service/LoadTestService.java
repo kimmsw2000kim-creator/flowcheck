@@ -10,8 +10,10 @@ import com.flowcheck.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -101,14 +103,12 @@ public class LoadTestService {
         }
 
         @Transactional(readOnly = true)
-        public LoadTestResponse getTestResult(UUID requestId) {
-                TestRequest testRequest = testRequestRepository.findById(requestId)
-                                .orElseThrow(() -> new IllegalArgumentException("Invalid request ID"));
-
-                // 테스트 종류가 부하 테스트인지 확인하는 예외 처리
-                if (!"LOAD".equals(testRequest.getTestType())) {
-                        throw new IllegalStateException("해당 요청은 부하 테스트 타입이 아님");
-                }
+        public LoadTestResponse getTestResult(UUID userId, UUID requestId) {
+                TestRequest testRequest = testRequestRepository
+                                .findByIdAndUser_UserIdAndTestType(requestId, userId, "LOAD")
+                                .orElseThrow(() -> new ResponseStatusException(
+                                                HttpStatus.NOT_FOUND,
+                                                "Load test not found"));
 
                 String currentStatus = testRequest.getTestStatus();
                 String currentPhase = testRequest.getTestPhase();
@@ -135,10 +135,23 @@ public class LoadTestService {
                                 new TypeReference<List<LoadTestResponse.ChartPoint>>() {
                                 });
 
+                double avgResponse = report.getAvgLatency() / 1000.0;
+                double errorRate = report.getErrorRate().doubleValue();
+                PerformanceAssessment assessment = calculatePerformanceAssessment(
+                                avgResponse,
+                                errorRate);
+
                 LoadTestResponse.TestResults resultsDto = LoadTestResponse.TestResults.builder()
                                 .maxTps(report.getTotalTps().intValue())
-                                .avgResponse(report.getAvgLatency() / 1000.0) // 다시 초 단위로 변환 예시
-                                .errorRate(report.getErrorRate().doubleValue())
+                                .avgResponse(avgResponse)
+                                .errorRate(errorRate)
+                                .performanceScore(assessment.score())
+                                .performanceGrade(assessment.grade())
+                                .scoreLabel(assessment.label())
+                                .scoreBreakdown(LoadTestResponse.ScoreBreakdown.builder()
+                                                .reliabilityScore(assessment.reliabilityScore())
+                                                .latencyScore(assessment.latencyScore())
+                                                .build())
                                 .bottleneckComment(report.getAiPerformanceReview())
                                 .points(chartPoints)
                                 .build();
@@ -150,6 +163,61 @@ public class LoadTestService {
                                 .message("부하 테스트가 완료되었습니다.")
                                 .testResults(resultsDto)
                                 .build();
+        }
+
+        private PerformanceAssessment calculatePerformanceAssessment(double avgResponse, double errorRate) {
+                int reliabilityScore;
+                int latencyScore;
+
+                if (errorRate >= 99) {
+                        reliabilityScore = 0;
+                        latencyScore = 0;
+                } else {
+                        reliabilityScore = roundScore(60 * Math.max(0, 1 - (Math.max(0, errorRate) / 5)));
+                        double latencyPoints;
+
+                        if (avgResponse <= 200) {
+                                latencyPoints = 40;
+                        } else if (avgResponse <= 500) {
+                                latencyPoints = 40 - ((avgResponse - 200) / 300 * 10);
+                        } else if (avgResponse <= 1000) {
+                                latencyPoints = 30 - ((avgResponse - 500) / 500 * 15);
+                        } else if (avgResponse < 2000) {
+                                latencyPoints = 15 - ((avgResponse - 1000) / 1000 * 15);
+                        } else {
+                                latencyPoints = 0;
+                        }
+
+                        latencyScore = roundScore(Math.max(0, latencyPoints));
+                }
+
+                int score = Math.max(0, Math.min(100, reliabilityScore + latencyScore));
+
+                if (score >= 90) {
+                        return new PerformanceAssessment(score, "A", "우수", reliabilityScore, latencyScore);
+                }
+                if (score >= 80) {
+                        return new PerformanceAssessment(score, "B", "양호", reliabilityScore, latencyScore);
+                }
+                if (score >= 70) {
+                        return new PerformanceAssessment(score, "C", "보통", reliabilityScore, latencyScore);
+                }
+                if (score >= 60) {
+                        return new PerformanceAssessment(score, "D", "개선 필요", reliabilityScore, latencyScore);
+                }
+                return new PerformanceAssessment(score, "F", "위험", reliabilityScore, latencyScore);
+        }
+
+        private int roundScore(double value) {
+                return (int) Math.floor(value + 0.5);
+        }
+
+        private record PerformanceAssessment(
+                        int score,
+                        String grade,
+                        String label,
+                        int reliabilityScore,
+                        int latencyScore) {
         }
 
         private String buildPhaseMessage(String status, String phase) {

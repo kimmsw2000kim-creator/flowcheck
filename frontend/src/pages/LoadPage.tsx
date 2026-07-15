@@ -1,16 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { TrendingUp, RefreshCw } from 'lucide-react';
+import { EventStreamContentType, fetchEventSource } from '@microsoft/fetch-event-source';
+import { RefreshCw } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import axios from 'axios';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import Button from '../components/common/Button';
 import EmptyState from '../components/common/EmptyState';
 import apiClient from '../api/client';
-
-interface Domain {
-  id: number;
-  domainUrl: string;
-  verified: boolean;
-}
+import { getSupabaseAccessToken } from '../api/sessionApi';
 
 interface LoadChartDataPoint {
   time: string;
@@ -22,6 +20,13 @@ interface LoadMetrics {
   maxTps: number;
   avgResponse: number;
   errorRate: number;
+  performanceScore: number;
+  performanceGrade: string;
+  scoreLabel: string;
+  scoreBreakdown: {
+    reliabilityScore: number;
+    latencyScore: number;
+  };
   bottleneckComment: string;
 }
 
@@ -34,16 +39,41 @@ interface LoadTestStreamPayload {
     maxTps: number;
     avgResponse: number;
     errorRate: number;
+    performanceScore: number;
+    performanceGrade: string;
+    scoreLabel: string;
+    scoreBreakdown: {
+      reliabilityScore: number;
+      latencyScore: number;
+    };
     bottleneckComment: string;
     points: LoadChartDataPoint[];
   };
 }
 
+class FatalSseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'FatalSseError';
+  }
+}
+
+class RetriableSseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RetriableSseError';
+  }
+}
+
 const phaseLabels: Record<string, string> = {
   QUEUED: '대기 중',
+  DISPATCHED_TO_FASTAPI: 'FastAPI 전달 중',
+  GENERATING_SCRIPT: 'k6 스크립트 생성 중',
+  PROVISIONING_INFRA: '부하 테스트 인프라 실행 중',
   PREPARING_REQUEST: '요청 준비 중',
   CALLING_FASTAPI: 'FastAPI 호출 중',
   PROCESSING_RESULTS: '결과 처리 중',
+  RESULT_READY: '결과 전달 준비 중',
   SAVING_REPORT: '리포트 저장 중',
   COMPLETED: '완료',
   FAILED: '실패',
@@ -54,15 +84,8 @@ import { useAlertStore } from '../store/alertStore';
 
 import { useDomains } from '../hooks/useDomains';
 
-interface LoadPageProps {
-  onAddLedger: (ledgerItem: any) => void;
-}
-
-export default function LoadPage({
-  onAddLedger
-}: LoadPageProps) {
+export default function LoadPage() {
   const currentUser = useUserStore((state) => state.currentUser);
-  const onUserUpdate = useUserStore((state) => state.updateUserBalanceAndCoupons);
   const showAlert = useAlertStore((state) => state.showAlert);
   const { domains } = useDomains();
 
@@ -76,11 +99,11 @@ export default function LoadPage({
   const [loadMessage, setLoadMessage] = useState<string>('');
   const [loadMetrics, setLoadMetrics] = useState<LoadMetrics | null>(null);
   const [loadChartData, setLoadChartData] = useState<LoadChartDataPoint[]>([]);
-  const streamRef = useRef<EventSource | null>(null);
+  const streamRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     return () => {
-      streamRef.current?.close();
+      streamRef.current?.abort();
     };
   }, []);
 
@@ -114,7 +137,7 @@ export default function LoadPage({
       const response = await apiClient.post("/api/load-tests", payload);
 
       const { requestId } = response.data;
-      subscribeLoadTestStream(requestId);
+      void subscribeLoadTestStream(requestId);
 
     } catch (error) {
       console.error('Failed to run load test:', error);
@@ -123,65 +146,154 @@ export default function LoadPage({
     }
   };
 
-  const subscribeLoadTestStream = (requestId: string) => {
+  const subscribeLoadTestStream = async (requestId: string) => {
     if (!requestId) {
       console.error("유효하지 않은 requestId입니다.");
       return;
     }
 
-    streamRef.current?.close();
-    const eventSource = new EventSource(`/api/load-tests/${requestId}/stream`);
-    streamRef.current = eventSource;
+    streamRef.current?.abort();
+    const controller = new AbortController();
+    streamRef.current = controller;
+    let retryCount = 0;
 
-    eventSource.onmessage = (event) => {
-      const data = JSON.parse(event.data) as LoadTestStreamPayload;
-      console.log('Stream update:', data);
+    try {
+      await fetchEventSource(`/api/load-tests/${requestId}/stream`, {
+        signal: controller.signal,
+        openWhenHidden: true,
+        fetch: async (input, init) => {
+          const accessToken = await getSupabaseAccessToken();
 
-      setLoadPhase(data.phase || '');
-      setLoadProgress(typeof data.progress === 'number' ? data.progress : 0);
-      setLoadMessage(data.message || '');
+          if (!accessToken) {
+            throw new FatalSseError('로그인 세션을 확인할 수 없습니다. 다시 로그인해 주세요.');
+          }
 
-      if (data.status === 'FAILED') {
-        setLoadStatus('error');
-        showAlert(data.message || '테스트 수행 중 오류가 발생했습니다.', 'error');
-        eventSource.close();
-        return;
-      }
+          const headers = new Headers(init?.headers);
+          headers.set('Authorization', `Bearer ${accessToken}`);
 
-      if (data.status === 'COMPLETED') {
-        eventSource.close();
-        apiClient.get(`/api/load-tests/${requestId}`)
-          .then((resultResponse) => {
-            const resultData = resultResponse.data;
-            const { testResults } = resultData;
-
-            if (testResults && testResults.maxTps !== undefined) {
-              setLoadStatus('success');
-              setLoadMetrics({
-                maxTps: testResults.maxTps,
-                avgResponse: testResults.avgResponse,
-                errorRate: testResults.errorRate,
-                bottleneckComment: testResults.bottleneckComment
-              });
-              setLoadChartData(testResults.points);
-
-              showAlert('k6 부하 테스트가 완료되었습니다!', 'success');
-            }
-          })
-          .catch((resultError) => {
-            console.error('Failed to load final result:', resultError);
-            setLoadStatus('error');
-            showAlert('최종 결과를 불러오지 못했습니다.', 'error');
+          return window.fetch(input, {
+            ...init,
+            headers,
           });
-      }
-    };
+        },
+        async onopen(response) {
+          const contentType = response.headers.get('content-type');
 
-    eventSource.onerror = (error) => {
-      console.error('SSE stream error:', error);
-      if (streamRef.current === eventSource) {
+          if (response.ok && contentType?.startsWith(EventStreamContentType)) {
+            retryCount = 0;
+            return;
+          }
+
+          if (response.status === 401) {
+            throw new FatalSseError('로그인 세션이 만료되었습니다. 다시 로그인해 주세요.');
+          }
+
+          if (response.status === 403) {
+            throw new FatalSseError('이 부하 테스트 스트림에 접근할 권한이 없습니다.');
+          }
+
+          if (response.status === 404) {
+            throw new FatalSseError('부하 테스트 요청을 찾을 수 없습니다.');
+          }
+
+          if (response.ok) {
+            throw new FatalSseError('서버가 올바른 SSE 응답을 반환하지 않았습니다.');
+          }
+
+          if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+            throw new FatalSseError(`SSE 연결이 거부되었습니다. (코드: ${response.status})`);
+          }
+
+          throw new RetriableSseError(`SSE 서버가 응답하지 않습니다. (코드: ${response.status})`);
+        },
+        onmessage(event) {
+          let data: LoadTestStreamPayload;
+
+          try {
+            data = JSON.parse(event.data) as LoadTestStreamPayload;
+          } catch {
+            throw new FatalSseError('SSE 응답을 해석할 수 없습니다.');
+          }
+
+          console.log('Stream update:', data);
+          setLoadPhase(data.phase || '');
+          setLoadProgress(typeof data.progress === 'number' ? data.progress : 0);
+          setLoadMessage(data.message || '');
+
+          if (data.status === 'FAILED') {
+            setLoadStatus('error');
+            showAlert(data.message || '테스트 수행 중 오류가 발생했습니다.', 'error');
+            controller.abort();
+            return;
+          }
+
+          if (data.status === 'COMPLETED') {
+            controller.abort();
+            void apiClient.get(`/api/load-tests/${requestId}`)
+              .then((resultResponse) => {
+                const resultData = resultResponse.data;
+                const { testResults } = resultData;
+
+                if (testResults && testResults.maxTps !== undefined) {
+                  setLoadStatus('success');
+                  setLoadMetrics({
+                    maxTps: testResults.maxTps,
+                    avgResponse: testResults.avgResponse,
+                    errorRate: testResults.errorRate,
+                    performanceScore: testResults.performanceScore,
+                    performanceGrade: testResults.performanceGrade,
+                    scoreLabel: testResults.scoreLabel,
+                    scoreBreakdown: testResults.scoreBreakdown,
+                    bottleneckComment: testResults.bottleneckComment
+                  });
+                  setLoadChartData(testResults.points);
+
+                  showAlert('k6 부하 테스트가 완료되었습니다!', 'success');
+                }
+              })
+              .catch((resultError) => {
+                console.error('Failed to load final result:', resultError);
+                setLoadStatus('error');
+                showAlert('최종 결과를 불러오지 못했습니다.', 'error');
+              });
+          }
+        },
+        onclose() {
+          if (!controller.signal.aborted) {
+            throw new RetriableSseError('SSE 연결이 예기치 않게 종료되었습니다.');
+          }
+        },
+        onerror(error) {
+          if (error instanceof FatalSseError) {
+            throw error;
+          }
+
+          retryCount += 1;
+          if (retryCount > 5) {
+            throw new FatalSseError('실시간 상태 연결에 반복적으로 실패했습니다. 잠시 후 다시 시도해 주세요.');
+          }
+
+          const retryDelay = Math.min(1000 * 2 ** (retryCount - 1), 10000);
+          console.warn(`SSE connection retry ${retryCount}/5 in ${retryDelay}ms`, error);
+          return retryDelay;
+        },
+      });
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        console.error('SSE stream error:', error);
+        setLoadStatus('error');
+        showAlert(
+          error instanceof FatalSseError
+            ? error.message
+            : '실시간 상태 연결 중 오류가 발생했습니다.',
+          'error',
+        );
+      }
+    } finally {
+      if (streamRef.current === controller) {
         streamRef.current = null;
       }
-    };
+    }
   };
 
   const handleErrorResponse = (error: any) => {
@@ -366,25 +478,12 @@ export default function LoadPage({
 
             {loadStatus === 'success' && loadMetrics && (
               <div>
-                <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
-                  <div className="card" style={{ padding: '1rem', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>최대 초당 처리량 (Max TPS)</div>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--success)' }}>{loadMetrics.maxTps.toFixed(1)} req/s</div>
-                  </div>
-                  <div className="card" style={{ padding: '1rem', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>평균 응답 속도</div>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{loadMetrics.avgResponse.toFixed(0)} ms</div>
-                  </div>
-                  <div className="card" style={{ padding: '1rem', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>에러율</div>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 700, color: loadMetrics.errorRate > 0 ? 'var(--error)' : 'var(--success)' }}>
-                      {loadMetrics.errorRate.toFixed(1)}%
-                    </div>
-                  </div>
+                <div className={`report-markdown load-report-markdown grade-${loadMetrics.performanceGrade?.toLowerCase() ?? 'unknown'}`}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{loadMetrics.bottleneckComment}</ReactMarkdown>
                 </div>
 
                 {/* Line Chart */}
-                <div style={{ height: '300px', width: '100%', marginBottom: '2rem' }}>
+                <div style={{ height: '300px', width: '100%', marginTop: '2rem' }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={loadChartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -397,10 +496,6 @@ export default function LoadPage({
                       <Line yAxisId="right" type="monotone" dataKey="tps" name="초당 처리량 (TPS)" stroke="var(--success)" />
                     </LineChart>
                   </ResponsiveContainer>
-                </div>
-
-                <div className="markdown-body" style={{ background: 'var(--bg-tertiary)', padding: '1.5rem', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
-                  <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{loadMetrics.bottleneckComment}</pre>
                 </div>
               </div>
             )}

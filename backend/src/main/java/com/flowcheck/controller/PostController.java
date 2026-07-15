@@ -2,22 +2,17 @@ package com.flowcheck.controller;
 
 import com.flowcheck.domain.Comment;
 import com.flowcheck.domain.Post;
-import com.flowcheck.dto.CommentRequest;
-import com.flowcheck.dto.CommentResponse;
-import com.flowcheck.dto.PostListResponse;
-import com.flowcheck.repository.CommentRepository;
-import com.flowcheck.repository.PostRepository;
-import com.flowcheck.dto.PostRequest;
 import com.flowcheck.domain.PostLike;
-import com.flowcheck.dto.PostLikeRequest;
-import com.flowcheck.dto.PostLikeResponse;
+import com.flowcheck.dto.*;
+import com.flowcheck.repository.CommentRepository;
 import com.flowcheck.repository.PostLikeRepository;
+import com.flowcheck.repository.PostRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 
 import java.util.List;
 
@@ -74,11 +69,38 @@ public class PostController {
 
         @PostMapping
         public PostListResponse createPost(
+<<<<<<< HEAD
                         @RequestBody PostRequest request,
                         @AuthenticationPrincipal Jwt jwt) {
 
                 String email = jwt.getClaimAsString("email");
                 // JWT에서 얻은 email만 작성자로 사용
+=======
+                @RequestBody PostRequest request,
+                @AuthenticationPrincipal Jwt jwt) {
+
+                String email = jwt.getClaimAsString("email");
+                String userId = jwt.getSubject();
+
+                Post post = new Post();
+                post.setTitle(request.getTitle());
+                post.setContent(request.getContent());
+                post.setEmail(email);
+                post.setWriterEmail(email);
+                post.setUserId(userId);
+
+                Post savedPost = postRepository.save(post);
+
+                return new PostListResponse(
+                        savedPost.getId(),
+                        savedPost.getTitle(),
+                        savedPost.getContent(),
+                        savedPost.getWriterEmail(),
+                        savedPost.getCreatedAt(),
+                        savedPost.getLikeCount(),
+                        0
+                );
+>>>>>>> dev
         }
 
         @PostMapping("/{postId}/like")

@@ -5,7 +5,11 @@ import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+<<<<<<< HEAD
 import org.springframework.security.config.Customizer;
+=======
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+>>>>>>> dev
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
@@ -16,9 +20,27 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @Configuration
 public class SecurityConfig {
 
+<<<<<<< HEAD
         @Bean
         public SecurityFilterChain securityFilterChain(HttpSecurity http)
                         throws Exception {
+=======
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, CorsConfigurationSource corsConfigurationSource) throws Exception {
+        http
+            .cors(cors -> cors.configurationSource(corsConfigurationSource))
+            .csrf(AbstractHttpConfigurer::disable)
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/api/health").permitAll()
+                .requestMatchers("/api/billing/webhook", "/api/payment/webhook").permitAll() // Toss payments webhook does not require token
+                .requestMatchers("/api/uiux-tests/*/report", "/api/uiux-tests/*/fail", "/api/uiux-tests/*/steps").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/load-tests/*/progress").permitAll()
+                .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                .anyRequest().authenticated()
+            )
+            .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {}));
+>>>>>>> dev
 
                 http
                                 .csrf(csrf -> csrf.disable())

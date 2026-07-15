@@ -5,8 +5,11 @@ import com.flowcheck.dto.LoadTest.LoadTestProgressUpdateRequest;
 import com.flowcheck.dto.LoadTest.LoadTestResponse;
 import com.flowcheck.repository.TestRequestRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
@@ -16,26 +19,34 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class LoadTestStreamService {
 
     private final TestRequestRepository testRequestRepository;
     private final Map<UUID, SseEmitter> emitters = new ConcurrentHashMap<>();
 
-    public SseEmitter register(UUID requestId) {
+    @Transactional(readOnly = true)
+    public SseEmitter register(UUID userId, UUID requestId) {
+        TestRequest testRequest = testRequestRepository
+                .findByIdAndUser_UserIdAndTestType(requestId, userId, "LOAD")
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Load test not found"));
+
         SseEmitter emitter = new SseEmitter(0L);
         SseEmitter previous = emitters.put(requestId, emitter);
         if (previous != null) {
             previous.complete();
         }
 
-        emitter.onCompletion(() -> emitters.remove(requestId));
+        emitter.onCompletion(() -> emitters.remove(requestId, emitter));
         emitter.onTimeout(() -> {
-            emitters.remove(requestId);
+            emitters.remove(requestId, emitter);
             emitter.complete();
         });
-        emitter.onError(error -> emitters.remove(requestId));
+        emitter.onError(error -> emitters.remove(requestId, emitter));
 
-        sendSnapshot(requestId, emitter);
+        safeSend(emitter, buildSnapshot(testRequest, null));
         return emitter;
     }
 
@@ -50,18 +61,12 @@ public class LoadTestStreamService {
         testRequestRepository.save(testRequest);
 
         broadcast(requestId, buildSnapshot(testRequest, request.message()));
-    }
-
-    private void sendSnapshot(UUID requestId, SseEmitter emitter) {
-        testRequestRepository.findById(requestId)
-                .ifPresentOrElse(
-                        testRequest -> safeSend(emitter, buildSnapshot(testRequest, null)),
-                        () -> safeSend(emitter, LoadTestResponse.builder()
-                                .status("FAILED")
-                                .phase("FAILED")
-                                .progress(100)
-                                .message("부하 테스트 요청을 찾을 수 없습니다.")
-                                .build()));
+        log.info(
+                "Load test progress updated: requestId={}, status={}, phase={}, progress={}",
+                requestId,
+                request.status(),
+                request.phase(),
+                request.progress());
     }
 
     private LoadTestResponse buildSnapshot(TestRequest testRequest, String message) {
@@ -101,7 +106,7 @@ public class LoadTestStreamService {
 
         if ("COMPLETED".equals(payload.getStatus()) || "FAILED".equals(payload.getStatus())) {
             emitter.complete();
-            emitters.remove(requestId);
+            emitters.remove(requestId, emitter);
         }
     }
 
