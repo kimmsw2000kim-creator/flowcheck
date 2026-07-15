@@ -56,10 +56,39 @@ interface MypageTestHistorySectionProps {
 function MypageTestHistorySection({
     onShare,
 }: MypageTestHistorySectionProps) {
+    /*
+ * 테스트 이력 한 페이지에 표시할 개수입니다.
+ */
+    const TESTS_PER_PAGE = 5;
     const navigate = useNavigate();
     const [tests, setTests] = useState<MypageTestHistoryItem[]>([]);
+    /*
+ * 사용자에게 표시할 현재 페이지입니다.
+ * 화면에서는 1페이지부터 시작합니다.
+ */
+    const [currentPage, setCurrentPage] = useState(1);
     const [loading, setLoading] = useState(true);
     const [errorMessage, setErrorMessage] = useState('');
+    /*
+ * 전체 테스트 개수를 기준으로 총 페이지 수를 계산합니다.
+ */
+    const totalPages = Math.ceil(
+        tests.length / TESTS_PER_PAGE
+    );
+
+    /*
+     * 현재 페이지에서 시작할 배열 위치입니다.
+     */
+    const startIndex =
+        (currentPage - 1) * TESTS_PER_PAGE;
+
+    /*
+     * 전체 테스트 중 현재 페이지에 해당하는 5개만 가져옵니다.
+     */
+    const visibleTests = tests.slice(
+        startIndex,
+        startIndex + TESTS_PER_PAGE
+    );
 
     useEffect(() => {
         const checkAuthAndFetch = async () => {
@@ -73,7 +102,13 @@ function MypageTestHistorySection({
                 }
 
                 const data = await fetchMypageTestHistory();
+
                 setTests(data);
+
+                /*
+                 * 이력을 새로 불러오면 첫 페이지부터 표시합니다.
+                 */
+                setCurrentPage(1);
             } catch (error: any) {
                 setErrorMessage(error.message || '테스트 이력을 불러오지 못했습니다.');
             } finally {
@@ -112,7 +147,8 @@ function MypageTestHistorySection({
 
             {!loading && !errorMessage && tests.length > 0 && (
                 <div className={styles['test-history-list']}>
-                    {tests.map((test) => {
+                    {/* 전체 이력이 아닌 현재 페이지의 5개만 표시합니다. */}
+                    {visibleTests.map((test) => {
                         const progress = test.progress ?? 0;
                         const phase = test.phase ? phaseLabels[test.phase] || test.phase : null;
                         const isUIUX = test.testType === 'UI' || test.testType === 'UIUX';
@@ -172,10 +208,78 @@ function MypageTestHistorySection({
                                             테스트 결과 공유
                                         </button>
                                     )}
+
                                 </div>
                             </article>
                         );
                     })}
+
+                    {/* 두 페이지 이상일 때만 목록 아래에 페이지 이동 버튼을 표시합니다. */}
+                    {totalPages > 1 && (
+                        <nav
+                            aria-label="테스트 이력 페이지"
+                            style={{
+                                display: 'flex',
+                                flexWrap: 'wrap',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.5rem',
+                                marginTop: '1rem',
+                            }}
+                        >
+                            <button
+                                type="button"
+                                className="btn btn-secondary"
+                                disabled={currentPage === 1}
+                                onClick={() =>
+                                    setCurrentPage((page) =>
+                                        Math.max(1, page - 1)
+                                    )
+                                }
+                            >
+                                이전
+                            </button>
+
+                            {/* 전체 페이지 번호를 버튼으로 표시합니다. */}
+                            {Array.from(
+                                { length: totalPages },
+                                (_, index) => index + 1
+                            ).map((pageNumber) => (
+                                <button
+                                    key={pageNumber}
+                                    type="button"
+                                    className={
+                                        currentPage === pageNumber
+                                            ? 'btn btn-primary'
+                                            : 'btn btn-secondary'
+                                    }
+                                    aria-current={
+                                        currentPage === pageNumber
+                                            ? 'page'
+                                            : undefined
+                                    }
+                                    onClick={() =>
+                                        setCurrentPage(pageNumber)
+                                    }
+                                >
+                                    {pageNumber}
+                                </button>
+                            ))}
+
+                            <button
+                                type="button"
+                                className="btn btn-secondary"
+                                disabled={currentPage === totalPages}
+                                onClick={() =>
+                                    setCurrentPage((page) =>
+                                        Math.min(totalPages, page + 1)
+                                    )
+                                }
+                            >
+                                다음
+                            </button>
+                        </nav>
+                    )}
                 </div>
             )}
         </section>
