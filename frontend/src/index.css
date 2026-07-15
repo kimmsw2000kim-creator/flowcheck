@@ -1,43 +1,4 @@
-/* Custom CSS Design System for OverLoad Platform */
-:root {
-  --bg-primary: #f0f4f8;
-  /* Light slate/sky grey */
-  --bg-secondary: #ffffff;
-  /* Pure white card background */
-  --bg-tertiary: #f1f5f9;
-  /* Slate 100 */
-
-  --text-primary: #0f172a;
-  /* Slate 900 */
-  --text-secondary: #334155;
-  /* Slate 700 */
-  --text-muted: #64748b;
-  /* Slate 500 */
-
-  --accent: #0284c7;
-  /* Sky 600 */
-  --accent-glow: rgba(2, 132, 199, 0.08);
-  --accent-border: rgba(2, 132, 199, 0.25);
-  --accent-hover: #0ea5e9;
-  /* Sky 500 */
-
-  --success: #0d9488;
-  /* Teal 600 */
-  --success-bg: rgba(13, 148, 136, 0.08);
-  --warning: #d97706;
-  /* Amber 600 */
-  --warning-bg: rgba(217, 119, 6, 0.08);
-  --error: #dc2626;
-  /* Red 600 */
-  --error-bg: rgba(220, 38, 38, 0.08);
-
-  --border: #e2e8f0;
-  /* Slate 200 */
-  --card-shadow: rgba(15, 23, 42, 0.05) 0px 10px 25px -5px, rgba(15, 23, 42, 0.02) 0px 8px 10px -6px;
-
-  --sans: 'Outfit', system-ui, -apple-system, sans-serif;
-  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-}
+/* FlowCheck global component and page styles */
 
 * {
   box-sizing: border-box;
