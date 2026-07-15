@@ -1,42 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 
 import apiClient from '../../api/client';
 import { fetchMypageUIUXTestDetail } from '../../api/mypageApi';
 import type { UIUXTestStatusResponse } from '../../api/UIUXTestApi';
 import { EmptyState, PageHeader } from '../../components/common';
+import { LoadTestResultView } from '../../components/load';
 import { UIUXResultView } from '../../components/uiux';
-
-interface LoadChartDataPoint {
-    time: string;
-    tps: number;
-    avgResponse: number;
-}
-
-interface LoadTestDetail {
-    maxTps: number;
-    avgResponse: number;
-    errorRate: number;
-    performanceScore: number;
-    performanceGrade: string;
-    scoreLabel: string;
-    scoreBreakdown: {
-        reliabilityScore: number;
-        latencyScore: number;
-    };
-    bottleneckComment: string;
-    points: LoadChartDataPoint[];
-}
+import type { LoadTestResult } from '../../types/loadTest';
 
 function MypageTestDetailSection() {
     const { testType, requestId } = useParams<{ testType: string; requestId: string }>();
     const [loading, setLoading] = useState(true);
     const [errorMessage, setErrorMessage] = useState('');
 
-    const [loadDetail, setLoadDetail] = useState<LoadTestDetail | null>(null);
+    const [loadDetail, setLoadDetail] = useState<LoadTestResult | null>(null);
     const [uiuxDetail, setUiuxDetail] = useState<UIUXTestStatusResponse | null>(null);
 
     const isUIUXTest = testType === 'UI' || testType === 'UIUX';
@@ -50,7 +28,7 @@ function MypageTestDetailSection() {
         setUiuxDetail(null);
 
         if (testType === 'LOAD') {
-            apiClient.get(`/api/load-tests/${requestId}`)
+            apiClient.get<{ testResults?: LoadTestResult }>(`/api/load-tests/${requestId}`)
                 .then((res) => {
                     setLoadDetail(res.data.testResults ?? null);
                 })
@@ -85,26 +63,14 @@ function MypageTestDetailSection() {
         }
 
         return (
-            <div className="card">
-                <h2>부하 테스트 상세 결과</h2>
-                <div className={`report-markdown load-report-markdown grade-${loadDetail.performanceGrade?.toLowerCase() ?? 'unknown'}`}>
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{loadDetail.bottleneckComment}</ReactMarkdown>
-                </div>
-
-                <div style={{ height: '320px', width: '100%', marginTop: '1.5rem' }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={loadDetail.points}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                            <XAxis dataKey="time" stroke="var(--text-muted)" />
-                            <YAxis stroke="var(--accent)" />
-                            <Tooltip />
-                            <Legend />
-                            <Line type="monotone" dataKey="tps" name="TPS" stroke="var(--accent)" />
-                            <Line type="monotone" dataKey="avgResponse" name="평균 응답시간(ms)" stroke="var(--success)" />
-                        </LineChart>
-                    </ResponsiveContainer>
-                </div>
-            </div>
+            <section className="mypage-load-detail">
+                <PageHeader
+                    headingLevel={2}
+                    title="부하 테스트 상세 결과"
+                    description="저장된 부하 테스트의 성능 지표와 AI 분석 보고서입니다."
+                />
+                <LoadTestResultView result={loadDetail} />
+            </section>
         );
     }
 
