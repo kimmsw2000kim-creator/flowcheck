@@ -45,6 +45,14 @@ interface Report {
   createdAt: string;
 }
 
+interface LedgerItem {
+  id: number;
+  amount: number;
+  type: string;
+  description: string;
+  createdAt: string;
+}
+
 const TAB_ROUTES: Record<string, string> = {
   dashboard: '/dashboard',
   mypage: '/mypage',
@@ -66,18 +74,43 @@ function App() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const currentUser = useUserStore((state) => state.currentUser);
-  const authStatus = useUserStore((state) => state.authStatus);
+  const currentUser = useUserStore(
+    (state) => state.currentUser,
+  );
+  const authStatus = useUserStore(
+    (state) => state.authStatus,
+  );
 
-  const alertMsg = useAlertStore((state) => state.alertMsg);
-  const showAlert = useAlertStore((state) => state.showAlert);
+  const alertMsg = useAlertStore(
+    (state) => state.alertMsg,
+  );
+  const showAlert = useAlertStore(
+    (state) => state.showAlert,
+  );
 
   const [, setReports] = useState<Report[]>([]);
+  const [, setLedger] = useState<LedgerItem[]>([]);
+
   const [selectedUIUXTestDomain, setSelectedUIUXTestDomain] =
     useState<number>(1);
 
-  const isLoggedIn =
-    authStatus === 'authenticated' && currentUser !== null;
+  const handleAddLedger = (ledgerItem: LedgerItem) => {
+    setLedger((previousLedger) => [
+      ledgerItem,
+      ...previousLedger,
+    ]);
+  };
+
+  /*
+   * authStatus가 authenticated이고 currentUser가 있을 때만
+   * null이 아닌 사용자 객체로 취급합니다.
+   */
+  const authenticatedUser =
+    authStatus === 'authenticated' && currentUser
+      ? currentUser
+      : null;
+
+  const isLoggedIn = authenticatedUser !== null;
 
   const isLandingPage =
     !isLoggedIn && location.pathname === '/';
@@ -94,20 +127,25 @@ function App() {
     navigate(TAB_ROUTES[tab] ?? '/dashboard');
   };
 
-  const handleSubmitReport = (type: string, id: number) => {
-    if (!currentUser) {
-      showAlert('로그인이 필요합니다.');
+  const handleSubmitReport = (
+    type: string,
+    id: number,
+  ) => {
+    if (!authenticatedUser) {
+      showAlert('로그인이 필요합니다.', 'warning');
       return;
     }
 
     const report: Report = {
       id: Date.now(),
-      reporterId: currentUser.id,
+      reporterId: authenticatedUser.id,
       targetType: type,
       targetId: id,
       reason: '부적절한 내용',
       status: 'PENDING',
-      createdAt: new Date().toISOString().split('T')[0],
+      createdAt: new Date()
+        .toISOString()
+        .split('T')[0],
     };
 
     setReports((previousReports) => [
@@ -115,7 +153,7 @@ function App() {
       report,
     ]);
 
-    showAlert('신고가 접수되었습니다.');
+    showAlert('신고가 접수되었습니다.', 'success');
   };
 
   if (authStatus === 'checking') {
@@ -156,31 +194,42 @@ function App() {
 
       <main
         className={
-          isLandingPage ? 'landing-main' : 'main-content'
+          isLandingPage
+            ? 'landing-main'
+            : 'main-content'
         }
       >
         <Routes>
-          {isLoggedIn ? (
+          {authenticatedUser ? (
             <>
               {/* 로그인 상태 접근 경로 */}
               <Route
                 path="/"
                 element={
-                  <Navigate to="/dashboard" replace />
+                  <Navigate
+                    to="/dashboard"
+                    replace
+                  />
                 }
               />
 
               <Route
                 path="/login"
                 element={
-                  <Navigate to="/dashboard" replace />
+                  <Navigate
+                    to="/dashboard"
+                    replace
+                  />
                 }
               />
 
               <Route
                 path="/signup"
                 element={
-                  <Navigate to="/dashboard" replace />
+                  <Navigate
+                    to="/dashboard"
+                    replace
+                  />
                 }
               />
 
@@ -214,12 +263,11 @@ function App() {
                 path="/UIUXTest"
                 element={
                   <UIUXTestPage
-                    selectedUIUXTestDomain={
-                      selectedUIUXTestDomain
-                    }
+                    selectedUIUXTestDomain={selectedUIUXTestDomain}
                     setSelectedUIUXTestDomain={
                       setSelectedUIUXTestDomain
                     }
+                    onAddLedger={handleAddLedger}
                   />
                 }
               />
@@ -241,7 +289,9 @@ function App() {
                 path="/community"
                 element={
                   <CommunityPage
-                    currentUser={currentUser}
+                    currentUser={
+                      authenticatedUser
+                    }
                     showAlert={showAlert}
                     handleSubmitReport={
                       handleSubmitReport
@@ -270,7 +320,9 @@ function App() {
                 path="/comment"
                 element={
                   <CommentPage
-                    currentUser={currentUser}
+                    currentUser={
+                      authenticatedUser
+                    }
                     showAlert={showAlert}
                   />
                 }
@@ -302,7 +354,10 @@ function App() {
               <Route
                 path="*"
                 element={
-                  <Navigate to="/dashboard" replace />
+                  <Navigate
+                    to="/dashboard"
+                    replace
+                  />
                 }
               />
             </>
@@ -342,7 +397,9 @@ function App() {
               {/* 비로그인 사용자의 잘못된 주소 */}
               <Route
                 path="*"
-                element={<Navigate to="/" replace />}
+                element={
+                  <Navigate to="/" replace />
+                }
               />
             </>
           )}
