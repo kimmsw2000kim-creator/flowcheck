@@ -55,6 +55,16 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
+      # package-lock.json을 생성한 로컬 npm과 동일한 버전을 사용합니다.
+      - name: Pin npm version
+        run: npm install --global npm@11.13.0
+
+      # 이후 CI 로그에서 실제 버전을 확인할 수 있게 합니다.
+      - name: Show Node and npm versions
+        run: |
+          node --version
+          npm --version
+
       - name: Install frontend dependencies
         run: npm ci
         working-directory: frontend
