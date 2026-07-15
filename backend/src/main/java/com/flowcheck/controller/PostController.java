@@ -13,6 +13,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -69,39 +73,54 @@ public class PostController {
 
         @PostMapping
         public PostListResponse createPost(
-<<<<<<< HEAD
-                        @RequestBody PostRequest request,
-                        @AuthenticationPrincipal Jwt jwt) {
-
-                String email = jwt.getClaimAsString("email");
-                // JWT에서 얻은 email만 작성자로 사용
-=======
                 @RequestBody PostRequest request,
                 @AuthenticationPrincipal Jwt jwt) {
 
-                String email = jwt.getClaimAsString("email");
-                String userId = jwt.getSubject();
-
-                Post post = new Post();
-                post.setTitle(request.getTitle());
-                post.setContent(request.getContent());
-                post.setEmail(email);
-                post.setWriterEmail(email);
-                post.setUserId(userId);
-
-                Post savedPost = postRepository.save(post);
-
-                return new PostListResponse(
-                        savedPost.getId(),
-                        savedPost.getTitle(),
-                        savedPost.getContent(),
-                        savedPost.getWriterEmail(),
-                        savedPost.getCreatedAt(),
-                        savedPost.getLikeCount(),
-                        0
+        if (jwt == null) {
+                throw new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED,
+                        "로그인이 필요합니다."
                 );
->>>>>>> dev
         }
+
+        String email = jwt.getClaimAsString("email");
+        String userId = jwt.getSubject();
+
+        if (email == null || email.isBlank()) {
+                throw new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED,
+                        "JWT에서 이메일 정보를 확인할 수 없습니다."
+                );
+        }
+
+        if (userId == null || userId.isBlank()) {
+                throw new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED,
+                        "JWT에서 사용자 ID를 확인할 수 없습니다."
+                );
+        }
+
+        Post post = new Post();
+        post.setTitle(request.getTitle());
+        post.setContent(request.getContent());
+
+        // 작성자 정보는 요청값을 믿지 않고 JWT 값만 사용
+        post.setEmail(email);
+        post.setWriterEmail(email);
+        post.setUserId(userId);
+
+        Post savedPost = postRepository.save(post);
+
+        return new PostListResponse(
+                savedPost.getId(),
+                savedPost.getTitle(),
+                savedPost.getContent(),
+                savedPost.getWriterEmail(),
+                savedPost.getCreatedAt(),
+                savedPost.getLikeCount(),
+                0
+        );
+}
 
         @PostMapping("/{postId}/like")
         public PostLikeResponse toggleLike(
