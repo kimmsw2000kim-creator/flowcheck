@@ -1,53 +1,61 @@
-import React from 'react';
+import React, { useId } from 'react';
 import type { LucideIcon } from 'lucide-react';
+import Field from './Field';
 
-interface TextFieldProps extends React.InputHTMLAttributes<HTMLInputElement> {
-  label?: string;
-  error?: string;
+export interface TextFieldProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  label?: React.ReactNode;
+  description?: React.ReactNode;
+  error?: React.ReactNode;
   leftIcon?: LucideIcon;
   containerStyle?: React.CSSProperties;
+  containerClassName?: string;
 }
 
 export default function TextField({
   label,
+  description,
   error,
   className = '',
   id,
   leftIcon: Icon,
   style,
   containerStyle,
+  containerClassName = '',
+  required,
   ...props
 }: TextFieldProps) {
+  const generatedId = useId();
+  const controlId = id || `fc-input-${generatedId.replace(/:/g, '')}`;
+  const describedBy = [
+    props['aria-describedby'],
+    description ? `${controlId}-description` : '',
+    error ? `${controlId}-error` : '',
+  ]
+    .filter(Boolean)
+    .join(' ') || undefined;
+
   return (
-    <div className="form-group" style={containerStyle}>
-      {label && (
-        <label htmlFor={id} className="form-label">
-          {label}
-        </label>
-      )}
-      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '100%' }}>
-        {Icon && (
-          <Icon
-            size={18}
-            style={{ position: 'absolute', left: '0.75rem', color: 'var(--text-muted)', pointerEvents: 'none' }}
-          />
-        )}
+    <Field
+      className={`form-group ${containerClassName}`.trim()}
+      style={containerStyle}
+      label={label}
+      htmlFor={controlId}
+      description={description}
+      error={error}
+      required={required}
+    >
+      <div className="fc-field__control">
+        {Icon && <Icon size={18} className="fc-field__icon" aria-hidden="true" />}
         <input
-          id={id}
-          className={`form-input ${className}`}
-          style={{
-            paddingLeft: Icon ? '2.25rem' : undefined,
-            width: '100%',
-            ...style,
-          }}
           {...props}
+          id={controlId}
+          required={required}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={describedBy}
+          className={`fc-input form-input ${Icon ? 'fc-input--with-icon' : ''} ${className}`.trim()}
+          style={style}
         />
       </div>
-      {error && (
-        <span style={{ color: 'var(--error)', fontSize: '0.8rem', marginTop: '0.25rem', textAlign: 'left' }}>
-          {error}
-        </span>
-      )}
-    </div>
+    </Field>
   );
 }

@@ -8,7 +8,7 @@
     "npm": ">=11 <12"
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --port 5174",
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview"

@@ -13,7 +13,6 @@ import '../styles/UIUXTestPage.css';
 interface UIUXTestPageProps {
   selectedUIUXTestDomain: number;
   setSelectedUIUXTestDomain: (id: number) => void;
-  onAddLedger: (ledgerItem: any) => void;
 }
 
 const formatStepNumber = (step: number) => String(step).padStart(2, '0');
