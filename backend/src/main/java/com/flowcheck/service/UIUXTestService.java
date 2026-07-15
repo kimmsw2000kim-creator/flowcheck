@@ -370,6 +370,11 @@ public class UIUXTestService {
         TestRequest testRequest = testRequestRepository.findById(requestId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 테스트 요청입니다."));
 
+        if ("COMPLETED".equals(testRequest.getTestStatus()) || "FAILED".equals(testRequest.getTestStatus())) {
+            log.debug("Ignoring UI/UX step callback for terminal request {} with status {}", requestId, testRequest.getTestStatus());
+            return;
+        }
+
         UIUXTestReport report = UIUXTestReportRepository.findByTestRequestId(requestId).orElseGet(() ->
                 UIUXTestReportRepository.save(UIUXTestReport.builder()
                         .testRequest(testRequest)
@@ -390,6 +395,15 @@ public class UIUXTestService {
             logs = objectMapper.readValue(report.getRawLogs(), new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
         } catch (Exception e) {
             logs = new java.util.ArrayList<>();
+        }
+
+        String submittedStepKey = stepKey(request);
+        boolean alreadyRecorded = logs.stream()
+                .map(this::stepKey)
+                .anyMatch(submittedStepKey::equals);
+        if (alreadyRecorded) {
+            log.debug("Ignoring duplicate UI/UX step callback for request {} step {}", requestId, submittedStepKey);
+            return;
         }
 
         logs.add(request);
