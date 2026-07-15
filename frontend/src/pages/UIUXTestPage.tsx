@@ -17,6 +17,9 @@ interface UIUXTestPageProps {
 }
 
 const formatStepNumber = (step: number) => String(step).padStart(2, '0');
+const UIUX_POLL_INTERVAL_MS = 3000;
+const UIUX_MAX_POLL_COUNT = 200;
+const UIUX_MAX_POLL_ERRORS = 5;
 
 const getLiveVncProxyOrigin = () => {
   if (window.location.hostname === 'localhost' && window.location.port === '5173') {
@@ -201,16 +204,18 @@ export default function UIUXTestPage({
   const [activeDefectId, setActiveDefectId] = useState<number | null>(null);
   const [showHeuristics, setShowHeuristics] = useState(false);
 
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollErrorCountRef = useRef(0);
   const pollCountRef = useRef(0);
+  const activePollRequestIdRef = useRef<string | null>(null);
   const isSubmittingRef = useRef(false);
   const customVideoRef = useRef<any>(null);
 
   const stopPolling = React.useCallback(() => {
-    if (intervalRef.current !== null) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+    activePollRequestIdRef.current = null;
+    if (pollTimeoutRef.current !== null) {
+      clearTimeout(pollTimeoutRef.current);
+      pollTimeoutRef.current = null;
     }
   }, []);
 
@@ -289,13 +294,18 @@ export default function UIUXTestPage({
       stopPolling();
       pollErrorCountRef.current = 0;
       pollCountRef.current = 0;
-      const MAX_POLL_ERRORS = 5;
-      const MAX_POLL_COUNT = 480;
+      activePollRequestIdRef.current = requestId;
 
-      intervalRef.current = setInterval(async () => {
+      const scheduleNextPoll = () => {
+        if (activePollRequestIdRef.current !== requestId) return;
+        pollTimeoutRef.current = setTimeout(pollStatus, UIUX_POLL_INTERVAL_MS);
+      };
+
+      const pollStatus = async () => {
+        if (activePollRequestIdRef.current !== requestId) return;
         pollCountRef.current += 1;
 
-        if (pollCountRef.current > MAX_POLL_COUNT) {
+        if (pollCountRef.current > UIUX_MAX_POLL_COUNT) {
           stopPolling();
           setUIUXTestStatus('error');
           showAlert('테스트 응답 대기 시간이 초과되었습니다.', 'error');
@@ -304,6 +314,8 @@ export default function UIUXTestPage({
 
         try {
           const statusRes = await getUIUXTestStatus(requestId);
+          if (activePollRequestIdRef.current !== requestId) return;
+
           pollErrorCountRef.current = 0;
           setUIUXTestSteps(statusRes.steps || []);
 
@@ -316,16 +328,24 @@ export default function UIUXTestPage({
             stopPolling();
             setUIUXTestStatus('error');
             showAlert('AI UI/UX 테스트 중 오류가 발생했습니다.', 'error');
+          } else {
+            scheduleNextPoll();
           }
         } catch {
+          if (activePollRequestIdRef.current !== requestId) return;
+
           pollErrorCountRef.current += 1;
-          if (pollErrorCountRef.current >= MAX_POLL_ERRORS) {
+          if (pollErrorCountRef.current >= UIUX_MAX_POLL_ERRORS) {
             stopPolling();
             setUIUXTestStatus('error');
             showAlert('상태 조회가 중단되었습니다.', 'error');
+          } else {
+            scheduleNextPoll();
           }
         }
-      }, 1500);
+      };
+
+      scheduleNextPoll();
     } catch (err: any) {
       setUIUXTestStatus('error');
       let errorMessage = 'AI 서버를 호출하지 못했습니다.';
