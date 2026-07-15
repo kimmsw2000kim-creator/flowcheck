@@ -26,6 +26,9 @@ const phaseLabels: Record<string, string> = {
     FAILED: '실패',
 };
 
+/*
+ * 테스트 실행 시간을 한국 날짜 형식으로 변환합니다.
+ */
 function formatDate(value: string) {
     if (!value) {
         return '-';
@@ -40,7 +43,19 @@ function formatDate(value: string) {
     });
 }
 
-function MypageTestHistorySection() {
+interface MypageTestHistorySectionProps {
+    /*
+     * 커뮤니티 화면에서 테스트 공유 버튼을 눌렀을 때 호출됩니다.
+     *
+     * 기존 마이페이지에서는 이 값을 전달하지 않기 때문에
+     * 공유 버튼이 표시되지 않습니다.
+     */
+    onShare?: (test: MypageTestHistoryItem) => void;
+}
+
+function MypageTestHistorySection({
+    onShare,
+}: MypageTestHistorySectionProps) {
     const navigate = useNavigate();
     const [tests, setTests] = useState<MypageTestHistoryItem[]>([]);
     const [loading, setLoading] = useState(true);
@@ -85,7 +100,7 @@ function MypageTestHistorySection() {
             {!loading && errorMessage && (
                 <EmptyState
                     title={errorMessage}
-                    description="로그인 상태를 확인한 뒤 다시 시도해 주세요."
+                    description="로그인 상태를 확인하고 다시 시도해 주세요."
                 />
             )}
 
@@ -139,6 +154,24 @@ function MypageTestHistorySection() {
 
                                     {test.description && (
                                         <p className={styles['test-history-description']}>{test.description}</p>
+                                    )}
+
+                                    {/* 커뮤니티에서 사용하며 완료된 테스트에만 공유 버튼을 표시합니다. */}
+                                    {onShare && test.status === 'COMPLETED' && (
+                                        <button
+                                            type="button"
+                                            className="btn btn-secondary"
+                                            style={{ marginTop: '1rem' }}
+                                            onClick={(event) => {
+                                                /*
+                                                 * 부모 article의 상세 페이지 이동이 실행되지 않도록 막습니다.
+                                                 */
+                                                event.stopPropagation();
+                                                onShare(test);
+                                            }}
+                                        >
+                                            테스트 결과 공유
+                                        </button>
                                     )}
                                 </div>
                             </article>
