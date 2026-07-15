@@ -11,6 +11,8 @@ UIUX_TASK_FAMILY = os.getenv("ECS_UIUX_TASK_FAMILY", "flowcheck-uiux-task")
 CONTAINER_NAME = os.getenv("ECS_UIUX_CONTAINER_NAME", "flowcheck-ai")
 DOCKER_USERNAME = os.getenv("DOCKER_USERNAME")
 AI_IMAGE = os.getenv("AI_IMAGE", "flowcheck-ai")
+ENABLE_AWSLOGS = os.getenv("ECS_UIUX_ENABLE_AWSLOGS", "false").lower() == "true"
+AWSLOGS_GROUP = os.getenv("ECS_UIUX_AWSLOGS_GROUP", "/ecs/flowcheck-uiux")
 
 if not SOURCE_TASK_FAMILY:
     raise SystemExit("ECS_TASK_FAMILY is required so the UIUX task can reuse its IAM roles.")
@@ -40,16 +42,18 @@ container_definition = {
             "protocol": "tcp",
         }
     ],
-    "logConfiguration": {
+}
+
+if ENABLE_AWSLOGS:
+    container_definition["logConfiguration"] = {
         "logDriver": "awslogs",
         "options": {
-            "awslogs-group": "/ecs/flowcheck-uiux",
+            "awslogs-group": AWSLOGS_GROUP,
             "awslogs-region": AWS_REGION,
             "awslogs-stream-prefix": "ecs",
-            "awslogs-create-group": "true",
+            "awslogs-create-group": "false",
         },
-    },
-}
+    }
 
 try:
     response = client.register_task_definition(
