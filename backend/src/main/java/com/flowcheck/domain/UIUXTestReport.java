@@ -32,17 +32,37 @@ public class UIUXTestReport {
     @OnDelete(action = OnDeleteAction.CASCADE)
     private TestRequest testRequest;
 
-    @NotNull
-    @Column(name = "total_steps", nullable = false)
-    private Integer totalSteps;
+    @Column(name = "score_usability")
+    private Integer scoreUsability;
 
-    @NotNull
-    @Column(name = "defect_count", nullable = false)
-    private Integer defectCount;
+    @Column(name = "score_accessibility")
+    private Integer scoreAccessibility;
 
-    @NotNull
-    @Column(name = "execution_time", nullable = false)
-    private Integer executionTime;
+    @Column(name = "score_efficiency")
+    private Integer scoreEfficiency;
+
+    @Column(name = "score_performance")
+    private Integer scorePerformance;
+
+    @Column(name = "score_best_practices")
+    private Integer scoreBestPractices;
+
+    @Column(name = "overall_score")
+    private Integer overallScore;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "score_breakdown", columnDefinition = "jsonb")
+    private String scoreBreakdown;
+
+    @Column(name = "evaluation_version")
+    private String evaluationVersion;
+
+    @Column(name = "video_url", columnDefinition = "TEXT")
+    private String videoUrl;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "device_info", columnDefinition = "jsonb")
+    private String deviceInfo;
 
     @NotNull
     @JdbcTypeCode(SqlTypes.JSON)
@@ -50,8 +70,8 @@ public class UIUXTestReport {
     private String rawLogs;
 
     @NotNull
-    @Column(name = "ai_ux_review", nullable = false, columnDefinition = "TEXT")
-    private String aiUxReview;
+    @Column(name = "uiux_test_review", nullable = false, columnDefinition = "TEXT")
+    private String uiuxTestReview;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

@@ -20,14 +20,21 @@ services:
 
   frontend:
     container_name: flowcheck-frontend
-    image: ${DOCKER_USERNAME}/${FRONTEND_IMAGE:-flowcheck-frontend}:latest
+    build:
+      context: ./frontend
+      args:
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
+    image: ${DOCKER_USERNAME:-flowcheck-local}/${FRONTEND_IMAGE:-flowcheck-frontend}:latest
     restart: on-failure:3
     networks:
       - flowcheck-network
 
   backend:
     container_name: flowcheck-backend
-    image: ${DOCKER_USERNAME}/${BACKEND_IMAGE:-flowcheck-backend}:latest
+    build:
+      context: ./backend
+    image: ${DOCKER_USERNAME:-flowcheck-local}/${BACKEND_IMAGE:-flowcheck-backend}:latest
     restart: on-failure:3
     env_file:
       - ./.env
@@ -47,12 +54,17 @@ services:
 
   ai:
     container_name: flowcheck-ai
-    image: ${DOCKER_USERNAME}/${AI_IMAGE:-flowcheck-ai}:latest
+    build:
+      context: ./ai
+    image: ${DOCKER_USERNAME:-flowcheck-local}/${AI_IMAGE:-flowcheck-ai}:latest
     restart: on-failure:3
     env_file:
       - ./.env
     environment:
       BACKEND_URL: http://backend:8080
+      USE_FARGATE: ${USE_FARGATE:-true}
+      ECS_UIUX_TASK_FAMILY: ${ECS_UIUX_TASK_FAMILY:-flowcheck-uiux-task}
+      ECS_UIUX_CONTAINER_NAME: ${ECS_UIUX_CONTAINER_NAME:-flowcheck-ai}
     networks:
       - flowcheck-network
 
