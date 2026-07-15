@@ -307,7 +307,6 @@ function App() {
                     onUserUpdate={handleUserUpdate}
                     ledger={ledger}
                     onAddLedger={handleAddLedger}
-                    showAlert={showAlert}
                     handleSubmitReport={handleSubmitReport}
                   />
                 }

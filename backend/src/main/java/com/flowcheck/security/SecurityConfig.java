@@ -1,87 +1,89 @@
 package com.flowcheck.security;
 
-import lombok.RequiredArgsConstructor;
+import java.util.List;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import java.util.Arrays;
-import java.util.List;
-
 @Configuration
-@EnableWebSecurity
-@EnableMethodSecurity
-@RequiredArgsConstructor
 public class SecurityConfig {
 
-    @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, CorsConfigurationSource corsConfigurationSource) throws Exception {
-        http
-            .cors(cors -> cors.configurationSource(corsConfigurationSource))
-            .csrf(AbstractHttpConfigurer::disable)
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/health").permitAll()
-                .requestMatchers("/api/billing/webhook", "/api/payment/webhook").permitAll() // Toss payments webhook does not require token
-                .requestMatchers("/api/uiux-tests/*/report", "/api/uiux-tests/*/fail", "/api/uiux-tests/*/steps").permitAll()
-                .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                .anyRequest().authenticated()
-            )
-            .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {}));
+        @Bean
+        public SecurityFilterChain securityFilterChain(HttpSecurity http)
+                        throws Exception {
 
-        return http.build();
-    }
+                http
+                                .csrf(csrf -> csrf.disable())
 
-    @Bean CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
+                                // 아래에서 만든 CORS 설정을 Spring Security에 적용
+                                .cors(Customizer.withDefaults())
 
-        configuration.setAllowedOriginPatterns(
-        List.of(
-                "http://localhost:5173",
-                "https://flow-check.duckdns.org"
-        )
-);
+                                .sessionManagement(session -> session
+                                                .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
+                                .authorizeHttpRequests(auth -> auth
+                                                // 브라우저의 CORS 사전 요청 허용
+                                                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-        configuration.setAllowedMethods(
-        Arrays.asList(
-                "HEAD",
-                "GET",
-                "POST",
-                "PUT",
-                "DELETE",
-                "PATCH",
-                "OPTIONS"
-        )
-);
+                                                // 게시판 조회가 비로그인 사용자에게도 가능하다면 추가
+                                                .requestMatchers(HttpMethod.GET, "/api/posts/**").permitAll()
+                                                .requestMatchers(HttpMethod.GET, "/posts/**").permitAll()
 
-        configuration.setAllowedHeaders(
-                Arrays.asList(
-                        "Authorization",
-                        "Cache-Control",
-                        "Content-Type",
-                        "X-User-Id"
-                )
-        );
+                                                // 실제 프로젝트에서 공개해야 하는 경로
+                                                .requestMatchers(
+                                                                "/api/auth/**",
+                                                                "/auth/**",
+                                                                "/swagger-ui/**",
+                                                                "/v3/api-docs/**")
+                                                .permitAll()
 
-        configuration.setAllowCredentials(true);
+                                                .anyRequest().authenticated());
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+                return http.build();
+        }
 
-        // 모든 URL에 대해 CORS 적용
-        source.registerCorsConfiguration(
-                "/**",
-                configuration
-        );
+        @Bean
+        public CorsConfigurationSource corsConfigurationSource() {
+                CorsConfiguration configuration = new CorsConfiguration();
 
-        return source;
-    }
+                configuration.setAllowedOrigins(List.of(
+                                "http://localhost:5173",
+                                "http://127.0.0.1:5173",
+                                "https://flow-check.duckdns.org"));
+
+                configuration.setAllowedMethods(List.of(
+                                "GET",
+                                "POST",
+                                "PUT",
+                                "PATCH",
+                                "DELETE",
+                                "OPTIONS"));
+
+                configuration.setAllowedHeaders(List.of(
+                                "Authorization",
+                                "Content-Type",
+                                "Accept",
+                                "Origin",
+                                "X-Requested-With"));
+
+                configuration.setExposedHeaders(List.of(
+                                "Authorization"));
+
+                configuration.setAllowCredentials(true);
+                configuration.setMaxAge(3600L);
+
+                UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+
+                source.registerCorsConfiguration("/**", configuration);
+
+                return source;
+        }
 }

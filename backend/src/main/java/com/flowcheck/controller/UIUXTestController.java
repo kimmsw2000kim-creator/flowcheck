@@ -1,6 +1,5 @@
 package com.flowcheck.controller;
 
-
 import com.flowcheck.dto.uiuxtest.*;
 import com.flowcheck.service.UIUXTestService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -21,11 +20,13 @@ import java.util.UUID;
 @RequestMapping("/api/uiux-tests")
 @RequiredArgsConstructor
 @Slf4j
-@CrossOrigin(origins = { "http://localhost:5173", "https://flow-check.duckdns.org" })
+@CrossOrigin(origins = {
+        "http://localhost:5173",
+        "https://flow-check.duckdns.org"
+}, allowCredentials = "true")
 public class UIUXTestController {
 
     private final UIUXTestService UIUXTestService;
-
 
     @Operation(summary = "UI 탐색 테스트 시작", description = "자율형 AI 크롤링 및 UX 분석 테스트를 생성하고 시작 요청을 보냅니다.")
     @PostMapping

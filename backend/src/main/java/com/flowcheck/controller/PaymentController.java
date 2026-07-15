@@ -22,11 +22,13 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/payment")
 @RequiredArgsConstructor
-@CrossOrigin(origins = { "http://localhost:5173", "https://flow-check.duckdns.org" })
+@CrossOrigin(origins = {
+        "http://localhost:5173",
+        "https://flow-check.duckdns.org"
+}, allowCredentials = "true")
 public class PaymentController {
 
     private final PaymentService paymentService;
-
 
     /**
      * 결제 정보 생성
@@ -125,7 +127,8 @@ public class PaymentController {
             @RequestBody CouponBuyRequestDto requestDto,
             @AuthenticationPrincipal Jwt jwt) {
 
-        log.info("[API] /api/payment/buy-coupons - 쿠폰 패키지 구매 요청 수신. Count: {}, Type: {}", requestDto.count(), requestDto.couponType());
+        log.info("[API] /api/payment/buy-coupons - 쿠폰 패키지 구매 요청 수신. Count: {}, Type: {}", requestDto.count(),
+                requestDto.couponType());
         String email = jwt.getClaimAsString("email");
         paymentService.buyCoupons(email, requestDto.count(), requestDto.couponType());
         return ResponseEntity.ok().build();

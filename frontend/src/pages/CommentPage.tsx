@@ -66,6 +66,7 @@ export default function CommentPage({
 
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
+    const [totalElements, setTotalElements] = useState(0);
 
     const [searchInput, setSearchInput] = useState("");
     const [keyword, setKeyword] = useState("");
@@ -80,11 +81,19 @@ export default function CommentPage({
             const data = await getPosts(page - 1, pageSize, keyword);
 
             if (Array.isArray(data)) {
-                setPosts(data);
+                const sortedPosts = [...data].sort((a, b) => b.id - a.id);
+
+                setPosts(sortedPosts);
                 setTotalPages(1);
+                setTotalElements(sortedPosts.length);
             } else {
-                setPosts(data.content || []);
+                const sortedPosts = [...(data.content || [])].sort(
+                    (a, b) => b.id - a.id
+                );
+
+                setPosts(sortedPosts);
                 setTotalPages(data.totalPages || 1);
+                setTotalElements(data.totalElements ?? sortedPosts.length);
             }
         } catch (error) {
             console.error(error);
@@ -768,45 +777,50 @@ export default function CommentPage({
                             </tr>
                         )}
 
-                        {posts.map((post) => (
-                            <tr
-                                key={post.id}
-                                style={{
-                                    borderTop: "1px solid var(--border)",
-                                    cursor: "pointer",
-                                }}
-                                onClick={() => openPost(post.id)}
-                            >
-                                <td style={{ padding: "0.75rem", textAlign: "center" }}>
-                                    {post.id}
-                                </td>
+                        {posts.map((post, index) => {
+                            const displayNumber =
+                                totalElements - ((page - 1) * pageSize + index);
 
-                                <td style={{ padding: "0.75rem", fontWeight: 600 }}>
-                                    {post.title}
-                                    {(post.commentCount || 0) > 0 && (
-                                        <span style={{ marginLeft: "0.5rem", color: "#0070c9" }}>
-                                            [{post.commentCount}]
-                                        </span>
-                                    )}
-                                </td>
+                            return (
+                                <tr
+                                    key={post.id}
+                                    style={{
+                                        borderTop: "1px solid var(--border)",
+                                        cursor: "pointer",
+                                    }}
+                                    onClick={() => openPost(post.id)}
+                                >
+                                    <td style={{ padding: "0.75rem", textAlign: "center" }}>
+                                        {displayNumber}
+                                    </td>
 
-                                <td style={{ padding: "0.75rem", textAlign: "center" }}>
-                                    {getWriter(post)}
-                                </td>
+                                    <td style={{ padding: "0.75rem", fontWeight: 600 }}>
+                                        {post.title}
+                                        {(post.commentCount || 0) > 0 && (
+                                            <span style={{ marginLeft: "0.5rem", color: "#0070c9" }}>
+                                                [{post.commentCount}]
+                                            </span>
+                                        )}
+                                    </td>
 
-                                <td style={{ padding: "0.75rem", textAlign: "center" }}>
-                                    {post.createdAt?.slice(0, 10)}
-                                </td>
+                                    <td style={{ padding: "0.75rem", textAlign: "center" }}>
+                                        {getWriter(post)}
+                                    </td>
 
-                                <td style={{ padding: "0.75rem", textAlign: "center" }}>
-                                    <ThumbsUp size={14} /> {getLikeCount(post)}
-                                </td>
+                                    <td style={{ padding: "0.75rem", textAlign: "center" }}>
+                                        {post.createdAt?.slice(0, 10)}
+                                    </td>
 
-                                <td style={{ padding: "0.75rem", textAlign: "center" }}>
-                                    <MessageCircle size={14} /> {post.commentCount || 0}
-                                </td>
-                            </tr>
-                        ))}
+                                    <td style={{ padding: "0.75rem", textAlign: "center" }}>
+                                        <ThumbsUp size={14} /> {getLikeCount(post)}
+                                    </td>
+
+                                    <td style={{ padding: "0.75rem", textAlign: "center" }}>
+                                        <MessageCircle size={14} /> {post.commentCount || 0}
+                                    </td>
+                                </tr>
+                            );
+                        })}
                     </tbody>
                 </table>
             </div>
