@@ -21,7 +21,7 @@ export interface MypageData {
 
 export interface MypageTestHistoryItem {
   requestId: string;
-  testType: 'LOAD' | 'UI' | string;
+  testType: 'LOAD' | 'UI' | 'UIUX' | string;
   testName: string;
   targetUrl: string;
   status: string;

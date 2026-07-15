@@ -32,9 +32,16 @@ public class TestRequest {
     @OnDelete(action = OnDeleteAction.CASCADE)
     private User user;
 
+    /*
+     * 테스트 결과를 공유한 커뮤니티 게시글입니다.
+     *
+     * 공유 게시글이 없는 테스트에서는 null이며,
+     * 게시글이 삭제돼도 테스트 이력 자체는 유지됩니다.
+     */
     @ManyToOne(fetch = FetchType.LAZY)
+    @OnDelete(action = OnDeleteAction.SET_NULL)
     @JoinColumn(name = "post_id")
-    private Post post;
+    private CommunityPost communityPost;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @OnDelete(action = OnDeleteAction.SET_NULL)
@@ -101,4 +108,11 @@ public class TestRequest {
     public void changeProgress(Integer newProgress) {
         this.testProgress = newProgress;
     }
+    /*
+     * 완료된 테스트 결과를 커뮤니티 게시글에 연결합니다.
+     */
+    public void linkCommunityPost(CommunityPost communityPost) {
+        this.communityPost = communityPost;
+    }
+
 }

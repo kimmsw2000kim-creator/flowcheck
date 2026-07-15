@@ -69,5 +69,8 @@ locust.log
 temp_locust*.py
 report.html
 
+# UIUX Test Artifacts
+ai/videos/*.webm
+
 # Test Folder
 backend/src/test/

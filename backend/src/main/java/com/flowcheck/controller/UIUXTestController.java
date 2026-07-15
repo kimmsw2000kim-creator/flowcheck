@@ -7,10 +7,13 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -46,6 +49,10 @@ public class UIUXTestController {
             log.error("UI 테스트 제출 중 잘못된 요청 발생", e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         } catch (IllegalStateException e) {
+            if (e.getMessage().contains("진행 중인")) {
+                log.warn("UI 테스트 제출 중복 요청", e);
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
+            }
             log.warn("UI 테스트 제출 시 결제(크레딧/쿠폰) 필요", e);
             return ResponseEntity.status(HttpStatus.PAYMENT_REQUIRED).body(e.getMessage());
         } catch (Exception e) {
@@ -67,6 +74,20 @@ public class UIUXTestController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         } catch (Exception e) {
             log.error("테스트 상태 조회 중 오류 발생", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
+        }
+    }
+
+    @Autowired
+    private jakarta.persistence.EntityManager entityManager;
+
+    @GetMapping("/fix-db")
+    @Transactional
+    public ResponseEntity<?> fixDb() {
+        try {
+            entityManager.createNativeQuery("ALTER TABLE public.uiux_test_reports DROP COLUMN ai_ux_review").executeUpdate();
+            return ResponseEntity.ok("ai_ux_review column dropped successfully.");
+        } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
         }
     }

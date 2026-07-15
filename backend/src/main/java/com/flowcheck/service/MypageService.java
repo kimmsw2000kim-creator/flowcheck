@@ -1,8 +1,23 @@
 package com.flowcheck.service;
 
-import com.flowcheck.domain.*;
-import com.flowcheck.dto.mypage.*;
-import com.flowcheck.repository.*;
+import com.flowcheck.domain.CouponType;
+import com.flowcheck.domain.CouponUsageLog;
+import com.flowcheck.domain.CreditsLedger;
+import com.flowcheck.domain.RegisteredSite;
+import com.flowcheck.domain.TestRequest;
+import com.flowcheck.domain.User;
+import com.flowcheck.dto.mypage.MypageCouponHistoryResponseDTO;
+import com.flowcheck.dto.mypage.MypagePointHistoryResponseDTO;
+import com.flowcheck.dto.mypage.MypageResponseDTO;
+import com.flowcheck.dto.mypage.MypageTestHistoryResponseDTO;
+import com.flowcheck.dto.mypage.SiteSummaryResponseDTO;
+import com.flowcheck.dto.uiuxtest.UIUXTestStatusResponse;
+import com.flowcheck.repository.CouponUsageLogRepository;
+import com.flowcheck.repository.CreditsLedgerRepository;
+import com.flowcheck.repository.RegisteredSiteRepository;
+import com.flowcheck.repository.TestRequestRepository;
+import com.flowcheck.repository.UserCouponRepository;
+import com.flowcheck.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,11 +33,11 @@ import java.util.UUID;
 public class MypageService {
         private final RegisteredSiteRepository registeredSiteRepository;
         private final TestRequestRepository testRequestRepository;
-
         private final UserCouponRepository userCouponRepository;
         private final UserRepository userRepository;
         private final CreditsLedgerRepository creditsLedgerRepository;
         private final CouponUsageLogRepository couponUsageLogRepository;
+        private final UIUXTestService uiuxTestService;
 
         public MypageResponseDTO getMyPage(UUID userId) {
                 User user = userRepository.findById(userId)
@@ -32,8 +47,6 @@ public class MypageService {
                 int loadTestCouponCount = userCouponRepository.sumRemainingChancesByUserIdAndCouponType(userId, CouponType.LOAD_TEST);
                 int UIUXTestCouponCount = userCouponRepository.sumRemainingChancesByUserIdAndCouponType(userId, CouponType.UIUX_TEST);
                 long registeredSiteCount = registeredSiteRepository.countByUser_UserId(userId);
-                
-                // 마스터 테이블인 test_requests 단일 개수로 총 실행 횟수 계산 변경
                 long testRunCount = testRequestRepository.countByUser_UserId(userId);
 
                 List<RegisteredSite> registeredSites = registeredSiteRepository
@@ -65,7 +78,6 @@ public class MypageService {
 
                 List<MypageTestHistoryResponseDTO> histories = new ArrayList<>();
 
-                // 1. 부하 테스트(LOAD) 이력 추출
                 List<TestRequest> loadTests = testRequestRepository.findByUserAndTestTypeOrderByCreatedAtAsc(user, "LOAD");
                 loadTests.forEach(test -> histories.add(new MypageTestHistoryResponseDTO(
                                 test.getId(),
@@ -79,22 +91,18 @@ public class MypageService {
                                 test.getCreatedAt(),
                                 test.getUpdatedAt())));
 
-                // 2. UI/UX 테스트(UI) 이력 추출 (test_requests 테이블 내에서 UI 타입 필터링)
                 List<TestRequest> uiRequests = testRequestRepository.findByUserAndTestTypeOrderByCreatedAtAsc(user, "UIUX");
-                uiRequests.forEach(test -> {
-
-                        histories.add(new MypageTestHistoryResponseDTO(
-                                        test.getId(),
-                                        "UI",
-                                        "UI/UX 테스트",
-                                        test.getTargetUrl(),
-                                        test.getTestStatus(),
-                                        test.getTestPhase(),
-                                        test.getTestProgress(),
-                                        test.getPromptInput(),
-                                        test.getCreatedAt(),
-                                        test.getUpdatedAt()));
-                });
+                uiRequests.forEach(test -> histories.add(new MypageTestHistoryResponseDTO(
+                                test.getId(),
+                                "UIUX",
+                                "UI/UX 테스트",
+                                test.getTargetUrl(),
+                                test.getTestStatus(),
+                                test.getTestPhase(),
+                                test.getTestProgress(),
+                                test.getPromptInput(),
+                                test.getCreatedAt(),
+                                test.getUpdatedAt())));
 
                 histories.sort(Comparator.comparing(
                                 MypageTestHistoryResponseDTO::createdAt,
@@ -103,7 +111,9 @@ public class MypageService {
                 return histories;
         }
 
-
+        public UIUXTestStatusResponse getUIUXTestDetail(UUID userId, UUID requestId) {
+                return uiuxTestService.getTestStatusForUser(userId, requestId);
+        }
 
         public List<MypagePointHistoryResponseDTO> getPointHistory(UUID userId) {
                 List<CreditsLedger> ledgers = creditsLedgerRepository.findByUser_UserIdOrderByCreatedAtDesc(userId);

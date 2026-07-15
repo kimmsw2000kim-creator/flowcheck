@@ -55,6 +55,16 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
+      # package-lock.json을 생성한 로컬 npm과 동일한 버전을 사용합니다.
+      - name: Pin npm version
+        run: npm install --global npm@11.13.0
+
+      # 이후 CI 로그에서 실제 버전을 확인할 수 있게 합니다.
+      - name: Show Node and npm versions
+        run: |
+          node --version
+          npm --version
+
       - name: Install frontend dependencies
         run: npm ci
         working-directory: frontend
@@ -89,7 +99,7 @@ jobs:
             ${{ secrets.DOCKER_USERNAME }}/${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
           build-args: |
             VITE_SUPABASE_URL=${{ env.VITE_SUPABASE_URL }}
-            VITE_SUPABASE_PUBLIC_ANON=${{ env.VITE_SUPABASE_ANON_KEY }}
+            VITE_SUPABASE_ANON_KEY=${{ env.VITE_SUPABASE_ANON_KEY }}
 
   deploy:
     needs: build
@@ -114,6 +124,15 @@ jobs:
           printf 'FRONTEND_IMAGE=%s\n' "$FRONTEND_IMAGE" >> deployment.env
           printf 'BACKEND_IMAGE=%s\n' "$BACKEND_IMAGE" >> deployment.env
           printf 'AI_IMAGE=%s\n' "$AI_IMAGE" >> deployment.env
+          printf 'USE_FARGATE=true\n' >> deployment.env
+          if ! grep -q "^BACKEND_PUBLIC_URL=" deployment.env; then
+            DOMAIN_VALUE=$(grep "^DOMAIN=" deployment.env | tail -n 1 | cut -d "=" -f2- | tr -d '\r')
+            if [ -n "$DOMAIN_VALUE" ]; then
+              printf 'BACKEND_PUBLIC_URL=https://%s\n' "$DOMAIN_VALUE" >> deployment.env
+            fi
+          fi
+          grep -q "^ECS_UIUX_TASK_FAMILY=" deployment.env || printf 'ECS_UIUX_TASK_FAMILY=flowcheck-uiux-task\n' >> deployment.env
+          grep -q "^ECS_UIUX_CONTAINER_NAME=" deployment.env || printf 'ECS_UIUX_CONTAINER_NAME=flowcheck-ai\n' >> deployment.env
 
       - name: Prepare EC2 directory
         uses: appleboy/ssh-action@v1.2.0

@@ -50,7 +50,7 @@ export default function PostEditPage() {
         };
 
         loadPost();
-    }, [postId]);
+    }, [navigate, postId, returnPath]);
 
     const handleSubmit = async (
         e: React.FormEvent<HTMLFormElement>
