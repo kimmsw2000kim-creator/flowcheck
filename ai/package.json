@@ -1,0 +1,9 @@
+{
+  "name": "flowcheck-ai-audits",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "axe-core": "^4.10.3",
+    "lighthouse": "^12.4.0"
+  }
+}

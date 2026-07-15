@@ -7,7 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.MediaType;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
@@ -15,6 +15,7 @@ import org.springframework.web.client.RestClient;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -29,12 +30,11 @@ public class UIUXTestService {
     private final CreditsLedgerRepository creditsLedgerRepository;
     private final TestRequestRepository testRequestRepository;
     private final UIUXTestReportRepository UIUXTestReportRepository;
+    private final UIUXTestDefectRepository uiuxTestDefectRepository;
     private final RestClient restClient;
     private final CouponUsageLogRepository couponUsageLogRepository;
     private final ObjectMapper objectMapper;
-
-    @Value("${fastapi.url}")
-    private String fastApiUrl;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${supabase.url:}")
     private String supabaseUrl;
@@ -81,7 +81,7 @@ public class UIUXTestService {
         boolean hasActiveTest = testRequestRepository.existsByUserAndTestTypeAndTestStatusIn(
                 user, TEST_TYPE_UIUX, ACTIVE_TEST_STATUSES);
         if (hasActiveTest) {
-            throw new IllegalStateException("이미 진행 중인 UI 테스트가 있습니다. 완료 후 다시 시도해 주세요.");
+            throw new IllegalStateException("이미 진행 중인 UI/UX 테스트가 있습니다. 완료 후 다시 시도해 주세요.");
         }
 
         List<TestRequest> userUiRequests = testRequestRepository.findByUserAndTestTypeOrderByCreatedAtAsc(user, TEST_TYPE_UIUX);
@@ -93,7 +93,7 @@ public class UIUXTestService {
                 deleteVideoFromSupabase(oldestRequest.getId());
 
                 testRequestRepository.delete(oldestRequest);
-                log.info("10개 테스트 제한으로 인해 사용자 {}의 가장 오래된 UI 테스트 요청 기록 {}을 삭제했습니다.", userId, oldestRequest.getId());
+                log.info("10개 테스트 제한으로 인해 사용자 {}의 가장 오래된 UI/UX 테스트 요청 기록 {}을 삭제했습니다.", userId, oldestRequest.getId());
             }
         }
 
@@ -136,29 +136,7 @@ public class UIUXTestService {
         TestRequest savedRequest = testRequestRepository.save(testRequest);
         UUID requestId = savedRequest.getId();
 
-        try {
-            Map<String, String> payload = Map.of(
-                    "requestId", requestId.toString(),
-                    "targetUrl", request.getTargetUrl(),
-                    "promptInput", request.getPromptInput() != null ? request.getPromptInput() : "");
-            // 핵심 로직: FastAPI 서버로 UI 테스트 실행 비동기 요청 전송
-            log.info("요청 ID {}에 대해 FastAPI 엔드포인트 /api/uiux-tests 호출 중...", requestId);
-            restClient.post()
-                    .uri(fastApiUrl + "/api/uiux-tests")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(payload)
-                    .retrieve()
-                    .toBodilessEntity();
-            log.info("요청 ID {}에 대해 FastAPI가 성공적으로 트리거되었습니다.", requestId);
-
-        } catch (Exception e) {
-            log.error("요청 ID {}에 대해 AI 서버 트리거 실패", requestId, e);
-            savedRequest.changeStatus("FAILED");
-            savedRequest.changePhase("FAILED");
-            testRequestRepository.save(savedRequest);
-            throw new RuntimeException("현재 AI 서버를 사용할 수 없습니다: " + e.getMessage(), e);
-        }
-
+        eventPublisher.publishEvent(new UIUXTestSubmittedEvent(requestId, request));
         return requestId;
     }
 
@@ -168,18 +146,90 @@ public class UIUXTestService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 테스트 요청입니다."));
 
         if (!"UIUX".equals(testRequest.getTestType())) {
-            throw new IllegalArgumentException("해당 요청은 UI 테스트 타입이 아닙니다.");
+            throw new IllegalArgumentException("해당 요청은 UI/UX 테스트 요청이 아닙니다.");
         }
 
+        return buildTestStatus(testRequest);
+    }
+
+    @Transactional(readOnly = true)
+    public UIUXTestStatusResponse getTestStatusForUser(UUID userId, UUID requestId) {
+        TestRequest testRequest = testRequestRepository.findByIdAndUser_UserIdAndTestType(requestId, userId, TEST_TYPE_UIUX)
+                .orElseThrow(() -> new IllegalArgumentException("UI/UX 테스트 결과를 찾을 수 없습니다."));
+
+        return buildTestStatus(testRequest);
+    }
+
+    private UIUXTestStatusResponse buildTestStatus(TestRequest testRequest) {
+        UUID requestId = testRequest.getId();
         String reportMarkdown = "";
         List<Map<String, Object>> stepsList = new java.util.ArrayList<>();
+        String videoUrl = null;
+        Map<String, Object> deviceInfo = null;
+        UIUXTestStatusResponse.ScoresDto scores = null;
+        Map<String, Object> scoreBreakdown = null;
+        String evaluationVersion = null;
+        List<UIUXTestStatusResponse.DefectDto> defectDtos = new java.util.ArrayList<>();
+        
         var reportOpt = UIUXTestReportRepository.findByTestRequestId(requestId);
         if (reportOpt.isPresent()) {
-            reportMarkdown = reportOpt.get().getAiUxReview();
+            UIUXTestReport report = reportOpt.get();
+            reportMarkdown = report.getUiuxTestReview() != null ? report.getUiuxTestReview() : "";
             try {
-                stepsList = objectMapper.readValue(reportOpt.get().getRawLogs(), new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
+                stepsList = objectMapper.readValue(report.getRawLogs(), new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
             } catch (Exception e) {
                 log.warn("테스트 상태 조회를 위한 rawLogs 파싱 실패", e);
+            }
+            videoUrl = report.getVideoUrl();
+            try {
+                if (report.getDeviceInfo() != null) {
+                    deviceInfo = objectMapper.readValue(report.getDeviceInfo(), new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+                }
+            } catch (Exception e) {
+                log.warn("deviceInfo 파싱 실패", e);
+            }
+            if (report.getScoreUsability() != null) {
+                scores = UIUXTestStatusResponse.ScoresDto.builder()
+                        .usability(report.getScoreUsability())
+                        .accessibility(report.getScoreAccessibility())
+                        .efficiency(report.getScoreEfficiency())
+                        .performance(report.getScorePerformance())
+                        .bestPractices(report.getScoreBestPractices())
+                        .overall(report.getOverallScore())
+                        .build();
+            }
+            try {
+                if (report.getScoreBreakdown() != null) {
+                    scoreBreakdown = objectMapper.readValue(report.getScoreBreakdown(), new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+                }
+            } catch (Exception e) {
+                log.warn("scoreBreakdown 파싱 실패", e);
+            }
+            evaluationVersion = report.getEvaluationVersion();
+            
+            List<UIUXTestDefect> defects = uiuxTestDefectRepository.findByTestRequestId(requestId);
+            for (UIUXTestDefect defect : defects) {
+                Map<String, Object> evidence = null;
+                try {
+                    if (defect.getEvidence() != null) {
+                        evidence = objectMapper.readValue(defect.getEvidence(), new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+                    }
+                } catch (Exception e) {
+                    log.warn("defect evidence 파싱 실패. defectId={}", defect.getId(), e);
+                }
+                defectDtos.add(UIUXTestStatusResponse.DefectDto.builder()
+                        .id(defect.getId())
+                        .category(defect.getCategory())
+                        .selector(defect.getSelector())
+                        .severity(defect.getSeverity())
+                        .description(defect.getDescription())
+                        .timestampOffset(defect.getTimestampOffset())
+                        .source(defect.getSource())
+                        .ruleId(defect.getRuleId())
+                        .evidence(evidence)
+                        .recommendation(defect.getRecommendation())
+                        .screenshotUrl(defect.getScreenshotUrl())
+                        .build());
             }
         }
 
@@ -189,6 +239,12 @@ public class UIUXTestService {
                 .targetUrl(testRequest.getTargetUrl())
                 .report(reportMarkdown)
                 .steps(stepsList)
+                .scores(scores)
+                .scoreBreakdown(scoreBreakdown)
+                .evaluationVersion(evaluationVersion)
+                .videoUrl(videoUrl)
+                .deviceInfo(deviceInfo)
+                .defects(defectDtos)
                 .build();
     }
 
@@ -199,43 +255,114 @@ public class UIUXTestService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 테스트 요청입니다."));
 
         if (!"UIUX".equals(testRequest.getTestType())) {
-            throw new IllegalArgumentException("해당 요청은 UI 테스트 타입이 아닙니다.");
+            throw new IllegalArgumentException("해당 요청은 UI/UX 테스트 요청이 아닙니다.");
         }
 
         var reportOpt = UIUXTestReportRepository.findByTestRequestId(requestId);
-        UIUXTestReport report;
-        if (reportOpt.isPresent()) {
-            report = reportOpt.get();
-        } else {
-            report = UIUXTestReport.builder()
-                    .testRequest(testRequest)
-                    .totalSteps(0)
-                    .defectCount(0)
-                    .executionTime(0)
-                    .rawLogs("[]")
-                    .aiUxReview("")
-                    .build();
+        UIUXTestReport report = reportOpt.orElseGet(() -> UIUXTestReport.builder()
+                .testRequest(testRequest)
+                .scoreUsability(0)
+                .scoreAccessibility(0)
+                .scoreEfficiency(0)
+                .scorePerformance(0)
+                .scoreBestPractices(0)
+                .overallScore(0)
+                .evaluationVersion("v1")
+                .rawLogs("[]")
+                .uiuxTestReview("")
+                .build());
+
+        report.setVideoUrl(request.getVideoUrl());
+        if (request.getUiuxTestReview() != null) {
+            report.setUiuxTestReview(request.getUiuxTestReview());
+        }
+        
+        if (request.getScores() != null) {
+            report.setScoreUsability(intOrZero(request.getScores().getUsability()));
+            report.setScoreAccessibility(intOrZero(request.getScores().getAccessibility()));
+            report.setScoreEfficiency(intOrZero(request.getScores().getEfficiency()));
+            report.setScorePerformance(intOrZero(request.getScores().getPerformance()));
+            report.setScoreBestPractices(intOrZero(request.getScores().getBestPractices()));
+            report.setOverallScore(intOrZero(request.getScores().getOverall()));
         }
 
-        UIUXTestReport finalReport = UIUXTestReport.builder()
-                .id(report.getId())
-                .testRequest(testRequest)
-                .totalSteps(report.getTotalSteps())
-                .defectCount(report.getDefectCount())
-                .executionTime(report.getExecutionTime())
-                .rawLogs(report.getRawLogs())
-                .aiUxReview(request.getReportMarkdown() != null ? request.getReportMarkdown() : "")
-                .build();
-        UIUXTestReportRepository.save(finalReport);
+        if (request.getEvaluationVersion() != null && !request.getEvaluationVersion().isBlank()) {
+            report.setEvaluationVersion(request.getEvaluationVersion());
+        } else if (report.getEvaluationVersion() == null || report.getEvaluationVersion().isBlank()) {
+            report.setEvaluationVersion("v1");
+        }
 
-        // 핵심 로직: 테스트 완료 상태로 변경하고 최종 Markdown 리뷰 저장
+        if (request.getScoreBreakdown() != null) {
+            try {
+                report.setScoreBreakdown(objectMapper.writeValueAsString(request.getScoreBreakdown()));
+            } catch (Exception e) {
+                log.warn("scoreBreakdown 저장 실패", e);
+            }
+        }
+
+        if (request.getDeviceInfo() != null) {
+            try {
+                report.setDeviceInfo(objectMapper.writeValueAsString(request.getDeviceInfo()));
+            } catch (Exception e) {
+                log.warn("deviceInfo 저장 실패", e);
+            }
+        }
+
+        if (request.getSteps() != null && !request.getSteps().isEmpty()) {
+            try {
+                List<Map<String, Object>> logs = new java.util.ArrayList<>();
+                if (report.getRawLogs() != null && !report.getRawLogs().isBlank()) {
+                    logs = objectMapper.readValue(report.getRawLogs(), new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
+                }
+
+                java.util.Set<String> existingStepKeys = new java.util.HashSet<>();
+                for (Map<String, Object> logEntry : logs) {
+                    existingStepKeys.add(stepKey(logEntry));
+                }
+
+                for (Map<String, Object> submittedStep : request.getSteps()) {
+                    String key = stepKey(submittedStep);
+                    if (!existingStepKeys.contains(key)) {
+                        logs.add(submittedStep);
+                        existingStepKeys.add(key);
+                    }
+                }
+
+                report.setRawLogs(objectMapper.writeValueAsString(logs));
+            } catch (Exception e) {
+                log.warn("리포트에 포함된 steps를 rawLogs에 병합하지 못했습니다.", e);
+            }
+        }
+
+        UIUXTestReportRepository.save(report);
+
+        // Delete existing defects if any and save new ones
+        uiuxTestDefectRepository.deleteByTestRequestId(requestId);
+        if (request.getDefects() != null && !request.getDefects().isEmpty()) {
+            List<UIUXTestDefect> defectsToSave = request.getDefects().stream().map(dto -> UIUXTestDefect.builder()
+                    .testRequest(testRequest)
+                    .category(dto.getCategory())
+                    .selector(dto.getSelector())
+                    .severity(dto.getSeverity())
+                    .description(dto.getDescription())
+                    .timestampOffset(dto.getTimestampOffset())
+                    .source(dto.getSource())
+                    .ruleId(dto.getRuleId())
+                    .evidence(writeJsonOrNull(dto.getEvidence(), "defect evidence"))
+                    .recommendation(dto.getRecommendation())
+                    .screenshotUrl(dto.getScreenshotUrl())
+                    .build()).toList();
+            uiuxTestDefectRepository.saveAll(defectsToSave);
+        }
+
+        // 테스트 완료 상태로 변경
         if (!"FAILED".equals(testRequest.getTestStatus())) {
             testRequest.changeStatus("COMPLETED");
             testRequest.changePhase("FINISHED");
             testRequest.changeProgress(100);
         }
         testRequestRepository.save(testRequest);
-        log.info("요청 ID {}에 대한 최종 UI/UX 마크다운 리뷰 저장 및 요청 컨텍스트 완료됨", requestId);
+        log.info("UI/UX 테스트 요청 {}의 최종 데이터 저장을 완료했습니다.", requestId);
     }
 
     @Transactional
@@ -246,11 +373,15 @@ public class UIUXTestService {
         UIUXTestReport report = UIUXTestReportRepository.findByTestRequestId(requestId).orElseGet(() ->
                 UIUXTestReportRepository.save(UIUXTestReport.builder()
                         .testRequest(testRequest)
-                        .totalSteps(0)
-                        .defectCount(0)
-                        .executionTime(0)
+                        .scoreUsability(0)
+                        .scoreAccessibility(0)
+                        .scoreEfficiency(0)
+                        .scorePerformance(0)
+                        .scoreBestPractices(0)
+                        .overallScore(0)
+                        .evaluationVersion("v1")
                         .rawLogs("[]")
-                        .aiUxReview("")
+                        .uiuxTestReview("")
                         .build())
         );
 
@@ -265,14 +396,13 @@ public class UIUXTestService {
 
         try {
             report.setRawLogs(objectMapper.writeValueAsString(logs));
-            report.setTotalSteps(logs.size());
         } catch (Exception e) {
             log.error("rawLogs 저장 실패", e);
         }
 
         UIUXTestReportRepository.save(report);
 
-        // 핵심 로직: 첫 스텝이 접수되면 상태를 PENDING에서 RUNNING으로 갱신
+        // 첫 스텝이 접수되면 상태를 PENDING에서 RUNNING으로 갱신
         if ("PENDING".equals(testRequest.getTestStatus())) {
             testRequest.changeStatus("RUNNING");
             testRequest.changePhase("EXPLORING");
@@ -286,7 +416,7 @@ public class UIUXTestService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 테스트 요청입니다."));
 
         if (!"UIUX".equals(testRequest.getTestType())) {
-            throw new IllegalArgumentException("해당 요청은 UI 테스트 타입이 아닙니다.");
+            throw new IllegalArgumentException("해당 요청은 UI/UX 테스트 요청이 아닙니다.");
         }
 
         testRequest.changeStatus("FAILED");
@@ -300,30 +430,100 @@ public class UIUXTestService {
         } else {
             report = UIUXTestReport.builder()
                     .testRequest(testRequest)
-                    .totalSteps(0)
-                    .defectCount(0)
-                    .executionTime(0)
+                    .scoreUsability(0)
+                    .scoreAccessibility(0)
+                    .scoreEfficiency(0)
+                    .scorePerformance(0)
+                    .scoreBestPractices(0)
+                    .overallScore(0)
+                    .evaluationVersion("v1")
                     .rawLogs("[]")
-                    .aiUxReview("")
+                    .uiuxTestReview("")
                     .build();
         }
 
-        String summaryError = report.getAiUxReview();
-        if (summaryError == null || summaryError.trim().isEmpty()) {
-            summaryError = "# UI Test Audit Report - FAILED\n\n**Reason:** " + reason;
-        }
-
+        // 실패 상태에서도 기존 리포트 데이터는 유지합니다.
         UIUXTestReport failedReport = UIUXTestReport.builder()
                 .id(report.getId())
                 .testRequest(testRequest)
-                .totalSteps(report.getTotalSteps())
-                .defectCount(report.getDefectCount())
-                .executionTime(report.getExecutionTime())
+                .scoreUsability(report.getScoreUsability() != null ? report.getScoreUsability() : 0)
+                .scoreAccessibility(report.getScoreAccessibility() != null ? report.getScoreAccessibility() : 0)
+                .scoreEfficiency(report.getScoreEfficiency() != null ? report.getScoreEfficiency() : 0)
+                .scorePerformance(report.getScorePerformance() != null ? report.getScorePerformance() : 0)
+                .scoreBestPractices(report.getScoreBestPractices() != null ? report.getScoreBestPractices() : 0)
+                .overallScore(report.getOverallScore() != null ? report.getOverallScore() : 0)
+                .scoreBreakdown(report.getScoreBreakdown())
+                .evaluationVersion(report.getEvaluationVersion() != null ? report.getEvaluationVersion() : "v1")
                 .rawLogs(report.getRawLogs())
-                .aiUxReview(summaryError)
+                .uiuxTestReview(report.getUiuxTestReview() != null ? report.getUiuxTestReview() : "")
                 .build();
         UIUXTestReportRepository.save(failedReport);
-        log.info("UI 컨텍스트 요청 {}을(를) FAILED로 표시했습니다. 사유: {}", requestId, reason);
+        log.info("UI/UX 테스트 요청 {}을 FAILED로 표시했습니다. 사유: {}", requestId, reason);
+    }
+
+    private String stepKey(Map<String, Object> step) {
+        return String.valueOf(step.get("step")) + ":" + String.valueOf(step.get("action"));
+    }
+
+    private String writeJsonOrNull(Object value, String label) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (Exception e) {
+            log.warn("{} 직렬화 실패", label, e);
+            return null;
+        }
+    }
+
+    private Integer intOrZero(Integer value) {
+        return value != null ? value : 0;
+    }
+
+    @Transactional(readOnly = true)
+    public URI getLiveVncBaseUri(UUID requestId) {
+        TestRequest testRequest = testRequestRepository.findById(requestId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 테스트 요청입니다."));
+
+        if (!TEST_TYPE_UIUX.equals(testRequest.getTestType())) {
+            throw new IllegalArgumentException("UI/UX 테스트 요청이 아닙니다.");
+        }
+
+        UIUXTestReport report = UIUXTestReportRepository.findByTestRequestId(requestId)
+                .orElseThrow(() -> new IllegalStateException("아직 VNC 스트림이 준비되지 않았습니다."));
+
+        List<Map<String, Object>> logs;
+        try {
+            logs = objectMapper.readValue(report.getRawLogs(), new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
+        } catch (Exception e) {
+            throw new IllegalStateException("VNC 스트림 로그를 읽을 수 없습니다.", e);
+        }
+
+        for (int i = logs.size() - 1; i >= 0; i--) {
+            Object rawVncUrl = logs.get(i).get("vncUrl");
+            if (rawVncUrl instanceof String vncUrl && !vncUrl.isBlank()) {
+                return validateVncBaseUri(vncUrl);
+            }
+        }
+
+        throw new IllegalStateException("아직 VNC 스트림 URL이 준비되지 않았습니다.");
+    }
+
+    private URI validateVncBaseUri(String rawVncUrl) {
+        URI uri = URI.create(rawVncUrl);
+        String scheme = uri.getScheme();
+        String host = uri.getHost();
+        int port = uri.getPort();
+
+        boolean isLocalLoopback = "127.0.0.1".equals(host) || "localhost".equalsIgnoreCase(host);
+        boolean isAllowedPort = port == 6080 || (isLocalLoopback && port > 0);
+
+        if (!"http".equalsIgnoreCase(scheme) || host == null || !isAllowedPort) {
+            throw new IllegalStateException("허용되지 않는 VNC 스트림 URL입니다.");
+        }
+
+        return URI.create("http://" + host + ":" + port);
     }
 
     private void deleteVideoFromSupabase(UUID requestId) {

@@ -5,12 +5,14 @@ import com.flowcheck.dto.mypage.MypageCouponHistoryResponseDTO;
 import com.flowcheck.dto.mypage.MypagePointHistoryResponseDTO;
 import com.flowcheck.dto.mypage.MypageResponseDTO;
 import com.flowcheck.dto.mypage.MypageTestHistoryResponseDTO;
+import com.flowcheck.dto.uiuxtest.UIUXTestStatusResponse;
 import com.flowcheck.service.MypageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -38,6 +40,16 @@ public class MypageController {
             @AuthenticationPrincipal Jwt jwt) {
         UUID userId = UUID.fromString(jwt.getSubject());
         List<MypageTestHistoryResponseDTO> response = myPageService.getTestHistory(userId);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/api/mypage/tests/uiux/{requestId}")
+    public ResponseEntity<UIUXTestStatusResponse> getMyUIUXTestDetail(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID requestId) {
+        UUID userId = UUID.fromString(jwt.getSubject());
+        UIUXTestStatusResponse response = myPageService.getUIUXTestDetail(userId, requestId);
 
         return ResponseEntity.ok(response);
     }
