@@ -18,6 +18,9 @@ public class UIUXTestReportSubmitRequest {
     
     private java.util.List<java.util.Map<String, Object>> steps;
 
+    private java.util.Map<String, Object> scoreBreakdown;
+    private String evaluationVersion;
+
     private java.util.List<DefectDto> defects;
 
     @Getter
@@ -30,6 +33,8 @@ public class UIUXTestReportSubmitRequest {
         private Integer accessibility;
         private Integer efficiency;
         private Integer performance;
+        private Integer bestPractices;
+        private Integer overall;
     }
 
     @Getter
@@ -43,5 +48,10 @@ public class UIUXTestReportSubmitRequest {
         private String severity;
         private String description;
         private Integer timestampOffset;
+        private String source;
+        private String ruleId;
+        private java.util.Map<String, Object> evidence;
+        private String recommendation;
+        private String screenshotUrl;
     }
 }

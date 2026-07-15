@@ -23,6 +23,8 @@ export interface UIUXTestScores {
   accessibility: number;
   efficiency: number;
   performance: number;
+  bestPractices?: number;
+  overall?: number;
 }
 
 export interface UIUXTestDefect {
@@ -32,6 +34,11 @@ export interface UIUXTestDefect {
   severity: string;
   description: string;
   timestampOffset: number;
+  source?: string;
+  ruleId?: string;
+  evidence?: Record<string, unknown>;
+  recommendation?: string;
+  screenshotUrl?: string;
 }
 
 export interface UIUXTestStatusResponse {
@@ -41,6 +48,8 @@ export interface UIUXTestStatusResponse {
   report?: string;
   steps: UIUXTestStepData[];
   scores?: UIUXTestScores;
+  scoreBreakdown?: Record<string, unknown>;
+  evaluationVersion?: string;
   videoUrl?: string;
   deviceInfo?: any;
   defects?: UIUXTestDefect[];

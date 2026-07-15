@@ -18,6 +18,8 @@ public class UIUXTestStatusResponse {
     private List<Map<String, Object>> steps;
     
     private ScoresDto scores;
+    private Map<String, Object> scoreBreakdown;
+    private String evaluationVersion;
     private Map<String, Object> deviceInfo;
     private String videoUrl;
     private List<DefectDto> defects;
@@ -32,6 +34,8 @@ public class UIUXTestStatusResponse {
         private Integer accessibility;
         private Integer efficiency;
         private Integer performance;
+        private Integer bestPractices;
+        private Integer overall;
     }
 
     @Getter
@@ -46,5 +50,10 @@ public class UIUXTestStatusResponse {
         private String severity;
         private String description;
         private Integer timestampOffset;
+        private String source;
+        private String ruleId;
+        private Map<String, Object> evidence;
+        private String recommendation;
+        private String screenshotUrl;
     }
 }

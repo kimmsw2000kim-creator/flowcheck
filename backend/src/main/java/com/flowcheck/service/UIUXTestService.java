@@ -154,6 +154,8 @@ public class UIUXTestService {
         String videoUrl = null;
         Map<String, Object> deviceInfo = null;
         UIUXTestStatusResponse.ScoresDto scores = null;
+        Map<String, Object> scoreBreakdown = null;
+        String evaluationVersion = null;
         List<UIUXTestStatusResponse.DefectDto> defectDtos = new java.util.ArrayList<>();
         
         var reportOpt = UIUXTestReportRepository.findByTestRequestId(requestId);
@@ -179,11 +181,29 @@ public class UIUXTestService {
                         .accessibility(report.getScoreAccessibility())
                         .efficiency(report.getScoreEfficiency())
                         .performance(report.getScorePerformance())
+                        .bestPractices(report.getScoreBestPractices())
+                        .overall(report.getOverallScore())
                         .build();
             }
+            try {
+                if (report.getScoreBreakdown() != null) {
+                    scoreBreakdown = objectMapper.readValue(report.getScoreBreakdown(), new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+                }
+            } catch (Exception e) {
+                log.warn("scoreBreakdown 파싱 실패", e);
+            }
+            evaluationVersion = report.getEvaluationVersion();
             
             List<UIUXTestDefect> defects = uiuxTestDefectRepository.findByTestRequestId(requestId);
             for (UIUXTestDefect defect : defects) {
+                Map<String, Object> evidence = null;
+                try {
+                    if (defect.getEvidence() != null) {
+                        evidence = objectMapper.readValue(defect.getEvidence(), new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+                    }
+                } catch (Exception e) {
+                    log.warn("defect evidence 파싱 실패. defectId={}", defect.getId(), e);
+                }
                 defectDtos.add(UIUXTestStatusResponse.DefectDto.builder()
                         .id(defect.getId())
                         .category(defect.getCategory())
@@ -191,6 +211,11 @@ public class UIUXTestService {
                         .severity(defect.getSeverity())
                         .description(defect.getDescription())
                         .timestampOffset(defect.getTimestampOffset())
+                        .source(defect.getSource())
+                        .ruleId(defect.getRuleId())
+                        .evidence(evidence)
+                        .recommendation(defect.getRecommendation())
+                        .screenshotUrl(defect.getScreenshotUrl())
                         .build());
             }
         }
@@ -202,6 +227,8 @@ public class UIUXTestService {
                 .report(reportMarkdown)
                 .steps(stepsList)
                 .scores(scores)
+                .scoreBreakdown(scoreBreakdown)
+                .evaluationVersion(evaluationVersion)
                 .videoUrl(videoUrl)
                 .deviceInfo(deviceInfo)
                 .defects(defectDtos)
@@ -225,6 +252,9 @@ public class UIUXTestService {
                 .scoreAccessibility(0)
                 .scoreEfficiency(0)
                 .scorePerformance(0)
+                .scoreBestPractices(0)
+                .overallScore(0)
+                .evaluationVersion("v1")
                 .rawLogs("[]")
                 .uiuxTestReview("")
                 .build());
@@ -235,10 +265,26 @@ public class UIUXTestService {
         }
         
         if (request.getScores() != null) {
-            report.setScoreUsability(request.getScores().getUsability());
-            report.setScoreAccessibility(request.getScores().getAccessibility());
-            report.setScoreEfficiency(request.getScores().getEfficiency());
-            report.setScorePerformance(request.getScores().getPerformance());
+            report.setScoreUsability(intOrZero(request.getScores().getUsability()));
+            report.setScoreAccessibility(intOrZero(request.getScores().getAccessibility()));
+            report.setScoreEfficiency(intOrZero(request.getScores().getEfficiency()));
+            report.setScorePerformance(intOrZero(request.getScores().getPerformance()));
+            report.setScoreBestPractices(intOrZero(request.getScores().getBestPractices()));
+            report.setOverallScore(intOrZero(request.getScores().getOverall()));
+        }
+
+        if (request.getEvaluationVersion() != null && !request.getEvaluationVersion().isBlank()) {
+            report.setEvaluationVersion(request.getEvaluationVersion());
+        } else if (report.getEvaluationVersion() == null || report.getEvaluationVersion().isBlank()) {
+            report.setEvaluationVersion("v1");
+        }
+
+        if (request.getScoreBreakdown() != null) {
+            try {
+                report.setScoreBreakdown(objectMapper.writeValueAsString(request.getScoreBreakdown()));
+            } catch (Exception e) {
+                log.warn("scoreBreakdown 저장 실패", e);
+            }
         }
 
         if (request.getDeviceInfo() != null) {
@@ -287,6 +333,11 @@ public class UIUXTestService {
                     .severity(dto.getSeverity())
                     .description(dto.getDescription())
                     .timestampOffset(dto.getTimestampOffset())
+                    .source(dto.getSource())
+                    .ruleId(dto.getRuleId())
+                    .evidence(writeJsonOrNull(dto.getEvidence(), "defect evidence"))
+                    .recommendation(dto.getRecommendation())
+                    .screenshotUrl(dto.getScreenshotUrl())
                     .build()).toList();
             uiuxTestDefectRepository.saveAll(defectsToSave);
         }
@@ -313,6 +364,9 @@ public class UIUXTestService {
                         .scoreAccessibility(0)
                         .scoreEfficiency(0)
                         .scorePerformance(0)
+                        .scoreBestPractices(0)
+                        .overallScore(0)
+                        .evaluationVersion("v1")
                         .rawLogs("[]")
                         .uiuxTestReview("")
                         .build())
@@ -367,6 +421,9 @@ public class UIUXTestService {
                     .scoreAccessibility(0)
                     .scoreEfficiency(0)
                     .scorePerformance(0)
+                    .scoreBestPractices(0)
+                    .overallScore(0)
+                    .evaluationVersion("v1")
                     .rawLogs("[]")
                     .uiuxTestReview("")
                     .build();
@@ -380,6 +437,10 @@ public class UIUXTestService {
                 .scoreAccessibility(report.getScoreAccessibility() != null ? report.getScoreAccessibility() : 0)
                 .scoreEfficiency(report.getScoreEfficiency() != null ? report.getScoreEfficiency() : 0)
                 .scorePerformance(report.getScorePerformance() != null ? report.getScorePerformance() : 0)
+                .scoreBestPractices(report.getScoreBestPractices() != null ? report.getScoreBestPractices() : 0)
+                .overallScore(report.getOverallScore() != null ? report.getOverallScore() : 0)
+                .scoreBreakdown(report.getScoreBreakdown())
+                .evaluationVersion(report.getEvaluationVersion() != null ? report.getEvaluationVersion() : "v1")
                 .rawLogs(report.getRawLogs())
                 .uiuxTestReview(report.getUiuxTestReview() != null ? report.getUiuxTestReview() : "")
                 .build();
@@ -389,6 +450,22 @@ public class UIUXTestService {
 
     private String stepKey(Map<String, Object> step) {
         return String.valueOf(step.get("step")) + ":" + String.valueOf(step.get("action"));
+    }
+
+    private String writeJsonOrNull(Object value, String label) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (Exception e) {
+            log.warn("{} 직렬화 실패", label, e);
+            return null;
+        }
+    }
+
+    private Integer intOrZero(Integer value) {
+        return value != null ? value : 0;
     }
 
     @Transactional(readOnly = true)

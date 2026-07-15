@@ -44,6 +44,19 @@ public class UIUXTestReport {
     @Column(name = "score_performance")
     private Integer scorePerformance;
 
+    @Column(name = "score_best_practices")
+    private Integer scoreBestPractices;
+
+    @Column(name = "overall_score")
+    private Integer overallScore;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "score_breakdown", columnDefinition = "jsonb")
+    private String scoreBreakdown;
+
+    @Column(name = "evaluation_version")
+    private String evaluationVersion;
+
     @Column(name = "video_url", columnDefinition = "TEXT")
     private String videoUrl;
 

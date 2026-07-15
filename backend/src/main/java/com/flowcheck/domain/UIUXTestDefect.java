@@ -43,6 +43,22 @@ public class UIUXTestDefect {
     @Column(name = "timestamp_offset")
     private Integer timestampOffset;
 
+    @Column(name = "source")
+    private String source;
+
+    @Column(name = "rule_id")
+    private String ruleId;
+
+    @Column(name = "evidence", columnDefinition = "jsonb")
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    private String evidence;
+
+    @Column(name = "recommendation", columnDefinition = "TEXT")
+    private String recommendation;
+
+    @Column(name = "screenshot_url", columnDefinition = "TEXT")
+    private String screenshotUrl;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;

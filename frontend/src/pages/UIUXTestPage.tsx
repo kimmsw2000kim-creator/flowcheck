@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import apiClient from '../api/client';
 import ApiURL from '../api/ApiURL';
 import { startUIUXTest, getUIUXTestStatus, UIUXTestStepData, UIUXTestStatusResponse } from '../api/UIUXTestApi';
-import TextField from '../components/common/TextField';
 import CustomVideoPlayer from '../components/video/CustomVideoPlayer';
 import UIUXScoreRadarChart from '../components/dashboard/UIUXScoreRadarChart';
 import UIUXScoreBarChart from '../components/dashboard/UIUXScoreBarChart';
@@ -64,6 +63,135 @@ const formatTimeForDisplay = (time: number) => {
   return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
 };
 
+const parseReportCards = (report?: string) => {
+  const lines = report
+    ?.split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (!lines?.length) return [];
+
+  const cards: Array<{ id: string; title: string; body: string }> = [];
+
+  lines.forEach((line) => {
+    const isHeading = line.startsWith('#');
+    const normalized = line
+      .replace(/^#{1,6}\s*/, '')
+      .replace(/^[-*]\s*/, '')
+      .replace(/\*\*/g, '');
+
+    const [rawTitle, ...rest] = normalized.split(':');
+    const hasInlineTitle = rest.length > 0 && rawTitle.length <= 34;
+
+    if (isHeading) {
+      cards.push({
+        id: `${cards.length}-${normalized.slice(0, 20)}`,
+        title: normalized,
+        body: '',
+      });
+      return;
+    }
+
+    if (hasInlineTitle) {
+      cards.push({
+        id: `${cards.length}-${normalized.slice(0, 20)}`,
+        title: rawTitle.trim(),
+        body: rest.join(':').trim(),
+      });
+      return;
+    }
+
+    const lastCard = cards[cards.length - 1];
+    if (lastCard && !lastCard.body) {
+      lastCard.body = normalized;
+      return;
+    }
+
+    cards.push({
+      id: `${cards.length}-${normalized.slice(0, 20)}`,
+      title: `분석 항목 ${cards.length + 1}`,
+      body: normalized,
+    });
+  });
+
+  return cards.map((card) => ({
+    ...card,
+    body: card.body || '이번 테스트에서 이 항목에 대한 추가 결함 설명은 감지되지 않았습니다.',
+  }));
+};
+
+const getEngineLabel = (source?: string) => {
+  switch (source) {
+    case 'LIGHTHOUSE':
+      return 'Lighthouse';
+    case 'AXE':
+      return 'axe-core';
+    case 'PLAYWRIGHT':
+      return 'Playwright';
+    case 'UX_RULE':
+      return 'UX Rule';
+    default:
+      return 'Rule';
+  }
+};
+
+const getScoreGrade = (score?: number) => {
+  if (score == null) return '대기';
+  if (score >= 90) return '우수';
+  if (score >= 75) return '양호';
+  if (score >= 60) return '개선 필요';
+  return '위험';
+};
+
+const getStepActionLabel = (action?: string) => {
+  switch (action) {
+    case 'STARTING_VNC':
+    case 'STARTING_BROWSER':
+      return '브라우저 준비';
+    case 'LOAD_PAGE':
+      return '페이지 로드';
+    case 'RUN_LIGHTHOUSE':
+      return 'Lighthouse 측정';
+    case 'RUN_AXE':
+      return 'axe-core 접근성 검사';
+    case 'CHECK_DOM_RULES':
+      return 'DOM 규칙 검사';
+    case 'EXPLORE_PRIMARY_ACTION':
+      return '주요 액션 검사';
+    case 'CHECK_FORM_FEEDBACK':
+      return '폼 피드백 검사';
+    case 'CHECK_NAVIGATION':
+      return '내비게이션 검사';
+    case 'CALCULATE_SCORE':
+      return '점수 산정';
+    case 'SAVE_REPORT':
+      return '보고서 저장';
+    case 'FINISH':
+      return '탐색 종료';
+    default:
+      return action || '실행 단계';
+  }
+};
+
+const getEngineSummary = (scoreBreakdown?: Record<string, unknown>) => {
+  const engineResults = scoreBreakdown?.engineResults as Record<string, any> | undefined;
+  const lighthouse = engineResults?.lighthouse;
+  const axe = engineResults?.axe;
+
+  return [
+    {
+      label: 'Lighthouse',
+      value: lighthouse?.available ? '활성' : '대체 규칙',
+      detail: lighthouse?.available ? '공식 성능/기술 품질 점수 반영' : lighthouse?.error || '실행 결과 없음',
+    },
+    {
+      label: 'axe-core',
+      value: axe?.available ? '활성' : '대체 규칙',
+      detail: axe?.available ? `${axe?.violationCount ?? 0}개 접근성 위반 감지` : axe?.error || '실행 결과 없음',
+    },
+  ];
+};
+
 export default function UIUXTestPage({
   selectedUIUXTestDomain,
   setSelectedUIUXTestDomain,
@@ -107,6 +235,9 @@ export default function UIUXTestPage({
   const hasLiveVncUrl = UIUXTestSteps.some((step) => typeof step.vncUrl === 'string' && step.vncUrl.length > 0);
   const directLocalVncUrl = getDirectLocalVncUrl(UIUXTestSteps);
   const liveVncProxyUrl = directLocalVncUrl || (currentRequestId && hasLiveVncUrl ? buildLiveVncProxyUrl(currentRequestId) : null);
+  const reportCards = parseReportCards(reportData?.report);
+  const overallScore = reportData?.scores?.overall;
+  const engineSummary = getEngineSummary(reportData?.scoreBreakdown);
   const latestLiveFrame = [...UIUXTestSteps]
     .reverse()
     .find((step) => typeof step.screenshotUrl === 'string' && step.screenshotUrl.startsWith('data:image/'))
@@ -240,8 +371,8 @@ export default function UIUXTestPage({
     <div className="uiux-page">
       <header className="uiux-header">
         <div>
-          <h2>AI 자율형 UI 테스트 익스플로러</h2>
-          <p>실시간 탐색 화면과 단계별 로그를 확인하고, 완료 후 결과 영상을 검토합니다.</p>
+          <h2>AI UI/UX 테스트</h2>
+          <p>실시간 탐색 화면과 실행 로그를 확인하고, 완료 후 결과 영상과 결함 리포트를 제작합니다.</p>
         </div>
       </header>
 
@@ -252,34 +383,46 @@ export default function UIUXTestPage({
             <small>{currentUser.UIUXTestCoupons > 0 ? '쿠폰 차감' : '크레딧 차감'}</small>
           </div>
 
-          <div className="form-group">
-            <label className="form-label">인증 도메인</label>
-            <select
-              className="form-input"
-              value={selectedUIUXTestDomain}
-              onChange={(event) => setSelectedUIUXTestDomain(Number(event.target.value))}
-              disabled={isRunning}
-            >
-              <option value="">주소 선택</option>
-              {domains.filter((domain) => domain.verified).map((domain) => (
-                <option key={domain.id} value={domain.id}>{domain.domainUrl}</option>
-              ))}
-            </select>
+          <div className="uiux-select-field">
+            <div className="uiux-select-label-row">
+              <label className="uiux-select-label" htmlFor="uiux-domain-select">인증 도메인</label>
+              <span className="uiux-select-required">필수</span>
+            </div>
+            <div className="uiux-select-shell">
+              <select
+                id="uiux-domain-select"
+                className="uiux-select-control"
+                value={selectedUIUXTestDomain}
+                onChange={(event) => setSelectedUIUXTestDomain(Number(event.target.value))}
+                disabled={isRunning}
+              >
+                <option value="">도메인을 선택하세요</option>
+                {domains.filter((domain) => domain.verified).map((domain) => (
+                  <option key={domain.id} value={domain.id}>{domain.domainUrl}</option>
+                ))}
+              </select>
+              <span className="uiux-select-chevron" aria-hidden="true" />
+            </div>
+            <p className="uiux-select-hint">검증이 완료된 도메인만 UI 테스트 대상으로 사용할 수 있습니다.</p>
           </div>
 
-          <TextField
-            label="테스트 대상 URL"
-            type="text"
-            placeholder="https://example.com"
-            value={targetUrl}
-            onChange={(event) => setTargetUrl(event.target.value)}
-            disabled={isRunning}
-          />
+          <div className="uiux-select-field">
+            <div className="uiux-select-label-row">
+              <span className="uiux-select-label">테스트 대상 URL</span>
+              <span className="uiux-select-required muted">자동 반영</span>
+            </div>
+            <div className="uiux-select-shell readonly">
+              <div className={`uiux-selected-url ${targetUrl ? '' : 'empty'}`}>
+                {targetUrl || '선택된 도메인 주소가 여기에 표시됩니다'}
+              </div>
+            </div>
+            <p className="uiux-select-hint">위에서 선택한 인증 도메인 주소가 테스트 대상으로 사용됩니다.</p>
+          </div>
 
           <div className="uiux-balance-panel">
             <div>
-              <span>UI/UX 테스트 쿠폰</span>
-              <strong>{currentUser.UIUXTestCoupons}회</strong>
+              <span>테스트 쿠폰</span>
+              <strong>{currentUser.UIUXTestCoupons}개 보유</strong>
             </div>
             <div>
               <span>크레딧 잔액</span>
@@ -289,12 +432,19 @@ export default function UIUXTestPage({
 
           <p className="uiux-charge-note">
             {currentUser.UIUXTestCoupons > 0
-              ? `이번 테스트에 쿠폰 1회가 소모됩니다. 잔여 ${Math.max(currentUser.UIUXTestCoupons - 1, 0)}회`
+              ? `이번 테스트에 쿠폰 1개가 사용됩니다. 사용 후 ${Math.max(currentUser.UIUXTestCoupons - 1, 0)}개 보유`
               : '이번 테스트에 1,000 크레딧이 소모됩니다.'}
           </p>
 
           <button className="uiux-primary-button" onClick={handleRunUIUXTest} disabled={isRunning}>
-            {isRunning ? '에이전트 구동 중' : 'UI 테스트 시작'}
+            {isRunning ? (
+              <span className="uiux-button-content">
+                <span>테스트 진행 중</span>
+                <span className="uiux-button-spinner" />
+              </span>
+            ) : (
+              'UI 테스트 시작'
+            )}
           </button>
         </aside>
 
@@ -348,7 +498,7 @@ export default function UIUXTestPage({
                 </div>
                 <div className="uiux-step-content">
                   <div className="uiux-step-meta">STEP {formatStepNumber(index + 1)}</div>
-                  <strong>{step.action}</strong>
+                  <strong>{getStepActionLabel(step.action)}</strong>
                   <p>{step.reason || step.url || '탐색 단계가 기록되었습니다.'}</p>
                 </div>
               </article>
@@ -357,8 +507,36 @@ export default function UIUXTestPage({
         </aside>
       </section>
 
-      {(UIUXTestStatus === 'success' || isRunning) && (
+      {UIUXTestStatus === 'success' && reportData && (
         <section className="uiux-results">
+          {reportData.scores && (
+            <div className="uiux-summary-grid">
+              <div className="uiux-card uiux-overall-card">
+                <span className="uiux-eyebrow">Overall</span>
+                <div>
+                  <strong>{overallScore ?? '-'}</strong>
+                  <span>점</span>
+                </div>
+                <p>{getScoreGrade(overallScore)} · Lighthouse, axe-core, Playwright 결과를 종합했습니다.</p>
+              </div>
+
+              <div className="uiux-card uiux-engine-card">
+                <span className="uiux-eyebrow">Evaluation Engines</span>
+                <div className="uiux-engine-list">
+                  {engineSummary.map((engine) => (
+                    <div className="uiux-engine-item" key={engine.label}>
+                      <div>
+                        <strong>{engine.label}</strong>
+                        <p>{engine.detail}</p>
+                      </div>
+                      <span>{engine.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
           {UIUXTestStatus === 'success' && reportData?.scores && (
             <div className="uiux-score-grid">
               <div className="uiux-card uiux-chart-card">
@@ -372,7 +550,7 @@ export default function UIUXTestPage({
 
           <div className="uiux-report-grid">
             <div className="uiux-card uiux-report-video-card">
-              <div className="uiux-card-header">
+              <div className="uiux-video-titlebar">
                 <div>
                   <span className="uiux-eyebrow">Playback</span>
                   <h3>최종 결과 비디오</h3>
@@ -423,10 +601,15 @@ export default function UIUXTestPage({
                       onClick={() => handleDefectClick(defect.timestampOffset)}
                     >
                       <div>
-                        <span>{defect.severity}</span>
+                        <span>{getEngineLabel(defect.source)}</span>
                         <strong>{defect.category}</strong>
                       </div>
+                      <div className="uiux-defect-meta">
+                        <span>{defect.severity}</span>
+                        {defect.ruleId && <span>{defect.ruleId}</span>}
+                      </div>
                       <p>{defect.description}</p>
+                      {defect.recommendation && <em>{defect.recommendation}</em>}
                       <small>{formatTimeForDisplay(defect.timestampOffset)}</small>
                     </button>
                   ))
@@ -448,19 +631,34 @@ export default function UIUXTestPage({
 
               {showHeuristics && (
                 <div className="uiux-report-details">
-                  {reportData.report?.trim() ? (
-                    reportData.report
-                      .split('\n')
-                      .map((line) => line.trim())
-                      .filter(Boolean)
-                      .map((line, index) => {
-                        const normalized = line
-                          .replace(/^#{1,6}\s*/, '')
-                          .replace(/^[-*]\s*/, '')
-                          .replace(/\*\*/g, '');
-
-                        return <p key={index}>{normalized}</p>;
-                      })
+                  {reportData.scoreBreakdown && (
+                    <article className="uiux-report-detail-card">
+                      <div className="uiux-report-detail-index">EV</div>
+                      <div>
+                        <strong>평가 기준 버전 {reportData.evaluationVersion || 'v1'}</strong>
+                        <p>사용성 25%, 접근성 25%, 성능 20%, 탐색 효율 15%, 기술 품질 15% 가중치로 종합 점수를 산정했습니다.</p>
+                      </div>
+                    </article>
+                  )}
+                  {engineSummary.map((engine, index) => (
+                    <article className="uiux-report-detail-card" key={`engine-${engine.label}`}>
+                      <div className="uiux-report-detail-index">{formatStepNumber(index + 1)}</div>
+                      <div>
+                        <strong>{engine.label} {engine.value}</strong>
+                        <p>{engine.detail}</p>
+                      </div>
+                    </article>
+                  ))}
+                  {reportCards.length > 0 ? (
+                    reportCards.map((card, index) => (
+                      <article className="uiux-report-detail-card" key={card.id}>
+                        <div className="uiux-report-detail-index">{formatStepNumber(index + 1)}</div>
+                        <div>
+                          <strong>{card.title}</strong>
+                          {card.body && <p>{card.body}</p>}
+                        </div>
+                      </article>
+                    ))
                   ) : (
                     <p>상세 보고서가 없습니다.</p>
                   )}
