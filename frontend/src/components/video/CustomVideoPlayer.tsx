@@ -200,7 +200,11 @@ const CustomVideoPlayer = forwardRef<CustomVideoPlayerRef, CustomVideoPlayerProp
             </div>
           </div>
           <div className="video-controls-right">
-            <button className="control-btn" onClick={toggleFullscreen}>
+            <button
+              className="control-btn"
+              aria-pressed={isFullscreen}
+              onClick={toggleFullscreen}
+            >
               전체화면
             </button>
           </div>

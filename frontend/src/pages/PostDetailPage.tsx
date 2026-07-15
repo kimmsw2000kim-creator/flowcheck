@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { ThumbsUp } from "lucide-react";
 import { useParams } from "react-router-dom";
 import {
@@ -37,14 +37,7 @@ export default function PostDetailPage() {
     const [replyText, setReplyText] = useState<Record<number, string>>({});
     const [openReplyBox, setOpenReplyBox] = useState<number | null>(null);
 
-    useEffect(() => {
-        if (!numericPostId) return;
-
-        fetchPost();
-        fetchComments();
-    }, [numericPostId]);
-
-    const fetchPost = async () => {
+    const fetchPost = useCallback(async () => {
         try {
             const res = await getPosts(0, 1000);
             const foundPost = res.data.content.find(
@@ -55,16 +48,23 @@ export default function PostDetailPage() {
         } catch (error) {
             console.error("게시글 상세 조회 실패:", error);
         }
-    };
+    }, [numericPostId]);
 
-    const fetchComments = async () => {
+    const fetchComments = useCallback(async () => {
         try {
             const res = await getComments(numericPostId);
             setComments(res.data);
         } catch (error) {
             console.error("댓글 조회 실패:", error);
         }
-    };
+    }, [numericPostId]);
+
+    useEffect(() => {
+        if (!numericPostId) return;
+
+        fetchPost();
+        fetchComments();
+    }, [fetchComments, fetchPost, numericPostId]);
 
     const handleLike = async () => {
         try {
