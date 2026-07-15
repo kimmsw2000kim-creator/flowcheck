@@ -149,6 +149,19 @@ public class UIUXTestService {
             throw new IllegalArgumentException("해당 요청은 UI/UX 테스트 요청이 아닙니다.");
         }
 
+        return buildTestStatus(testRequest);
+    }
+
+    @Transactional(readOnly = true)
+    public UIUXTestStatusResponse getTestStatusForUser(UUID userId, UUID requestId) {
+        TestRequest testRequest = testRequestRepository.findByIdAndUser_UserIdAndTestType(requestId, userId, TEST_TYPE_UIUX)
+                .orElseThrow(() -> new IllegalArgumentException("UI/UX 테스트 결과를 찾을 수 없습니다."));
+
+        return buildTestStatus(testRequest);
+    }
+
+    private UIUXTestStatusResponse buildTestStatus(TestRequest testRequest) {
+        UUID requestId = testRequest.getId();
         String reportMarkdown = "";
         List<Map<String, Object>> stepsList = new java.util.ArrayList<>();
         String videoUrl = null;

@@ -111,10 +111,16 @@ jobs:
             echo "FRONTEND_IMAGE=${{ env.FRONTEND_IMAGE }}" >> .env
             echo "AI_IMAGE=${{ env.AI_IMAGE }}" >> .env
             echo "USE_FARGATE=true" >> .env
+            if ! grep -q "^BACKEND_PUBLIC_URL=" .env; then
+              DOMAIN_VALUE=$(grep "^DOMAIN=" .env | tail -n 1 | cut -d "=" -f2- | tr -d '\r')
+              if [ -n "$DOMAIN_VALUE" ]; then
+                echo "BACKEND_PUBLIC_URL=https://${DOMAIN_VALUE}" >> .env
+              fi
+            fi
             grep -q "^ECS_UIUX_TASK_FAMILY=" .env || echo "ECS_UIUX_TASK_FAMILY=flowcheck-uiux-task" >> .env
             grep -q "^ECS_UIUX_CONTAINER_NAME=" .env || echo "ECS_UIUX_CONTAINER_NAME=flowcheck-ai" >> .env
 
-            for key in DOMAIN DB_HOST DB_NAME DB_USER DB_PASSWORD SUPABASE_URL SUPABASE_ANON_KEY SUPABASE_JWKS_URL SUPABASE_JWT_KEY GEMINI_API_KEY LOAD_TEST_CALLBACK_TOKEN AWS_REGION S3_BUCKET ECS_CLUSTER ECS_TASK_FAMILY ECS_SUBNET_ID ECS_SECURITY_GROUP_ID ECS_UIUX_TASK_FAMILY ECS_UIUX_CONTAINER_NAME; do
+            for key in DOMAIN DB_HOST DB_NAME DB_USER DB_PASSWORD SUPABASE_URL SUPABASE_ANON_KEY SUPABASE_JWKS_URL SUPABASE_JWT_KEY GEMINI_API_KEY LOAD_TEST_CALLBACK_TOKEN AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_REGION S3_BUCKET ECS_CLUSTER ECS_TASK_FAMILY ECS_SUBNET_ID ECS_SECURITY_GROUP_ID ECS_UIUX_TASK_FAMILY ECS_UIUX_CONTAINER_NAME; do
               if ! grep -q "^${key}=" .env; then
                 echo "Missing required deployment env: ${key}"
                 exit 1

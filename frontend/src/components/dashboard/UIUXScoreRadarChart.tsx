@@ -44,7 +44,7 @@ export default function UIUXScoreRadarChart({ scores }: UIUXScoreRadarChartProps
       <div className="uiux-score-chart-header">
         <div>
           <span className="uiux-eyebrow">Overview</span>
-          <h3>종합 품질 지표</h3>
+          <h3>종합 균형 지표</h3>
           <p>공식 엔진과 실제 브라우저 탐색 결과를 함께 반영합니다.</p>
         </div>
         <div className="uiux-score-average">

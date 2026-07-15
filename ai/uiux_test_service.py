@@ -90,6 +90,18 @@ def _container_backend_url() -> str:
     return BACKEND_URL.replace("localhost", "host.docker.internal").replace("127.0.0.1", "host.docker.internal")
 
 
+def _fargate_backend_url() -> str:
+    public_url = os.getenv("BACKEND_PUBLIC_URL", "").strip()
+    if public_url:
+        return public_url.rstrip("/")
+
+    domain = os.getenv("DOMAIN", "").strip()
+    if domain:
+        return f"https://{domain}".rstrip("/")
+
+    return BACKEND_URL.rstrip("/")
+
+
 def _docker_image_name() -> str:
     return os.getenv("LOCAL_UIUX_IMAGE", "flowcheck-ai")
 
@@ -246,9 +258,11 @@ def run_fargate_task(request_id: str, target_url: str) -> None:
             raise RuntimeError("Missing ECS_UIUX_TASK_FAMILY or ECS_TASK_FAMILY")
 
         container_name = os.getenv("ECS_UIUX_CONTAINER_NAME", "flowcheck-ai")
+        fargate_backend_url = _fargate_backend_url()
         print(
             f"[FARGATE] run_task cluster={env['ECS_CLUSTER']}, taskFamily={task_family}, "
-            f"container={container_name}, subnet={env['ECS_SUBNET_ID']}, sg={env['ECS_SECURITY_GROUP_ID']}, region={AWS_REGION}",
+            f"container={container_name}, subnet={env['ECS_SUBNET_ID']}, sg={env['ECS_SECURITY_GROUP_ID']}, "
+            f"region={AWS_REGION}, callback={fargate_backend_url}",
             flush=True,
         )
         ecs_client = boto3.client("ecs", region_name=AWS_REGION, config=AWS_CLIENT_CONFIG)
@@ -273,7 +287,7 @@ def run_fargate_task(request_id: str, target_url: str) -> None:
                         "environment": [
                             {"name": "REQUEST_ID", "value": request_id},
                             {"name": "TARGET_URL", "value": target_url},
-                            {"name": "BACKEND_URL", "value": BACKEND_URL},
+                            {"name": "BACKEND_URL", "value": fargate_backend_url},
                             {"name": "PLAYWRIGHT_HEADLESS", "value": "false"},
                             *_optional_task_env(),
                         ],

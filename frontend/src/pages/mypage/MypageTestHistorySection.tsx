@@ -59,7 +59,6 @@ function MypageTestHistorySection() {
 
                 const data = await fetchMypageTestHistory();
                 setTests(data);
-
             } catch (error: any) {
                 setErrorMessage(error.message || '테스트 이력을 불러오지 못했습니다.');
             } finally {
@@ -85,14 +84,14 @@ function MypageTestHistorySection() {
             {!loading && errorMessage && (
                 <EmptyState
                     title={errorMessage}
-                    description="로그인 상태를 확인한 뒤 다시 시도해 주세요."
+                    description="로그인 상태를 확인하고 다시 시도해 주세요."
                 />
             )}
 
             {!loading && !errorMessage && tests.length === 0 && (
                 <EmptyState
                     title="실행한 테스트가 없습니다."
-                    description="AI UI 테스트나 부하 테스트를 실행하면 이곳에 기록됩니다."
+                    description="AI UI/UX 테스트나 부하 테스트를 실행하면 이곳에 기록됩니다."
                 />
             )}
 
@@ -101,6 +100,7 @@ function MypageTestHistorySection() {
                     {tests.map((test) => {
                         const progress = test.progress ?? 0;
                         const phase = test.phase ? phaseLabels[test.phase] || test.phase : null;
+                        const isUIUX = test.testType === 'UI' || test.testType === 'UIUX';
 
                         return (
                             <article
@@ -109,9 +109,8 @@ function MypageTestHistorySection() {
                                 style={{ cursor: 'pointer' }}
                                 onClick={() => navigate(`/mypage/tests/${test.testType}/${test.requestId}`)}
                             >
-
                                 <div className={styles['test-history-icon']}>
-                                    {test.testType === 'UI' ? <Monitor size={20} /> : <Activity size={20} />}
+                                    {isUIUX ? <Monitor size={20} /> : <Activity size={20} />}
                                 </div>
 
                                 <div className={styles['test-history-main']}>
