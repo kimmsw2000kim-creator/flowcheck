@@ -1,4 +1,4 @@
-/* FlowCheck UI primitives and temporary legacy-class compatibility layer */
+/* FlowCheck UI primitives */
 
 /* Page header */
 .fc-page-header {
@@ -44,8 +44,7 @@
 }
 
 /* Card */
-.fc-card,
-.card {
+.fc-card {
   background: var(--color-bg-surface);
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-md);
@@ -67,8 +66,7 @@
   box-shadow: none;
 }
 
-.fc-card--interactive:hover,
-.card:hover {
+.fc-card--interactive:hover {
   border-color: var(--color-border-accent);
   box-shadow: var(--shadow-raised);
   transform: translateY(-2px);
@@ -91,8 +89,7 @@
 }
 
 /* Button */
-.fc-button,
-.btn {
+.fc-button {
   display: inline-flex;
   min-height: var(--control-height-md);
   align-items: center;
@@ -115,78 +112,65 @@
     transform var(--motion-duration-control) var(--motion-easing-standard);
 }
 
-.fc-button:focus-visible,
-.btn:focus-visible {
+.fc-button:focus-visible {
   outline: none;
   box-shadow: var(--shadow-focus-ring);
 }
 
-.fc-button:hover:not(:disabled),
-.btn:hover:not(:disabled) {
+.fc-button:hover:not(:disabled) {
   transform: translateY(-1px);
 }
 
-.fc-button:disabled,
-.btn:disabled {
+.fc-button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }
 
-.fc-button--primary,
-.btn-primary {
+.fc-button--primary {
   background: var(--color-action-primary);
   color: var(--color-white);
 }
 
-.fc-button--primary:hover:not(:disabled),
-.btn-primary:hover:not(:disabled) {
+.fc-button--primary:hover:not(:disabled) {
   background: var(--color-action-primary-strong);
-  box-shadow: 0 8px 18px rgba(2, 132, 199, 0.22);
+  box-shadow: var(--shadow-action);
 }
 
-.fc-button--secondary,
-.btn-secondary {
+.fc-button--secondary {
   background: var(--color-bg-subtle);
   border-color: var(--color-border-default);
   color: var(--color-text-primary);
 }
 
-.fc-button--secondary:hover:not(:disabled),
-.btn-secondary:hover:not(:disabled) {
+.fc-button--secondary:hover:not(:disabled) {
   background: var(--color-bg-canvas);
   border-color: var(--color-border-accent);
 }
 
-.fc-button--success,
-.btn-success {
+.fc-button--success {
   background: var(--color-status-success);
   color: var(--color-white);
 }
 
-.fc-button--success:hover:not(:disabled),
-.btn-success:hover:not(:disabled) {
+.fc-button--success:hover:not(:disabled) {
   background: var(--color-teal-700);
 }
 
-.fc-button--danger,
-.btn-danger {
+.fc-button--danger {
   background: var(--color-status-error);
   color: var(--color-white);
 }
 
-.fc-button--danger:hover:not(:disabled),
-.btn-danger:hover:not(:disabled) {
+.fc-button--danger:hover:not(:disabled) {
   background: var(--color-red-700);
 }
 
-.fc-button--ghost,
-.btn-ghost {
+.fc-button--ghost {
   background: transparent;
   color: var(--color-text-secondary);
 }
 
-.fc-button--ghost:hover:not(:disabled),
-.btn-ghost:hover:not(:disabled) {
+.fc-button--ghost:hover:not(:disabled) {
   background: var(--color-bg-subtle);
   color: var(--color-text-primary);
 }
@@ -217,20 +201,18 @@
 }
 
 /* Field, input, and select */
-.fc-field,
-.form-group {
+.fc-field {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   text-align: left;
 }
 
-.form-group {
+.fc-text-field {
   margin-bottom: var(--space-5);
 }
 
-.fc-field__label,
-.form-label {
+.fc-field__label {
   color: var(--color-text-secondary);
   font-size: var(--font-size-md);
   font-weight: var(--font-weight-bold);
@@ -249,8 +231,7 @@
 }
 
 .fc-input,
-.fc-select,
-.form-input {
+.fc-select {
   width: 100%;
   min-height: var(--control-height-md);
   padding: 0 var(--space-3);
@@ -268,7 +249,7 @@
     box-shadow var(--motion-duration-control) var(--motion-easing-standard);
 }
 
-textarea.form-input {
+textarea.fc-input {
   padding-top: var(--space-3);
   padding-bottom: var(--space-3);
   line-height: var(--line-height-normal);
@@ -276,29 +257,24 @@ textarea.form-input {
 }
 
 .fc-input::placeholder,
-.fc-select:invalid,
-.form-input::placeholder {
+.fc-select:invalid {
   color: var(--color-text-muted);
   font-weight: var(--font-weight-medium);
 }
 
 .fc-input:hover:not(:disabled),
-.fc-select:hover:not(:disabled),
-.form-input:hover:not(:disabled) {
+.fc-select:hover:not(:disabled) {
   border-color: var(--color-border-accent);
 }
 
 .fc-input:focus-visible,
-.fc-select:focus-visible,
-.form-input:focus-visible,
-.form-input:focus {
+.fc-select:focus-visible {
   border-color: var(--color-action-primary);
   box-shadow: var(--shadow-focus-ring);
 }
 
 .fc-input:disabled,
-.fc-select:disabled,
-.form-input:disabled {
+.fc-select:disabled {
   cursor: not-allowed;
   opacity: 0.6;
 }
@@ -358,8 +334,7 @@ textarea.form-input {
 }
 
 /* Badge */
-.fc-badge,
-.badge {
+.fc-badge {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
@@ -371,8 +346,7 @@ textarea.form-input {
   white-space: nowrap;
 }
 
-.fc-badge--sm,
-.badge {
+.fc-badge--sm {
   min-height: 22px;
   padding: 0 var(--space-2);
   font-size: var(--font-size-2xs);
@@ -389,33 +363,28 @@ textarea.form-input {
   color: var(--color-text-secondary);
 }
 
-.fc-badge--info,
-.badge-running {
+.fc-badge--info {
   background: var(--color-action-primary-subtle);
   color: var(--color-action-primary);
 }
 
-.fc-badge--success,
-.badge-success {
+.fc-badge--success {
   background: var(--color-status-success-subtle);
   color: var(--color-status-success);
 }
 
-.fc-badge--warning,
-.badge-pending {
+.fc-badge--warning {
   background: var(--color-status-warning-subtle);
   color: var(--color-status-warning);
 }
 
-.fc-badge--danger,
-.badge-failed {
+.fc-badge--danger {
   background: var(--color-status-error-subtle);
   color: var(--color-status-error);
 }
 
 /* Table */
-.fc-table-container,
-.table-wrapper {
+.fc-table-container {
   width: 100%;
   overflow-x: auto;
   border: 1px solid var(--color-border-default);
@@ -423,8 +392,7 @@ textarea.form-input {
   background: var(--color-bg-surface);
 }
 
-.fc-table,
-.custom-table {
+.fc-table {
   width: 100%;
   border-collapse: collapse;
   color: var(--color-text-primary);
@@ -432,8 +400,7 @@ textarea.form-input {
   text-align: left;
 }
 
-.fc-table th,
-.custom-table th {
+.fc-table th {
   padding: var(--space-4);
   border-bottom: 1px solid var(--color-border-default);
   background: var(--color-bg-subtle);
@@ -442,20 +409,17 @@ textarea.form-input {
   white-space: nowrap;
 }
 
-.fc-table td,
-.custom-table td {
+.fc-table td {
   padding: var(--space-4);
   border-bottom: 1px solid var(--color-border-default);
   color: var(--color-text-primary);
 }
 
-.fc-table tr:last-child td,
-.custom-table tr:last-child td {
+.fc-table tr:last-child td {
   border-bottom: none;
 }
 
-.fc-table--hoverable tbody tr:hover td,
-.custom-table tbody tr:hover td {
+.fc-table--hoverable tbody tr:hover td {
   background: var(--color-action-primary-subtle);
 }
 
@@ -524,5 +488,24 @@ textarea.form-input {
 
   .fc-card--padding-lg {
     padding: var(--space-6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fc-card,
+  .fc-button,
+  .fc-input,
+  .fc-select {
+    scroll-behavior: auto;
+    transition: none;
+  }
+
+  .fc-card--interactive:hover,
+  .fc-button:hover:not(:disabled) {
+    transform: none;
+  }
+
+  .fc-button__spinner {
+    animation-duration: 1.5s;
   }
 }

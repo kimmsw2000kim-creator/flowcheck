@@ -10,6 +10,26 @@
   border: 0;
 }
 
+.skip-link {
+  position: fixed;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: 10000;
+  padding: var(--space-3) var(--space-4);
+  transform: translateY(calc(-100% - var(--space-4)));
+  border-radius: var(--radius-md);
+  background: var(--color-action-primary);
+  color: var(--color-white);
+  font-weight: var(--font-weight-bold);
+  text-decoration: none;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+  outline: none;
+  box-shadow: var(--shadow-focus-ring);
+}
+
 .landing-main {
   min-width: 0;
   flex: 1;

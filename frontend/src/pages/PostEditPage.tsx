@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { getPost, updatePost } from '../api/communityApi';
-import { EmptyState, PageHeader } from '../components/common';
+import { Button, EmptyState, PageHeader } from '../components/common';
 import { PostEditorForm } from '../components/community';
 import { showErrorAlert, showSuccessAlert } from '../utils/alert';
 
@@ -53,7 +53,7 @@ export default function PostEditPage() {
     <div className="community-page community-page--narrow">
       <PageHeader eyebrow={isFreeBoard ? '자유게시판' : 'Community'} title="게시글 수정" />
       {loading && <EmptyState title="게시글을 불러오는 중입니다." description="잠시만 기다려 주세요." aria-live="polite" />}
-      {!loading && error && <EmptyState title={error} action={<button className="fc-button btn fc-button--secondary btn-secondary" onClick={() => navigate(returnPath)}>목록으로</button>} />}
+      {!loading && error && <EmptyState title={error} action={<Button variant="secondary" onClick={() => navigate(returnPath)}>목록으로</Button>} />}
       {!loading && initialValue && (
         <PostEditorForm mode="edit" initialTitle={initialValue.title} initialContent={initialValue.content} submitting={submitting} onSubmit={submit} onCancel={() => navigate(returnPath)} />
       )}

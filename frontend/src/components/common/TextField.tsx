@@ -36,7 +36,7 @@ export default function TextField({
 
   return (
     <Field
-      className={`form-group ${containerClassName}`.trim()}
+      className={`fc-text-field ${containerClassName}`.trim()}
       style={containerStyle}
       label={label}
       htmlFor={controlId}
@@ -52,7 +52,7 @@ export default function TextField({
           required={required}
           aria-invalid={error ? true : undefined}
           aria-describedby={describedBy}
-          className={`fc-input form-input ${Icon ? 'fc-input--with-icon' : ''} ${className}`.trim()}
+          className={`fc-input ${Icon ? 'fc-input--with-icon' : ''} ${className}`.trim()}
           style={style}
         />
       </div>

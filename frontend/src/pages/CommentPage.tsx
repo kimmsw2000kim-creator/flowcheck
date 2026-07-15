@@ -182,7 +182,7 @@ export default function CommentPage({ currentUser, showAlert }: CommentPageProps
       <PageHeader eyebrow="Community" title="자유게시판" description="질문과 경험을 자유롭게 나누어 보세요." actions={<Button onClick={() => navigate('/comment/write')}>게시글 작성</Button>} />
       <form className="community-search" onSubmit={(event) => { event.preventDefault(); setPage(1); setKeyword(searchInput.trim()); }} role="search">
         <Field label="게시글 검색" htmlFor="comment-search-input">
-          <input id="comment-search-input" className="fc-input form-input" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="제목 또는 작성자 이메일" />
+          <input id="comment-search-input" className="fc-input" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="제목 또는 작성자 이메일" />
         </Field>
         <Button type="submit">검색</Button>
         {keyword && <Button type="button" variant="secondary" onClick={() => { setSearchInput(''); setKeyword(''); setPage(1); }}>초기화</Button>}

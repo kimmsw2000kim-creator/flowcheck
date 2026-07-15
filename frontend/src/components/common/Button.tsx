@@ -28,9 +28,7 @@ export default function Button({
 }: ButtonProps) {
   const classes = [
     'fc-button',
-    'btn',
     `fc-button--${variant}`,
-    `btn-${variant}`,
     `fc-button--${size}`,
     fullWidth ? 'fc-button--full-width' : '',
     className,

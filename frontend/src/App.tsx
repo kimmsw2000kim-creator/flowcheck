@@ -119,9 +119,10 @@ function App() {
     <div className="app-container">
       {alertMsg && <Toast message={alertMsg.message} type={alertMsg.type} />}
 
+      <a className="skip-link" href="#main-content">본문으로 건너뛰기</a>
       <Header activeTab={activeTab} />
 
-      <main className={isLandingPage ? "landing-main" : "main-content"}>
+      <main id="main-content" className={isLandingPage ? "landing-main" : "main-content"}>
         <Routes>
           {isLoggedIn ? (
             <>
@@ -242,6 +243,7 @@ function App() {
         </Routes>
       </main>
 
+      {isLandingPage && <Footer variant="full" />}
       {isLoggedIn && <Footer variant="compact" />}
       <Chatbot />
     </div>

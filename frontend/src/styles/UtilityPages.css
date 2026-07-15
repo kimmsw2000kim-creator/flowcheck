@@ -11,6 +11,7 @@
 .utility-stack { display: flex; flex-direction: column; gap: var(--space-4); }
 .utility-card-title { margin: 0 0 var(--space-5); color: var(--color-text-primary); font-size: var(--font-size-lg); }
 .utility-card-description { margin: calc(var(--space-3) * -1) 0 var(--space-5); color: var(--color-text-muted); font-size: var(--font-size-md); }
+.utility-page form > .fc-field { margin-bottom: var(--space-5); }
 
 .auth-tabs, .admin-tabs { display: flex; gap: var(--space-1); margin-bottom: var(--space-6); border-bottom: 1px solid var(--color-border-default); }
 .auth-tab, .admin-tab { min-height: var(--control-height-md); flex: 1; padding: 0 var(--space-4); border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--color-text-muted); font: inherit; font-weight: var(--font-weight-semibold); cursor: pointer; }

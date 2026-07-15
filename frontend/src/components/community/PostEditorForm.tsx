@@ -54,7 +54,7 @@ export default function PostEditorForm({
         >
           <input
             id={`post-title-${uid}`}
-            className="fc-input form-input"
+            className="fc-input"
             value={title}
             maxLength={100}
             onChange={(event) => setTitle(event.target.value)}
@@ -68,7 +68,7 @@ export default function PostEditorForm({
           <Field label="서비스 주소" htmlFor={`post-url-${uid}`} description="선택 입력 항목입니다.">
             <input
               id={`post-url-${uid}`}
-              className="fc-input form-input"
+              className="fc-input"
               type="url"
               value={promoUrl}
               placeholder="https://example.com"
@@ -86,7 +86,7 @@ export default function PostEditorForm({
         >
           <textarea
             id={`post-content-${uid}`}
-            className="fc-input form-input community-editor__textarea"
+            className="fc-input community-editor__textarea"
             value={content}
             maxLength={5000}
             rows={10}

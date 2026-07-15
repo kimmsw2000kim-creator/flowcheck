@@ -47,7 +47,7 @@ export default function ForumCommentThread({
       <h2 id={`comments-${uid}`}>{label}</h2>
       <form onSubmit={onSubmit} className="community-comment-form">
         <Field label={`${label} 작성`} htmlFor={`comment-${uid}`} required>
-          <textarea id={`comment-${uid}`} className="fc-input form-input" rows={4} value={value} onChange={(event) => onValueChange(event.target.value)} required />
+          <textarea id={`comment-${uid}`} className="fc-input" rows={4} value={value} onChange={(event) => onValueChange(event.target.value)} required />
         </Field>
         <Button type="submit">등록</Button>
       </form>
@@ -75,7 +75,7 @@ export default function ForumCommentThread({
                 {expanded && (
                   <form id={replyId} className="community-reply-form" onSubmit={(event) => onSubmitReply(event, comment.id)}>
                     <Field label={`${writer(comment)}님에게 답글`} htmlFor={`${replyId}-input`} required>
-                      <textarea id={`${replyId}-input`} className="fc-input form-input" rows={3} value={replyValue} onChange={(event) => onReplyValueChange(event.target.value)} required autoFocus />
+                      <textarea id={`${replyId}-input`} className="fc-input" rows={3} value={replyValue} onChange={(event) => onReplyValueChange(event.target.value)} required autoFocus />
                     </Field>
                     <div className="community-actions">
                       <Button type="submit" size="sm">답글 등록</Button>

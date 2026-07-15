@@ -237,7 +237,7 @@ export default function CommunityPage({ currentUser, showAlert, handleSubmitRepo
 
       <form className="community-search" onSubmit={(event) => { event.preventDefault(); setPage(1); setKeyword(searchInput.trim()); }} role="search">
         <Field label="게시글 검색" htmlFor="community-search-input">
-          <input id="community-search-input" className="fc-input form-input" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="제목 또는 작성자 이메일" />
+          <input id="community-search-input" className="fc-input" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="제목 또는 작성자 이메일" />
         </Field>
         <Button type="submit">검색</Button>
         {keyword && <Button type="button" variant="secondary" onClick={() => { setSearchInput(''); setKeyword(''); setPage(1); }}>초기화</Button>}

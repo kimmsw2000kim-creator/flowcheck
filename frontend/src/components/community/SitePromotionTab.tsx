@@ -61,10 +61,10 @@ export default function SitePromotionTab() {
             <form className="community-promotion-form" onSubmit={submit} aria-busy={submitting || undefined}>
               <h3>{selectedDomain.serviceName || selectedDomain.domainUrl} 소개 작성</h3>
               <Field label="홍보글 제목" htmlFor="promotion-title" required>
-                <input id="promotion-title" className="fc-input form-input" maxLength={100} value={title} onChange={(event) => setTitle(event.target.value)} disabled={submitting} required />
+                <input id="promotion-title" className="fc-input" maxLength={100} value={title} onChange={(event) => setTitle(event.target.value)} disabled={submitting} required />
               </Field>
               <Field label="사이트 소개" htmlFor="promotion-content" required>
-                <textarea id="promotion-content" className="fc-input form-input" rows={6} value={content} onChange={(event) => setContent(event.target.value)} disabled={submitting} required />
+                <textarea id="promotion-content" className="fc-input" rows={6} value={content} onChange={(event) => setContent(event.target.value)} disabled={submitting} required />
               </Field>
               <Button type="submit" isLoading={submitting} loadingText="등록 중...">사이트 홍보글 등록</Button>
             </form>

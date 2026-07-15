@@ -76,10 +76,10 @@ export default function TestHistoryTab() {
               </Card>
               <form onSubmit={submit} aria-busy={submitting || undefined}>
                 <Field label="공유글 제목" htmlFor="test-share-title" required>
-                  <input id="test-share-title" className="fc-input form-input" maxLength={100} value={title} onChange={(event) => setTitle(event.target.value)} disabled={submitting} autoFocus required />
+                  <input id="test-share-title" className="fc-input" maxLength={100} value={title} onChange={(event) => setTitle(event.target.value)} disabled={submitting} autoFocus required />
                 </Field>
                 <Field label="테스트 결과 소개" htmlFor="test-share-content" required>
-                  <textarea id="test-share-content" className="fc-input form-input" rows={6} value={content} onChange={(event) => setContent(event.target.value)} disabled={submitting} required />
+                  <textarea id="test-share-content" className="fc-input" rows={6} value={content} onChange={(event) => setContent(event.target.value)} disabled={submitting} required />
                 </Field>
                 <div className="community-actions">
                   <Button type="submit" isLoading={submitting} loadingText="공유 중...">테스트 결과 공유</Button>
