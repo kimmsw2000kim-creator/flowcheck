@@ -23,6 +23,7 @@ import AuthCallback from './pages/AuthCallback';
 import LandingPage from './pages/LandingPage';
 import CommentPage from "./pages/CommentPage";
 import CommunityHubPage from './pages/community/CommunityHubPage';
+import './styles/CommunityPages.css';
 
 // Types & Utils
 import { useUserStore } from './store/userStore';

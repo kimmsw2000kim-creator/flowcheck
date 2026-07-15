@@ -1,196 +1,62 @@
-import { useEffect, useState } from "react";
-import {
-    useLocation,
-    useNavigate,
-    useParams,
-} from "react-router-dom";
-import {
-    showErrorAlert,
-    showSuccessAlert,
-    showWarningAlert,
-} from "../utils/alert";
-import { getPost, updatePost } from "../api/communityApi";
+import { useEffect, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { getPost, updatePost } from '../api/communityApi';
+import { EmptyState, PageHeader } from '../components/common';
+import { PostEditorForm } from '../components/community';
+import { showErrorAlert, showSuccessAlert } from '../utils/alert';
 
 export default function PostEditPage() {
-    const navigate = useNavigate();
-    const location = useLocation();
-    const { postId } = useParams<{ postId: string }>();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { postId } = useParams<{ postId: string }>();
+  const isFreeBoard = location.pathname.startsWith('/comment/');
+  const returnPath = isFreeBoard ? '/comment' : '/community';
+  const [initialValue, setInitialValue] = useState<{ title: string; content: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
-    const [title, setTitle] = useState("");
-    const [content, setContent] = useState("");
-    const [loading, setLoading] = useState(true);
-    const [submitting, setSubmitting] = useState(false);
-
-    const isCommentEdit =
-        location.pathname.startsWith("/comment/");
-
-    const returnPath = isCommentEdit
-        ? "/comment"
-        : "/community";
-
-    useEffect(() => {
-        const loadPost = async () => {
-            if (!postId) {
-                navigate(returnPath);
-                return;
-            }
-
-            try {
-                const post = await getPost(Number(postId));
-
-                setTitle(post.title ?? "");
-                setContent(post.content ?? "");
-            } catch (error) {
-                console.error("게시글 조회 실패:", error);
-                alert("게시글을 불러오지 못했습니다.");
-                navigate(returnPath);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        loadPost();
-    }, [navigate, postId, returnPath]);
-
-    const handleSubmit = async (
-        e: React.FormEvent<HTMLFormElement>
-    ) => {
-        e.preventDefault();
-
-        if (!postId || submitting) return;
-
-        if (!title.trim()) {
-            await showWarningAlert(
-                "제목을 입력해주세요.",
-                "게시글 제목은 비워둘 수 없습니다."
-            );
-            return;
-        }
-
-        if (!content.trim()) {
-            await showWarningAlert(
-                "내용을 입력해주세요.",
-                "게시글 내용을 작성해주세요."
-            );
-            return;
-        }
-
-        try {
-            setSubmitting(true);
-
-            await updatePost(Number(postId), {
-                title: title.trim(),
-                content: content.trim(),
-            });
-
-            await showSuccessAlert(
-                "수정 완료",
-                "게시글이 정상적으로 수정되었습니다."
-            );
-
-            navigate(returnPath);
-        } catch (error) {
-            console.error("게시글 수정 실패:", error);
-
-            await showErrorAlert(
-                "수정 실패",
-                error instanceof Error
-                    ? error.message
-                    : "게시글 수정 중 오류가 발생했습니다."
-            );
-        } finally {
-            setSubmitting(false);
-        }
+  useEffect(() => {
+    const load = async () => {
+      const id = Number(postId);
+      if (!id) {
+        navigate(returnPath);
+        return;
+      }
+      try {
+        const post = await getPost(id);
+        setInitialValue({ title: post.title ?? '', content: post.content ?? '' });
+      } catch (loadError) {
+        setError(loadError instanceof Error ? loadError.message : '게시글을 불러오지 못했습니다.');
+      } finally {
+        setLoading(false);
+      }
     };
+    void load();
+  }, [navigate, postId, returnPath]);
 
-    if (loading) {
-        return (
-            <div
-                style={{
-                    padding: "3rem",
-                    textAlign: "center",
-                }}
-            >
-                게시글을 불러오는 중입니다...
-            </div>
-        );
+  const submit = async (value: { title: string; content: string }) => {
+    if (!postId) return;
+    try {
+      setSubmitting(true);
+      await updatePost(Number(postId), value);
+      await showSuccessAlert('수정 완료', '게시글이 정상적으로 수정되었습니다.');
+      navigate(returnPath);
+    } catch (submitError) {
+      await showErrorAlert('수정 실패', submitError instanceof Error ? submitError.message : '게시글 수정 중 오류가 발생했습니다.');
+    } finally {
+      setSubmitting(false);
     }
+  };
 
-    return (
-        <div
-            style={{
-                maxWidth: "900px",
-                margin: "0 auto",
-                textAlign: "left",
-            }}
-        >
-            <h1 style={{ marginBottom: "2rem" }}>
-                게시글 수정
-            </h1>
-
-            <form onSubmit={handleSubmit}>
-                <div className="form-group">
-                    <label className="form-label">
-                        제목
-                    </label>
-
-                    <input
-                        type="text"
-                        className="form-input"
-                        value={title}
-                        onChange={(e) =>
-                            setTitle(e.target.value)
-                        }
-                        required
-                    />
-                </div>
-
-                <div
-                    className="form-group"
-                    style={{ marginTop: "1rem" }}
-                >
-                    <label className="form-label">
-                        내용
-                    </label>
-
-                    <textarea
-                        className="form-input"
-                        rows={10}
-                        value={content}
-                        onChange={(e) =>
-                            setContent(e.target.value)
-                        }
-                        required
-                    />
-                </div>
-
-                <div
-                    style={{
-                        display: "flex",
-                        gap: "0.75rem",
-                        marginTop: "1.5rem",
-                    }}
-                >
-                    <button
-                        type="submit"
-                        className="btn btn-primary"
-                        disabled={submitting}
-                    >
-                        {submitting
-                            ? "수정 중..."
-                            : "수정 완료"}
-                    </button>
-
-                    <button
-                        type="button"
-                        className="btn btn-secondary"
-                        disabled={submitting}
-                        onClick={() => navigate(returnPath)}
-                    >
-                        취소
-                    </button>
-                </div>
-            </form>
-        </div>
-    );
+  return (
+    <div className="community-page community-page--narrow">
+      <PageHeader eyebrow={isFreeBoard ? '자유게시판' : 'Community'} title="게시글 수정" />
+      {loading && <EmptyState title="게시글을 불러오는 중입니다." description="잠시만 기다려 주세요." aria-live="polite" />}
+      {!loading && error && <EmptyState title={error} action={<button className="fc-button btn fc-button--secondary btn-secondary" onClick={() => navigate(returnPath)}>목록으로</button>} />}
+      {!loading && initialValue && (
+        <PostEditorForm mode="edit" initialTitle={initialValue.title} initialContent={initialValue.content} submitting={submitting} onSubmit={submit} onCancel={() => navigate(returnPath)} />
+      )}
+    </div>
+  );
 }

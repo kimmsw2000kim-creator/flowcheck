@@ -1,10 +1,6 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { AlertCircle, MessageCircle, Share2, ThumbsUp } from "lucide-react";
-import { useNavigate } from "react-router-dom";
-import {
-  showConfirmAlert,
-  showWarningAlert,
-} from "../utils/alert";
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { MessageCircle, Share2, ThumbsUp } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import {
   createComment,
   createPost,
@@ -15,1127 +11,265 @@ import {
   getPost,
   getPosts,
   likePost,
-} from "../api/communityApi";
-import { useLedgerStore } from "../store/ledgerStore";
-import { useUserStore } from "../store/userStore";
-
-interface Post {
-  id: number;
-  title: string;
-  content: string;
-  promoUrl?: string;
-  userId?: string;
-  email?: string;
-  writerEmail?: string;
-  likes?: number;
-  likeCount?: number;
-  shares?: number;
-  createdAt: string;
-  commentCount?: number;
-}
-
-interface Comment {
-  id: number;
-  postId?: number;
-  userId?: string;
-  author?: string;
-  writerEmail?: string;
-  content: string;
-  parentId: number | null;
-  createdAt: string;
-  replies?: Comment[];
-}
+} from '../api/communityApi';
+import { Badge, Button, Card, EmptyState, Field, PageHeader } from '../components/common';
+import {
+  ForumCommentThread,
+  ForumPostDetail,
+  PostEditorForm,
+  getForumLikeCount,
+  getForumWriter,
+} from '../components/community';
+import { useLedgerStore } from '../store/ledgerStore';
+import { useUserStore } from '../store/userStore';
+import type { ForumComment, ForumPost } from '../types/community';
+import { showConfirmAlert, showWarningAlert } from '../utils/alert';
 
 interface CommunityPageProps {
-  currentUser: {
-    id: string;
-    email: string;
-    balance: number;
-    coupons: number;
-  };
+  currentUser: { id: string; email: string; balance: number; coupons: number };
   showAlert: (message: string, type?: string) => void;
   handleSubmitReport: (type: string, id: number) => void;
 }
 
-export default function CommunityPage({
-  currentUser,
-  showAlert,
-  handleSubmitReport,
-}: CommunityPageProps) {
+export default function CommunityPage({ currentUser, showAlert, handleSubmitReport }: CommunityPageProps) {
   const navigate = useNavigate();
   const ledger = useLedgerStore((state) => state.entries);
-  const addOptimisticReward = useLedgerStore(
-    (state) => state.addOptimisticReward
-  );
-  const updateUser = useUserStore(
-    (state) => state.updateUserBalanceAndCoupons
-  );
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [activePost, setActivePost] = useState<Post | { id: "new" } | null>(
-    null
-  );
-
-  const [comments, setComments] = useState<Comment[]>([]);
-
+  const addOptimisticReward = useLedgerStore((state) => state.addOptimisticReward);
+  const updateUser = useUserStore((state) => state.updateUserBalanceAndCoupons);
+  const [posts, setPosts] = useState<ForumPost[]>([]);
+  const [activePost, setActivePost] = useState<ForumPost | null>(null);
+  const [comments, setComments] = useState<ForumComment[]>([]);
   const [liked, setLiked] = useState(false);
-
-  const [newPostTitle, setNewPostTitle] = useState("");
-  const [newPostContent, setNewPostContent] = useState("");
-  const [newPostPromoUrl, setNewPostPromoUrl] = useState("");
-
-  const [newCommentContent, setNewCommentContent] = useState("");
-  const [replyText, setReplyText] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [commentValue, setCommentValue] = useState('');
+  const [replyValue, setReplyValue] = useState('');
   const [replyParentId, setReplyParentId] = useState<number | null>(null);
-
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-
-  const [searchInput, setSearchInput] = useState("");
-  const [keyword, setKeyword] = useState("");
-
-  const pageSize = 10;
+  const [searchInput, setSearchInput] = useState('');
+  const [keyword, setKeyword] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   const loadPosts = useCallback(async () => {
     try {
-      const data = await getPosts(
-        page - 1,
-        pageSize,
-        keyword
-      );
-
-      if (Array.isArray(data)) {
-        setPosts(data);
-        setTotalPages(1);
-      } else {
-        setPosts(data.content || []);
-        setTotalPages(data.totalPages || 1);
-      }
-    } catch (error) {
-      console.error(error);
-      showAlert("게시글 목록을 불러오지 못했습니다.", "error");
+      setLoading(true);
+      setError('');
+      const data = await getPosts(page - 1, 10, keyword);
+      setPosts(Array.isArray(data) ? data : data.content || []);
+      setTotalPages(Array.isArray(data) ? 1 : data.totalPages || 1);
+    } catch (loadError) {
+      const message = loadError instanceof Error ? loadError.message : '게시글 목록을 불러오지 못했습니다.';
+      setError(message);
+      showAlert(message, 'error');
+    } finally {
+      setLoading(false);
     }
   }, [keyword, page, showAlert]);
 
-  useEffect(() => {
-    loadPosts();
-  }, [loadPosts]);
-
-  const handleSearch = (
-    e: React.FormEvent<HTMLFormElement>
-  ) => {
-    e.preventDefault();
-
-    setPage(1);
-    setKeyword(searchInput.trim());
-  };
-
-  const handleResetSearch = () => {
-    setSearchInput("");
-    setKeyword("");
-    setPage(1);
-  };
-
-  const loadComments = useCallback(async (postId: number) => {
-    try {
-      const data = await getComments(postId);
-      setComments(data || []);
-    } catch (error) {
-      console.error(error);
-      showAlert("댓글을 불러오지 못했습니다.", "error");
-    }
-  }, [showAlert]);
-
-  useEffect(() => {
-    if (activePost && activePost.id !== "new") {
-      loadComments(activePost.id);
-    }
-  }, [activePost, loadComments]);
+  useEffect(() => { void loadPosts(); }, [loadPosts]);
 
   const openPost = async (postId: number) => {
     try {
-      const [postData, commentData, likeStatus] = await Promise.all([
-        getPost(postId),
-        getComments(postId),
-        getLikeStatus(postId),
+      const [post, postComments, likeStatus] = await Promise.all([
+        getPost(postId), getComments(postId), getLikeStatus(postId),
       ]);
-
-      setActivePost(postData);
-      setComments(commentData || []);
+      setActivePost(post);
+      setComments(postComments);
       setLiked(likeStatus.liked);
-    } catch (error) {
-      console.error("게시글 상세 조회 실패:", error);
-      showAlert("게시글을 불러오지 못했습니다.", "error");
+    } catch (openError) {
+      showAlert(openError instanceof Error ? openError.message : '게시글을 불러오지 못했습니다.', 'error');
     }
   };
 
-  const handleCreatePost = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const refreshDetail = async (postId: number) => {
+    const [post, postComments] = await Promise.all([getPost(postId), getComments(postId)]);
+    setActivePost(post);
+    setComments(postComments);
+    await loadPosts();
+  };
 
-    if (!newPostTitle.trim() || !newPostContent.trim()) return;
-
+  const createPromotion = async (value: { title: string; content: string; promoUrl?: string }) => {
     try {
-      await createPost({
-        title: newPostTitle,
-        content: newPostContent,
-        promoUrl: newPostPromoUrl,
-      });
-
-      const duplicate = ledger.some((l) => l.type === "REWARD_POST");
-
-      if (!duplicate) {
-        updateUser({
-          balance: currentUser.balance + 20000,
-          coupons: currentUser.coupons,
-        });
-
-        addOptimisticReward({
-          amount: 20000,
-          type: "REWARD_POST",
-          description: "홍보 게시판 첫 글 등록 보상",
-        });
-
-        showAlert(
-          "첫 홍보글이 등록되었습니다! 20,000 크레딧이 지급되었습니다!",
-          "success"
-        );
+      setSubmitting(true);
+      await createPost(value);
+      if (!ledger.some((entry) => entry.type === 'REWARD_POST')) {
+        updateUser({ balance: currentUser.balance + 20000, coupons: currentUser.coupons });
+        addOptimisticReward({ amount: 20000, type: 'REWARD_POST', description: '홍보 게시판 첫 글 등록 보상' });
+        showAlert('첫 홍보글이 등록되어 20,000 크레딧이 지급되었습니다.', 'success');
       } else {
-        showAlert("홍보글이 등록되었습니다.", "success");
+        showAlert('홍보글이 등록되었습니다.', 'success');
       }
-
-      setNewPostTitle("");
-      setNewPostContent("");
-      setNewPostPromoUrl("");
-      setActivePost(null);
-      loadPosts();
-    } catch (error) {
-      console.error(error);
-      showAlert("게시글 작성에 실패했습니다.", "error");
+      setCreating(false);
+      await loadPosts();
+    } catch (createError) {
+      showAlert(createError instanceof Error ? createError.message : '게시글 작성에 실패했습니다.', 'error');
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const handleLikePost = async (postId: number) => {
+  const toggleLike = async () => {
+    if (!activePost) return;
     try {
-      const result = await likePost(postId);
-
+      const result = await likePost(activePost.id);
       setLiked(result.liked);
-
-      setActivePost((prev) => {
-        if (!prev || prev.id === "new") return prev;
-
-        return {
-          ...prev,
-          likeCount: result.likeCount,
-          likes: result.likeCount,
-        };
-      });
-
-      setPosts((prev) =>
-        prev.map((post) =>
-          post.id === postId
-            ? {
-              ...post,
-              likeCount: result.likeCount,
-              likes: result.likeCount,
-            }
-            : post
-        )
-      );
-
-      showAlert(
-        result.liked
-          ? "좋아요를 눌렀습니다."
-          : "좋아요를 취소했습니다.",
-        result.liked ? "success" : "info"
-      );
-    } catch (error) {
-      console.error("좋아요 처리 실패:", error);
-
-      showAlert(
-        error instanceof Error
-          ? error.message
-          : "좋아요 처리에 실패했습니다.",
-        "error"
-      );
+      setActivePost({ ...activePost, likeCount: result.likeCount, likes: result.likeCount });
+      setPosts((items) => items.map((post) => post.id === activePost.id ? { ...post, likeCount: result.likeCount, likes: result.likeCount } : post));
+      showAlert(result.liked ? '좋아요를 눌렀습니다.' : '좋아요를 취소했습니다.', result.liked ? 'success' : 'info');
+    } catch (likeError) {
+      showAlert(likeError instanceof Error ? likeError.message : '좋아요 처리에 실패했습니다.', 'error');
     }
   };
 
-  const handleEditPost = async () => {
-    if (!activePost || activePost.id === "new") return;
-
-    const loginEmail = (currentUser.email || "")
-      .trim()
-      .toLowerCase();
-
-    const writerEmail = (
-      activePost.writerEmail ||
-      activePost.email ||
-      ""
-    )
-      .trim()
-      .toLowerCase();
-
-    if (!loginEmail || loginEmail !== writerEmail) {
-      await showWarningAlert(
-        "수정 권한이 없습니다.",
-        "본인이 작성한 게시글만 수정할 수 있습니다."
-      );
-      return;
-    }
-
-    navigate(`/community/${activePost.id}/edit`);
+  const checkOwner = async () => {
+    if (!activePost) return false;
+    const isOwner = currentUser.email.trim().toLowerCase() === getForumWriter(activePost).trim().toLowerCase();
+    if (!isOwner) await showWarningAlert('권한이 없습니다.', '본인이 작성한 게시글만 변경할 수 있습니다.');
+    return isOwner;
   };
 
-  const handleDeletePost = async () => {
-    if (!activePost || activePost.id === "new") return;
-
-    const loginEmail = (currentUser.email || "")
-      .trim()
-      .toLowerCase();
-
-    const writerEmail = (
-      activePost.writerEmail ||
-      activePost.email ||
-      ""
-    )
-      .trim()
-      .toLowerCase();
-
-    if (!loginEmail || loginEmail !== writerEmail) {
-      await showWarningAlert(
-        "삭제 권한이 없습니다.",
-        "본인이 작성한 게시글만 삭제할 수 있습니다."
-      );
-      return;
-    }
-
-    const confirmed = await showConfirmAlert({
-      title: "게시글을 삭제하시겠습니까?",
-      text: "댓글과 좋아요 정보도 함께 삭제됩니다.",
-      confirmText: "삭제",
-      cancelText: "취소",
-      danger: true,
-    });
-
+  const removePost = async () => {
+    if (!activePost || !(await checkOwner())) return;
+    const confirmed = await showConfirmAlert({ title: '게시글을 삭제하시겠습니까?', text: '댓글과 좋아요 정보도 함께 삭제됩니다.', confirmText: '삭제', cancelText: '취소', danger: true });
     if (!confirmed) return;
-
     try {
       await deletePost(activePost.id);
-
       setActivePost(null);
       setComments([]);
-      setReplyParentId(null);
-      setReplyText("");
-      setLiked(false);
-
       await loadPosts();
-
-      showAlert("게시글이 삭제되었습니다.", "success");
-    } catch (error) {
-      console.error("게시글 삭제 실패:", error);
-
-      showAlert(
-        error instanceof Error
-          ? error.message
-          : "게시글 삭제에 실패했습니다.",
-        "error"
-      );
+      showAlert('게시글이 삭제되었습니다.', 'success');
+    } catch (deleteError) {
+      showAlert(deleteError instanceof Error ? deleteError.message : '게시글 삭제에 실패했습니다.', 'error');
     }
   };
 
-  const handleCreateComment = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!newCommentContent.trim()) return;
-    if (!activePost || activePost.id === "new") return;
-
+  const submitComment = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!activePost || !commentValue.trim()) return;
     try {
-      await createComment(activePost.id, {
-        content: newCommentContent,
-        parentId: null,
-      });
-
-      const duplicateCommentReward = ledger.some(
-        (l) =>
-          l.type === "REWARD_COMMENT" &&
-          l.description.includes(`게시글: ${activePost.id}`)
-      );
-
-      if (!duplicateCommentReward) {
-        updateUser({
-          balance: currentUser.balance + 5000,
-          coupons: currentUser.coupons,
-        });
-
-        addOptimisticReward({
-          amount: 5000,
-          type: "REWARD_COMMENT",
-          description: `게시글: ${activePost.id} 첫 피드백 댓글 리워드`,
-        });
-
-        showAlert(
-          "피드백 댓글이 등록되었습니다! 5,000 크레딧이 지급되었습니다!",
-          "success"
-        );
+      await createComment(activePost.id, { content: commentValue.trim(), parentId: null });
+      if (!ledger.some((entry) => entry.type === 'REWARD_COMMENT' && entry.description.includes(`게시글: ${activePost.id}`))) {
+        updateUser({ balance: currentUser.balance + 5000, coupons: currentUser.coupons });
+        addOptimisticReward({ amount: 5000, type: 'REWARD_COMMENT', description: `게시글: ${activePost.id} 첫 피드백 댓글 리워드` });
+        showAlert('피드백 댓글이 등록되어 5,000 크레딧이 지급되었습니다.', 'success');
       } else {
-        showAlert("댓글이 등록되었습니다.", "success");
+        showAlert('댓글이 등록되었습니다.', 'success');
       }
-
-      setNewCommentContent("");
-      loadComments(activePost.id);
-      loadPosts();
-    } catch (error) {
-      console.error(error);
-      showAlert("댓글 작성에 실패했습니다.", "error");
+      setCommentValue('');
+      await refreshDetail(activePost.id);
+    } catch (commentError) {
+      showAlert(commentError instanceof Error ? commentError.message : '댓글 작성에 실패했습니다.', 'error');
     }
   };
 
-  const handleCreateReply = async (
-    e: React.FormEvent,
-    parentId: number
-  ) => {
-    e.preventDefault();
-
-    if (!activePost || activePost.id === "new") return;
-    if (!replyText.trim()) return;
-
+  const submitReply = async (event: FormEvent<HTMLFormElement>, parentId: number) => {
+    event.preventDefault();
+    if (!activePost || !replyValue.trim()) return;
     try {
-      await createComment(activePost.id, {
-        content: replyText,
-        parentId,
-      });
-
-      setReplyText("");
+      await createComment(activePost.id, { content: replyValue.trim(), parentId });
+      setReplyValue('');
       setReplyParentId(null);
-
-      await loadComments(activePost.id);
-      await loadPosts();
-
-      showAlert("답글이 등록되었습니다.", "success");
-    } catch (error) {
-      console.error(error);
-      showAlert("답글 작성에 실패했습니다.", "error");
+      await refreshDetail(activePost.id);
+      showAlert('답글이 등록되었습니다.', 'success');
+    } catch (replyError) {
+      showAlert(replyError instanceof Error ? replyError.message : '답글 작성에 실패했습니다.', 'error');
     }
   };
 
-  const handleDeleteComment = async (
-    commentId: number,
-    isReply = false
-  ) => {
-    if (!activePost || activePost.id === "new") return;
-
-    const confirmed = window.confirm(
-      isReply
-        ? "이 답글을 삭제하시겠습니까?"
-        : "이 댓글을 삭제하시겠습니까?"
-    );
-
+  const removeComment = async (commentId: number, isReply = false) => {
+    if (!activePost) return;
+    const confirmed = await showConfirmAlert({ title: `${isReply ? '답글' : '댓글'}을 삭제하시겠습니까?`, text: '삭제한 내용은 복구할 수 없습니다.', confirmText: '삭제', cancelText: '취소', danger: true });
     if (!confirmed) return;
-
     try {
       await deleteComment(commentId);
-
-      const updatedComments = await getComments(activePost.id);
-      setComments(updatedComments || []);
-
-      const updatedPost = await getPost(activePost.id);
-      setActivePost(updatedPost);
-
-      await loadPosts();
-
-      showAlert(
-        isReply
-          ? "답글이 삭제되었습니다."
-          : "댓글이 삭제되었습니다.",
-        "success"
-      );
-    } catch (error) {
-      console.error("댓글 삭제 실패:", error);
-
-      showAlert(
-        error instanceof Error
-          ? error.message
-          : "댓글 삭제에 실패했습니다.",
-        "error"
-      );
+      await refreshDetail(activePost.id);
+      showAlert(`${isReply ? '답글' : '댓글'}이 삭제되었습니다.`, 'success');
+    } catch (deleteError) {
+      showAlert(deleteError instanceof Error ? deleteError.message : '댓글 삭제에 실패했습니다.', 'error');
     }
   };
 
-  const handleSharePost = (postId: number) => {
-    showAlert(`게시글 ${postId} 공유 기능은 추후 연결하면 됩니다.`, "success");
-  };
+  const pageNumbers = Array.from({ length: Math.min(10, totalPages) }, (_, index) => Math.floor((page - 1) / 10) * 10 + index + 1).filter((number) => number <= totalPages);
 
-  const getWriter = (post: Post) => {
-    return post.writerEmail || post.email || "unknown";
-  };
-
-  const getLikeCount = (post: Post) => {
-    return post.likeCount ?? post.likes ?? 0;
-  };
-
-  const getPageNumbers = () => {
-    const start = Math.floor((page - 1) / 10) * 10 + 1;
-    const end = Math.min(start + 9, totalPages);
-
-    return Array.from({ length: end - start + 1 }, (_, i) => start + i);
-  };
-
-  const visibleComments = comments.filter((comment) => comment.parentId === null);
+  if (activePost) {
+    return (
+      <div className="community-page">
+        <Button variant="secondary" onClick={() => { setActivePost(null); setReplyParentId(null); }}>← 게시판 목록으로</Button>
+        <ForumPostDetail
+          post={activePost}
+          liked={liked}
+          feedbackLabel="피드백"
+          onLike={() => void toggleLike()}
+          onEdit={() => void checkOwner().then((allowed) => allowed && navigate(`/community/${activePost.id}/edit`))}
+          onDelete={() => void removePost()}
+          onReport={() => handleSubmitReport('POST', activePost.id)}
+          onShare={() => showAlert(`게시글 ${activePost.id} 공유 기능은 추후 연결될 예정입니다.`, 'info')}
+        />
+        <ForumCommentThread
+          comments={comments}
+          currentUserEmail={currentUser.email}
+          value={commentValue}
+          replyValue={replyValue}
+          replyParentId={replyParentId}
+          label="피드백 및 댓글"
+          onValueChange={setCommentValue}
+          onReplyValueChange={setReplyValue}
+          onSubmit={submitComment}
+          onSubmitReply={submitReply}
+          onToggleReply={(id) => { setReplyParentId(id); setReplyValue(''); }}
+          onDelete={(id, reply) => void removeComment(id, reply)}
+          onReport={(id) => handleSubmitReport('COMMENT', id)}
+        />
+      </div>
+    );
+  }
 
   return (
-    <div style={{ textAlign: "left" }}>
-      {activePost && activePost.id !== "new" ? (
-        <div>
-          <button
-            className="btn btn-secondary"
-            style={{ marginBottom: "1.5rem" }}
-            onClick={() => {
-              setActivePost(null);
-              setComments([]);
-              setReplyParentId(null);
-              setLiked(false);
-            }}
-          >
-            &larr; 게시판 목록으로 돌아가기
-          </button>
+    <div className="community-page">
+      <PageHeader
+        eyebrow="Community"
+        title="프로모션 피드백 게시판"
+        description="서비스를 소개하고 사용자에게 UI/UX 피드백을 받아보세요."
+        actions={<Button onClick={() => setCreating(true)}>홍보 게시글 작성</Button>}
+      />
 
-          <div className="card">
-            <div className="post-header">
-              <span>작성자: {getWriter(activePost)}</span>
-              <span>{activePost.createdAt?.slice(0, 10)}</span>
-            </div>
+      <form className="community-search" onSubmit={(event) => { event.preventDefault(); setPage(1); setKeyword(searchInput.trim()); }} role="search">
+        <Field label="게시글 검색" htmlFor="community-search-input">
+          <input id="community-search-input" className="fc-input form-input" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="제목 또는 작성자 이메일" />
+        </Field>
+        <Button type="submit">검색</Button>
+        {keyword && <Button type="button" variant="secondary" onClick={() => { setSearchInput(''); setKeyword(''); setPage(1); }}>초기화</Button>}
+      </form>
 
-            <h2 style={{ marginBottom: "1rem", fontSize: "1.5rem" }}>
-              {activePost.title}
-            </h2>
-
-            <p
-              style={{
-                fontSize: "1.05rem",
-                lineHeight: 1.6,
-                marginBottom: "1.5rem",
-                whiteSpace: "pre-wrap",
-              }}
-            >
-              {activePost.content}
-            </p>
-
-            {activePost.promoUrl && (
-              <div
-                style={{
-                  marginBottom: "1.5rem",
-                  padding: "0.75rem",
-                  background: "var(--bg-tertiary)",
-                  borderRadius: "0.5rem",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <span>
-                  프로모션 링크:{" "}
-                  <a
-                    href={activePost.promoUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{
-                      color: "var(--accent-hover)",
-                      fontFamily: "var(--mono)",
-                    }}
-                  >
-                    {activePost.promoUrl}
-                  </a>
-                </span>
-
-                <button
-                  className="btn btn-secondary"
-                  style={{ fontSize: "0.8rem", padding: "0.3rem 0.6rem" }}
-                  onClick={() => handleSharePost(activePost.id)}
-                >
-                  <Share2 size={14} /> 링크 공유하기
-                </button>
+      {creating && <PostEditorForm mode="create" showPromoUrl submitting={submitting} onSubmit={createPromotion} onCancel={() => setCreating(false)} />}
+      {loading && <EmptyState title="게시글을 불러오는 중입니다." description="잠시만 기다려 주세요." aria-live="polite" />}
+      {!loading && error && <EmptyState title={error} action={<Button variant="secondary" onClick={() => void loadPosts()}>다시 시도</Button>} />}
+      {!loading && !error && posts.length === 0 && <EmptyState title={keyword ? '검색 결과가 없습니다.' : '등록된 홍보글이 없습니다.'} description="첫 번째 게시글을 작성해 보세요." />}
+      {!loading && !error && posts.length > 0 && (
+        <div className="community-post-grid">
+          {posts.map((post) => (
+            <Card as="article" key={post.id} interactive className="community-post-card">
+              <button type="button" className="community-post-card__link" onClick={() => void openPost(post.id)} aria-label={`${post.title} 상세 보기`} />
+              <div className="community-post-meta"><span>{getForumWriter(post)}</span><time>{post.createdAt?.slice(0, 10)}</time></div>
+              <h2>{post.title} {(post.commentCount ?? 0) > 0 && <Badge tone="info">{post.commentCount}</Badge>}</h2>
+              <p>{post.content?.length > 150 ? `${post.content.slice(0, 150)}…` : post.content}</p>
+              <div className="community-post-stats">
+                <span><ThumbsUp size={14} aria-hidden="true" /> {getForumLikeCount(post)}</span>
+                <span><MessageCircle size={14} aria-hidden="true" /> {post.commentCount ?? 0}</span>
+                <span><Share2 size={14} aria-hidden="true" /> {post.shares ?? 0}</span>
               </div>
-            )}
-
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                borderTop: "1px solid var(--border)",
-                paddingTop: "1rem",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  gap: "1.5rem",
-                  alignItems: "center",
-                }}
-              >
-                <button
-                  type="button"
-                  className="post-action-btn"
-                  onClick={() => handleLikePost(activePost.id)}
-                  style={{
-                    cursor: "pointer",
-                    color: liked ? "var(--accent)" : "inherit",
-                    fontWeight: liked ? 700 : 400,
-                  }}
-                >
-                  <ThumbsUp
-                    size={16}
-                    fill={liked ? "currentColor" : "none"}
-                  />
-
-                  {liked ? "좋아요 취소" : "좋아요"} (
-                  {getLikeCount(activePost)})
-                </button>
-
-                <button
-                  type="button"
-                  className="post-action-btn"
-                  onClick={() =>
-                    handleSubmitReport("POST", activePost.id)
-                  }
-                >
-                  <AlertCircle size={16} />
-                  게시글 신고
-                </button>
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "1rem",
-                  marginLeft: "auto",
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={handleEditPost}
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    color: "var(--accent)",
-                    cursor: "pointer",
-                    fontWeight: 700,
-                    fontSize: "0.9rem",
-                  }}
-                >
-                  게시글 수정
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleDeletePost}
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    color: "#ef4444",
-                    cursor: "pointer",
-                    fontWeight: 700,
-                    fontSize: "0.9rem",
-                  }}
-                >
-                  게시글 삭제
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="comment-section">
-            <h3>피드백 및 댓글</h3>
-
-            <form
-              onSubmit={handleCreateComment}
-              style={{ marginTop: "1.5rem", marginBottom: "1.5rem" }}
-            >
-              <div className="form-group">
-                <textarea
-                  className="form-input"
-                  placeholder="UX 피드백 댓글을 입력하세요..."
-                  value={newCommentContent}
-                  onChange={(e) => setNewCommentContent(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div style={{ display: "flex", gap: "0.5rem" }}>
-                <button type="submit" className="btn btn-primary">
-                  피드백 등록
-                </button>
-
-                {replyParentId && (
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => setReplyParentId(null)}
-                  >
-                    답글 취소
-                  </button>
-                )}
-              </div>
-            </form>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-              {visibleComments.length === 0 && (
-                <div
-                  style={{
-                    textAlign: "center",
-                    color: "var(--text-muted)",
-                    padding: "2rem",
-                  }}
-                >
-                  아직 댓글이 없습니다.
-                </div>
-              )}
-
-              {visibleComments.map((comment) => (
-                <div key={comment.id}>
-                  <div className="comment-card">
-                    <span className="comment-author">
-                      {comment.writerEmail || comment.author || "unknown"}
-                    </span>
-
-                    <p className="comment-content">{comment.content}</p>
-
-                    <div
-                      className="comment-footer"
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "flex-start",
-                        gap: "0.75rem",
-                        marginTop: "0.5rem",
-                      }}
-                    >
-                      <span>{comment.createdAt?.slice(0, 16)}</span>
-
-                      <button
-                        type="button"
-                        style={{
-                          background: "transparent",
-                          border: "none",
-                          color: "var(--accent-hover)",
-                          cursor: "pointer",
-                          padding: 0,
-                          fontSize: "0.8rem",
-                        }}
-                        onClick={() => {
-                          setReplyParentId(comment.id);
-                          setReplyText("");
-                        }}
-                      >
-                        답글
-                      </button>
-
-                      {(comment.writerEmail === currentUser.email ||
-                        comment.author === currentUser.email) && (
-                          <button
-                            type="button"
-                            style={{
-                              background: "transparent",
-                              border: "none",
-                              color: "#ef4444",
-                              cursor: "pointer",
-                              padding: 0,
-                              fontSize: "0.8rem",
-                            }}
-                            onClick={() => handleDeleteComment(comment.id)}
-                          >
-                            삭제
-                          </button>
-                        )}
-
-                      <button
-                        type="button"
-                        style={{
-                          background: "transparent",
-                          border: "none",
-                          color: "var(--text-muted)",
-                          cursor: "pointer",
-                          padding: 0,
-                          fontSize: "0.8rem",
-                        }}
-                        onClick={() =>
-                          handleSubmitReport("COMMENT", comment.id)
-                        }
-                      >
-                        신고
-                      </button>
-                    </div>
-                  </div>
-
-                  {replyParentId === comment.id && (
-                    <form
-                      onSubmit={(e) => handleCreateReply(e, comment.id)}
-                      style={{
-                        marginLeft: "2rem",
-                        marginTop: "0.75rem",
-                        marginBottom: "1rem",
-                        paddingLeft: "1rem",
-                        borderLeft: "2px solid var(--accent)",
-                      }}
-                    >
-                      <p
-                        style={{
-                          marginBottom: "0.5rem",
-                          color: "var(--accent-hover)",
-                          fontSize: "0.9rem",
-                        }}
-                      >
-                      </p>
-
-                      <textarea
-                        className="form-input"
-                        placeholder="답글을 입력하세요..."
-                        value={replyText}
-                        onChange={(e) => setReplyText(e.target.value)}
-                        required
-                      />
-
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: "0.5rem",
-                          marginTop: "0.75rem",
-                        }}
-                      >
-                        <button type="submit" className="btn btn-primary">
-                          답글 등록
-                        </button>
-
-                        <button
-                          type="button"
-                          className="btn btn-secondary"
-                          onClick={() => {
-                            setReplyParentId(null);
-                            setReplyText("");
-                          }}
-                        >
-                          취소
-                        </button>
-                      </div>
-                    </form>
-                  )}
-
-                  {(comment.replies || []).map((reply) => (
-                    <div
-                      key={reply.id}
-                      className="comment-card reply"
-                      style={{
-                        marginLeft: "2rem",
-                        paddingLeft: "1rem",
-                        borderLeft: "2px solid var(--border)",
-                      }}
-                    >
-                      <span className="comment-author">
-                        ㄴ {reply.writerEmail || reply.author || "unknown"}
-                      </span>
-
-                      <p
-                        className="comment-content"
-                        style={{
-                          marginTop: "0.5rem",
-                          marginBottom: "0.5rem",
-                        }}
-                      >
-                        {reply.content}
-                      </p>
-
-                      <div
-                        className="comment-footer"
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "flex-start",
-                          gap: "0.75rem",
-                        }}
-                      >
-                        <span>
-                          {reply.createdAt
-                            ?.replace("T", " ")
-                            .slice(0, 16)}
-                        </span>
-
-                        {(reply.writerEmail === currentUser.email ||
-                          reply.author === currentUser.email) && (
-                            <button
-                              type="button"
-                              style={{
-                                background: "transparent",
-                                border: "none",
-                                color: "#ef4444",
-                                cursor: "pointer",
-                                padding: 0,
-                                fontSize: "0.8rem",
-                              }}
-                              onClick={() =>
-                                handleDeleteComment(reply.id, true)
-                              }
-                            >
-                              삭제
-                            </button>
-                          )}
-
-                        <button
-                          type="button"
-                          style={{
-                            background: "transparent",
-                            border: "none",
-                            color: "var(--text-muted)",
-                            cursor: "pointer",
-                            padding: 0,
-                            fontSize: "0.8rem",
-                          }}
-                          onClick={() =>
-                            handleSubmitReport("COMMENT", reply.id)
-                          }
-                        >
-                          신고
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </div>
+            </Card>
+          ))}
         </div>
-      ) : (
-        <div>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: "1.5rem",
-            }}
-          >
-            <div>
-              <h2 style={{ fontSize: "1.75rem" }}>프로모션 피드백 게시판</h2>
-
-              <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>
-                내 서비스를 홍보하고 UI 테스트용 크레딧을 획득하세요.
-              </p>
-            </div>
-
-            <button
-              className="btn btn-primary"
-              onClick={() => setActivePost({ id: "new" })}
-            >
-              홍보 게시글 작성
-            </button>
-          </div>
-
-          <form
-            onSubmit={handleSearch}
-            style={{
-              display: "flex",
-              gap: "0.75rem",
-              marginBottom: "1.5rem",
-            }}
-          >
-            <input
-              type="text"
-              className="form-input"
-              placeholder="제목 또는 작성자 이메일을 검색하세요..."
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              style={{ flex: 1 }}
-            />
-
-            <button
-              type="submit"
-              className="btn btn-primary"
-            >
-              검색
-            </button>
-
-            {keyword && (
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={handleResetSearch}
-              >
-                초기화
-              </button>
-            )}
-          </form>
-
-          {activePost && activePost.id === "new" ? (
-            <div className="card">
-              <h3 style={{ marginBottom: "1.25rem" }}>
-                새로운 프로모션 게시글 등록
-              </h3>
-
-              <form onSubmit={handleCreatePost}>
-                <div className="form-group">
-                  <label className="form-label">제목</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder="서비스를 소개할 제목을 입력하세요..."
-                    value={newPostTitle}
-                    onChange={(e) => setNewPostTitle(e.target.value)}
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">서비스 주소 URL</label>
-                  <input
-                    type="url"
-                    className="form-input"
-                    placeholder="https://example.com"
-                    value={newPostPromoUrl}
-                    onChange={(e) => setNewPostPromoUrl(e.target.value)}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">상세 내용</label>
-                  <textarea
-                    className="form-input"
-                    rows={6}
-                    placeholder="검증받고 싶은 UI/UX 피드백 내용을 적어주세요..."
-                    value={newPostContent}
-                    onChange={(e) => setNewPostContent(e.target.value)}
-                    required
-                  />
-                </div>
-
-                <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
-                  <button type="submit" className="btn btn-primary">
-                    게시글 발행
-                  </button>
-
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => setActivePost(null)}
-                  >
-                    취소
-                  </button>
-                </div>
-              </form>
-            </div>
-          ) : (
-            <>
-              <div className="post-list">
-                {posts.map((post) => (
-                  <div
-                    className="post-card"
-                    key={post.id}
-                    onClick={() => openPost(post.id)}
-                  >
-                    <div className="post-header">
-                      <span>작성자: {getWriter(post)}</span>
-                      <span>{post.createdAt?.slice(0, 10)}</span>
-                    </div>
-
-                    <h4 className="post-title">
-                      {post.title}
-                      {(post.commentCount || 0) > 0 && (
-                        <span style={{ marginLeft: "0.5rem", color: "#0070c9" }}>
-                          [{post.commentCount}]
-                        </span>
-                      )}
-                    </h4>
-
-                    <p className="post-snippet">
-                      {post.content?.length > 150
-                        ? `${post.content.substring(0, 150)}...`
-                        : post.content}
-                    </p>
-
-                    <div className="post-actions">
-                      <span
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "0.25rem",
-                        }}
-                      >
-                        <ThumbsUp size={14} /> {getLikeCount(post)} 좋아요
-                      </span>
-
-                      <span
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "0.25rem",
-                        }}
-                      >
-                        <MessageCircle size={14} /> {post.commentCount || 0} 댓글
-                      </span>
-
-                      <span
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "0.25rem",
-                        }}
-                      >
-                        <Share2 size={14} /> {post.shares || 0} 공유
-                      </span>
-                    </div>
-                  </div>
-                ))}
-
-                {posts.length === 0 && (
-                  <div
-                    style={{
-                      textAlign: "center",
-                      color: "var(--text-muted)",
-                      padding: "3rem",
-                    }}
-                  >
-                    {keyword
-                      ? `"${keyword}" 검색 결과가 없습니다.`
-                      : "아직 등록된 홍보글이 없습니다."}
-                  </div>
-                )}
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "center",
-                  gap: "0.4rem",
-                  marginTop: "1.5rem",
-                }}
-              >
-                <button
-                  className="btn btn-secondary"
-                  disabled={page <= 1}
-                  onClick={() => setPage(page - 1)}
-                >
-                  이전
-                </button>
-
-                {getPageNumbers().map((num) => (
-                  <button
-                    key={num}
-                    className={page === num ? "btn btn-primary" : "btn btn-secondary"}
-                    onClick={() => setPage(num)}
-                  >
-                    {num}
-                  </button>
-                ))}
-
-                <button
-                  className="btn btn-secondary"
-                  disabled={page >= totalPages}
-                  onClick={() => setPage(page + 1)}
-                >
-                  다음
-                </button>
-              </div>
-            </>
-          )}
-        </div>
+      )}
+      {totalPages > 1 && (
+        <nav className="community-pagination" aria-label="게시글 페이지">
+          <Button variant="secondary" size="sm" disabled={page === 1} onClick={() => setPage((value) => value - 1)}>이전</Button>
+          {pageNumbers.map((number) => <Button key={number} variant={page === number ? 'primary' : 'secondary'} size="sm" aria-current={page === number ? 'page' : undefined} onClick={() => setPage(number)}>{number}</Button>)}
+          <Button variant="secondary" size="sm" disabled={page === totalPages} onClick={() => setPage((value) => value + 1)}>다음</Button>
+        </nav>
       )}
     </div>
   );

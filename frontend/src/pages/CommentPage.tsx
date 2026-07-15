@@ -1,850 +1,222 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { MessageCircle, ThumbsUp } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-    showConfirmAlert,
-    showErrorAlert,
-    showSuccessAlert,
-    showWarningAlert,
-} from "../utils/alert";
-import {
-    createComment,
-    deleteComment,
-    deletePost,
-    getComments,
-    getLikeStatus,
-    getPost,
-    getPosts,
-    likePost,
-} from "../api/communityApi";
+  createComment,
+  deleteComment,
+  deletePost,
+  getComments,
+  getLikeStatus,
+  getPost,
+  getPosts,
+  likePost,
+} from '../api/communityApi';
+import { Button, EmptyState, Field, PageHeader, Table, TableContainer } from '../components/common';
+import { ForumCommentThread, ForumPostDetail, getForumLikeCount, getForumWriter } from '../components/community';
+import type { ForumComment, ForumPost } from '../types/community';
+import { showConfirmAlert, showErrorAlert, showSuccessAlert, showWarningAlert } from '../utils/alert';
 
 interface CommentPageProps {
-    currentUser: {
-        id: string;
-        email: string;
-        balance: number;
-        coupons: number;
-    };
-    showAlert: (message: string, type?: string) => void;
+  currentUser: { id: string; email: string; balance: number; coupons: number };
+  showAlert: (message: string, type?: string) => void;
 }
 
-interface Post {
-    id: number;
-    title: string;
-    content: string;
-    writerEmail?: string;
-    email?: string;
-    createdAt: string;
-    likeCount?: number;
-    likes?: number;
-    commentCount?: number;
-}
-
-interface Comment {
-    id: number;
-    content: string;
-    writerEmail?: string;
-    author?: string;
-    createdAt: string;
-    parentId: number | null;
-    replies?: Comment[];
-}
-
-export default function CommentPage({
-    currentUser,
-    showAlert,
-}: CommentPageProps) {
-    const navigate = useNavigate();
-    const [posts, setPosts] = useState<Post[]>([]);
-    const [selectedPost, setSelectedPost] = useState<Post | null>(null);
-    const [comments, setComments] = useState<Comment[]>([]);
-
-    const [commentText, setCommentText] = useState("");
-    const [replyText, setReplyText] = useState("");
-    const [replyParentId, setReplyParentId] = useState<number | null>(null);
-    const [liked, setLiked] = useState(false);
-
-    const [page, setPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
-
-    const [searchInput, setSearchInput] = useState("");
-    const [keyword, setKeyword] = useState("");
-    const pageSize = 10;
-
-    const loadPosts = useCallback(async () => {
-        try {
-            const data = await getPosts(page - 1, pageSize, keyword);
-
-            if (Array.isArray(data)) {
-                setPosts(data);
-                setTotalPages(1);
-            } else {
-                setPosts(data.content || []);
-                setTotalPages(data.totalPages || 1);
-            }
-        } catch (error) {
-            console.error(error);
-            showAlert("게시글 목록을 불러오지 못했습니다.", "error");
-        }
-    }, [keyword, page, showAlert]);
-
-    useEffect(() => {
-        loadPosts();
-    }, [loadPosts]);
-
-    const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-
-        setPage(1);
-        setKeyword(searchInput.trim());
-    };
-
-    const handleResetSearch = () => {
-        setSearchInput("");
-        setKeyword("");
-        setPage(1);
-    };
-
-    const openPost = async (postId: number) => {
-        try {
-            const [postData, commentData, likeStatus] = await Promise.all([
-                getPost(postId),
-                getComments(postId),
-                getLikeStatus(postId),
-            ]);
-
-            setSelectedPost(postData);
-            setComments(commentData || []);
-            setLiked(likeStatus.liked);
-        } catch (error) {
-            console.error(error);
-            showAlert("게시글 상세 정보를 불러오지 못했습니다.", "error");
-        }
-    };
-
-    const handleLike = async () => {
-        if (!selectedPost) return;
-
-        try {
-            const result = await likePost(selectedPost.id);
-
-            setLiked(result.liked);
-
-            setSelectedPost((prev) =>
-                prev
-                    ? {
-                        ...prev,
-                        likeCount: result.likeCount,
-                        likes: result.likeCount,
-                    }
-                    : prev
-            );
-
-            await loadPosts();
-
-            showAlert(
-                result.message,
-                result.liked ? "success" : "info"
-            );
-        } catch (error) {
-            console.error(error);
-
-            const message =
-                error instanceof Error
-                    ? error.message
-                    : "좋아요 처리에 실패했습니다.";
-
-            showAlert(message, "error");
-        }
-    };
-
-    const handleCreateComment = async (e: React.FormEvent) => {
-        e.preventDefault();
-
-        if (!selectedPost) return;
-        if (!commentText.trim()) return;
-
-        try {
-            await createComment(selectedPost.id, {
-                content: commentText,
-                parentId: null,
-            });
-
-            setCommentText("");
-            const commentData = await getComments(selectedPost.id);
-            setComments(commentData || []);
-
-            const updatedPost = await getPost(selectedPost.id);
-            setSelectedPost(updatedPost);
-
-            await showSuccessAlert(
-                "댓글 등록 완료",
-                "댓글이 정상적으로 등록되었습니다."
-            );
-        } catch (error) {
-            console.error(error);
-            await showErrorAlert(
-                "댓글 등록 실패",
-                "댓글 작성 중 오류가 발생했습니다."
-            );
-        }
-    };
-
-    const handleCreateReply = async (e: React.FormEvent) => {
-        e.preventDefault();
-
-        if (!selectedPost) return;
-        if (!replyParentId) return;
-        if (!replyText.trim()) return;
-
-        try {
-            await createComment(selectedPost.id, {
-                content: replyText,
-                parentId: replyParentId,
-            });
-
-            setReplyText("");
-            setReplyParentId(null);
-
-            const commentData = await getComments(selectedPost.id);
-            setComments(commentData || []);
-
-            await showSuccessAlert(
-                "답글 등록 완료",
-                "답글이 정상적으로 등록되었습니다."
-            );
-        } catch (error) {
-            console.error(error);
-            await showErrorAlert(
-                "답글 등록 실패",
-                "답글 작성 중 오류가 발생했습니다."
-            );
-        }
-    };
-
-    const handleEditPost = async () => {
-        if (!selectedPost) return;
-
-        const loginEmail = (currentUser.email || "")
-            .trim()
-            .toLowerCase();
-
-        const writerEmail = (
-            selectedPost.writerEmail ||
-            selectedPost.email ||
-            ""
-        )
-            .trim()
-            .toLowerCase();
-
-        if (!loginEmail || loginEmail !== writerEmail) {
-            await showWarningAlert(
-                "수정 권한이 없습니다.",
-                "본인이 작성한 게시글만 수정할 수 있습니다."
-            );
-            return;
-        }
-
-        navigate(`/comment/${selectedPost.id}/edit`);
-    };
-
-    const handleDeletePost = async () => {
-        if (!selectedPost) return;
-
-        const loginEmail = (currentUser.email || "")
-            .trim()
-            .toLowerCase();
-
-        const writerEmail = (
-            selectedPost.writerEmail ||
-            selectedPost.email ||
-            ""
-        )
-            .trim()
-            .toLowerCase();
-
-        if (!loginEmail || loginEmail !== writerEmail) {
-            await showWarningAlert(
-                "삭제 권한이 없습니다.",
-                "본인이 작성한 게시글만 삭제할 수 있습니다."
-            );
-            return;
-        }
-
-        const confirmed = await showConfirmAlert({
-            title: "게시글을 삭제하시겠습니까?",
-            text: "댓글과 좋아요 정보도 함께 삭제됩니다.",
-            confirmText: "삭제",
-            cancelText: "취소",
-            danger: true,
-        });
-
-        if (!confirmed) return;
-
-        try {
-            await deletePost(selectedPost.id);
-
-            setSelectedPost(null);
-            setComments([]);
-            setReplyParentId(null);
-            setReplyText("");
-            setLiked(false);
-
-            await loadPosts();
-
-            await showSuccessAlert(
-                "삭제 완료",
-                "게시글이 삭제되었습니다."
-            );
-        } catch (error) {
-            console.error("게시글 삭제 실패:", error);
-
-            await showErrorAlert(
-                "삭제 실패",
-                error instanceof Error
-                    ? error.message
-                    : "게시글 삭제에 실패했습니다."
-            );
-        }
-    };
-
-    const handleDeleteComment = async (
-        commentId: number,
-        isReply = false
-    ) => {
-        if (!selectedPost) return;
-
-        const confirmed = await showConfirmAlert({
-            title: isReply
-                ? "답글을 삭제하시겠습니까?"
-                : "댓글을 삭제하시겠습니까?",
-            text: "삭제한 내용은 복구할 수 없습니다.",
-            confirmText: "삭제",
-            cancelText: "취소",
-            danger: true,
-        });
-
-        if (!confirmed) return;
-
-        try {
-            await deleteComment(commentId);
-
-            const updatedComments = await getComments(selectedPost.id);
-            setComments(updatedComments || []);
-
-            const updatedPost = await getPost(selectedPost.id);
-            setSelectedPost(updatedPost);
-
-            await loadPosts();
-
-            await showSuccessAlert(
-                isReply ? "답글 삭제 완료" : "댓글 삭제 완료",
-                isReply
-                    ? "답글이 삭제되었습니다."
-                    : "댓글이 삭제되었습니다."
-            );
-        } catch (error) {
-            console.error("댓글 삭제 오류:", error);
-
-            await showErrorAlert(
-                isReply ? "답글 삭제 실패" : "댓글 삭제 실패",
-                error instanceof Error
-                    ? error.message
-                    : "삭제 중 오류가 발생했습니다."
-            );
-        }
-    };
-
-    const getWriter = (post: Post) => {
-        return post.writerEmail || post.email || "unknown";
-    };
-
-    const getLikeCount = (post: Post) => {
-        return post.likeCount ?? post.likes ?? 0;
-    };
-
-    const getPageNumbers = () => {
-        const start = Math.floor((page - 1) / 10) * 10 + 1;
-        const end = Math.min(start + 9, totalPages);
-
-        return Array.from({ length: end - start + 1 }, (_, i) => start + i);
-    };
-
-    if (selectedPost) {
-        return (
-            <div style={{ textAlign: "left" }}>
-                <button
-                    className="btn btn-secondary"
-                    style={{ marginBottom: "1.5rem" }}
-                    onClick={() => {
-                        setSelectedPost(null);
-                        setComments([]);
-                        setReplyParentId(null);
-                        setReplyText("");
-                        setLiked(false);
-                    }}
-                >
-                    ← 게시판 목록으로 돌아가기
-                </button>
-
-                <div className="card">
-                    <div className="post-header">
-                        <span>작성자: {getWriter(selectedPost)}</span>
-                        <span>{selectedPost.createdAt?.slice(0, 10)}</span>
-                    </div>
-
-                    <h2 style={{ marginBottom: "1rem", fontSize: "1.5rem" }}>
-                        {selectedPost.title}
-                    </h2>
-
-                    <p
-                        style={{
-                            fontSize: "1.05rem",
-                            lineHeight: 1.6,
-                            marginBottom: "1.5rem",
-                            whiteSpace: "pre-wrap",
-                        }}
-                    >
-                        {selectedPost.content}
-                    </p>
-
-                    <div
-                        style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            borderTop: "1px solid var(--border)",
-                            paddingTop: "1rem",
-                        }}
-                    >
-                        <button
-                            type="button"
-                            className="post-action-btn"
-                            onClick={handleLike}
-                            style={{
-                                cursor: "pointer",
-                                fontWeight: liked ? 700 : 400,
-                                color: liked ? "var(--accent)" : "inherit",
-                            }}
-                        >
-                            <ThumbsUp
-                                size={16}
-                                fill={liked ? "currentColor" : "none"}
-                            />
-
-                            {liked ? "좋아요 취소" : "좋아요"} ({getLikeCount(selectedPost)})
-                        </button>
-
-                        <div
-                            style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "1rem",
-                                marginLeft: "auto",
-                            }}
-                        >
-                            <button
-                                type="button"
-                                onClick={handleEditPost}
-                                style={{
-                                    background: "transparent",
-                                    border: "none",
-                                    color: "var(--accent)",
-                                    cursor: "pointer",
-                                    fontWeight: 700,
-                                    fontSize: "0.9rem",
-                                }}
-                            >
-                                게시글 수정
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={handleDeletePost}
-                                style={{
-                                    background: "transparent",
-                                    border: "none",
-                                    color: "#ef4444",
-                                    cursor: "pointer",
-                                    fontWeight: 700,
-                                    fontSize: "0.9rem",
-                                }}
-                            >
-                                게시글 삭제
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="comment-section">
-                    <h3>댓글</h3>
-
-                    <form
-                        onSubmit={handleCreateComment}
-                        style={{ marginTop: "1.5rem", marginBottom: "1.5rem" }}
-                    >
-                        <textarea
-                            className="form-input"
-                            placeholder="댓글을 입력하세요..."
-                            value={commentText}
-                            onChange={(e) => setCommentText(e.target.value)}
-                            required
-                        />
-
-                        <button
-                            type="submit"
-                            className="btn btn-primary"
-                            style={{ marginTop: "0.75rem" }}
-                        >
-                            댓글 등록
-                        </button>
-                    </form>
-
-
-                    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                        {comments.length === 0 && (
-                            <div
-                                style={{
-                                    textAlign: "center",
-                                    color: "var(--text-muted)",
-                                    padding: "2rem",
-                                }}
-                            >
-                                아직 댓글이 없습니다.
-                            </div>
-                        )}
-
-                        {comments.map((comment) => (
-                            <div key={comment.id}>
-                                <div className="comment-card">
-                                    <span className="comment-author">
-                                        {comment.writerEmail || comment.author || "unknown"}
-                                    </span>
-
-                                    <p className="comment-content">{comment.content}</p>
-
-                                    <div
-                                        className="comment-footer"
-                                        style={{
-                                            display: "flex",
-                                            alignItems: "center",
-                                            gap: "0.75rem",
-                                            marginTop: "0.5rem",
-                                        }}
-                                    >
-                                        <span>{comment.createdAt?.slice(0, 16)}</span>
-
-                                        <button
-                                            type="button"
-                                            style={{
-                                                background: "transparent",
-                                                border: "none",
-                                                color: "var(--accent-hover)",
-                                                cursor: "pointer",
-                                                padding: 0,
-                                                fontSize: "0.8rem",
-                                            }}
-                                            onClick={() => {
-                                                setReplyParentId(comment.id);
-                                                setReplyText("");
-                                            }}
-                                        >
-                                            답글
-                                        </button>
-
-                                        <button
-                                            type="button"
-                                            style={{
-                                                background: "transparent",
-                                                border: "none",
-                                                color: "#ef4444",
-                                                cursor: "pointer",
-                                                padding: 0,
-                                                fontSize: "0.8rem",
-                                            }}
-                                            onClick={() => handleDeleteComment(comment.id)}
-                                        >
-                                            삭제
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {replyParentId === comment.id && (
-                                    <form
-                                        onSubmit={handleCreateReply}
-                                        style={{
-                                            marginLeft: "2rem",
-                                            marginTop: "1rem",
-                                            marginBottom: "1rem",
-                                        }}
-                                    >
-                                        <textarea
-                                            className="form-input"
-                                            placeholder="답글을 입력하세요..."
-                                            value={replyText}
-                                            onChange={(e) => setReplyText(e.target.value)}
-                                        />
-
-                                        <div
-                                            style={{
-                                                display: "flex",
-                                                gap: "0.5rem",
-                                                marginTop: "0.5rem",
-                                            }}
-                                        >
-                                            <button
-                                                className="btn btn-primary"
-                                                type="submit"
-                                            >
-                                                답글 등록
-                                            </button>
-
-                                            <button
-                                                className="btn btn-secondary"
-                                                type="button"
-                                                onClick={() => {
-                                                    setReplyParentId(null);
-                                                    setReplyText("");
-                                                }}
-                                            >
-                                                취소
-                                            </button>
-                                        </div>
-                                    </form>
-                                )}
-
-                                {(comment.replies || []).map((reply) => (
-                                    <div
-                                        key={reply.id}
-                                        className="comment-card reply"
-                                        style={{
-                                            marginLeft: "2rem",
-                                            paddingLeft: "1rem",
-                                            borderLeft: "2px solid var(--border)",
-                                        }}
-                                    >
-                                        <span className="comment-author">
-                                            ㄴ {reply.writerEmail || reply.author || "unknown"}
-                                        </span>
-
-                                        <p
-                                            className="comment-content"
-                                            style={{
-                                                marginTop: "0.5rem",
-                                                marginBottom: "0.5rem",
-                                            }}
-                                        >
-                                            {reply.content}
-                                        </p>
-
-                                        <div
-                                            className="comment-footer"
-                                            style={{
-                                                display: "flex",
-                                                justifyContent: "flex-start",
-                                                alignItems: "center",
-                                                gap: "0.75rem",
-                                            }}
-                                        >
-                                            <span>
-                                                {reply.createdAt
-                                                    ?.replace("T", " ")
-                                                    .slice(0, 16)}
-                                            </span>
-
-                                            <button
-                                                type="button"
-                                                style={{
-                                                    background: "transparent",
-                                                    border: "none",
-                                                    color: "#ef4444",
-                                                    cursor: "pointer",
-                                                    padding: 0,
-                                                    fontSize: "0.8rem",
-                                                }}
-                                                onClick={() => handleDeleteComment(reply.id, true)}
-                                            >
-                                                삭제
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
-        );
+export default function CommentPage({ currentUser, showAlert }: CommentPageProps) {
+  const navigate = useNavigate();
+  const [posts, setPosts] = useState<ForumPost[]>([]);
+  const [selectedPost, setSelectedPost] = useState<ForumPost | null>(null);
+  const [comments, setComments] = useState<ForumComment[]>([]);
+  const [commentValue, setCommentValue] = useState('');
+  const [replyValue, setReplyValue] = useState('');
+  const [replyParentId, setReplyParentId] = useState<number | null>(null);
+  const [liked, setLiked] = useState(false);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [searchInput, setSearchInput] = useState('');
+  const [keyword, setKeyword] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const loadPosts = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const data = await getPosts(page - 1, 10, keyword);
+      setPosts(Array.isArray(data) ? data : data.content || []);
+      setTotalPages(Array.isArray(data) ? 1 : data.totalPages || 1);
+    } catch (loadError) {
+      const message = loadError instanceof Error ? loadError.message : '게시글 목록을 불러오지 못했습니다.';
+      setError(message);
+      showAlert(message, 'error');
+    } finally {
+      setLoading(false);
     }
+  }, [keyword, page, showAlert]);
 
+  useEffect(() => { void loadPosts(); }, [loadPosts]);
+
+  const openPost = async (postId: number) => {
+    try {
+      const [post, postComments, likeStatus] = await Promise.all([getPost(postId), getComments(postId), getLikeStatus(postId)]);
+      setSelectedPost(post);
+      setComments(postComments);
+      setLiked(likeStatus.liked);
+    } catch (openError) {
+      showAlert(openError instanceof Error ? openError.message : '게시글 상세 정보를 불러오지 못했습니다.', 'error');
+    }
+  };
+
+  const refreshDetail = async (postId: number) => {
+    const [post, postComments] = await Promise.all([getPost(postId), getComments(postId)]);
+    setSelectedPost(post);
+    setComments(postComments);
+    await loadPosts();
+  };
+
+  const checkOwner = async () => {
+    if (!selectedPost) return false;
+    const allowed = currentUser.email.trim().toLowerCase() === getForumWriter(selectedPost).trim().toLowerCase();
+    if (!allowed) await showWarningAlert('권한이 없습니다.', '본인이 작성한 게시글만 변경할 수 있습니다.');
+    return allowed;
+  };
+
+  const toggleLike = async () => {
+    if (!selectedPost) return;
+    try {
+      const result = await likePost(selectedPost.id);
+      setLiked(result.liked);
+      setSelectedPost({ ...selectedPost, likeCount: result.likeCount, likes: result.likeCount });
+      await loadPosts();
+      showAlert(result.message, result.liked ? 'success' : 'info');
+    } catch (likeError) {
+      showAlert(likeError instanceof Error ? likeError.message : '좋아요 처리에 실패했습니다.', 'error');
+    }
+  };
+
+  const removePost = async () => {
+    if (!selectedPost || !(await checkOwner())) return;
+    const confirmed = await showConfirmAlert({ title: '게시글을 삭제하시겠습니까?', text: '댓글과 좋아요 정보도 함께 삭제됩니다.', confirmText: '삭제', cancelText: '취소', danger: true });
+    if (!confirmed) return;
+    try {
+      await deletePost(selectedPost.id);
+      setSelectedPost(null);
+      setComments([]);
+      await loadPosts();
+      await showSuccessAlert('삭제 완료', '게시글이 삭제되었습니다.');
+    } catch (deleteError) {
+      await showErrorAlert('삭제 실패', deleteError instanceof Error ? deleteError.message : '게시글 삭제에 실패했습니다.');
+    }
+  };
+
+  const submitComment = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedPost || !commentValue.trim()) return;
+    try {
+      await createComment(selectedPost.id, { content: commentValue.trim(), parentId: null });
+      setCommentValue('');
+      await refreshDetail(selectedPost.id);
+      await showSuccessAlert('댓글 등록 완료', '댓글이 정상적으로 등록되었습니다.');
+    } catch {
+      await showErrorAlert('댓글 등록 실패', '댓글 작성 중 오류가 발생했습니다.');
+    }
+  };
+
+  const submitReply = async (event: FormEvent<HTMLFormElement>, parentId: number) => {
+    event.preventDefault();
+    if (!selectedPost || !replyValue.trim()) return;
+    try {
+      await createComment(selectedPost.id, { content: replyValue.trim(), parentId });
+      setReplyValue('');
+      setReplyParentId(null);
+      await refreshDetail(selectedPost.id);
+      await showSuccessAlert('답글 등록 완료', '답글이 정상적으로 등록되었습니다.');
+    } catch {
+      await showErrorAlert('답글 등록 실패', '답글 작성 중 오류가 발생했습니다.');
+    }
+  };
+
+  const removeComment = async (commentId: number, isReply = false) => {
+    if (!selectedPost) return;
+    const confirmed = await showConfirmAlert({ title: `${isReply ? '답글' : '댓글'}을 삭제하시겠습니까?`, text: '삭제한 내용은 복구할 수 없습니다.', confirmText: '삭제', cancelText: '취소', danger: true });
+    if (!confirmed) return;
+    try {
+      await deleteComment(commentId);
+      await refreshDetail(selectedPost.id);
+      await showSuccessAlert('삭제 완료', `${isReply ? '답글' : '댓글'}이 삭제되었습니다.`);
+    } catch (deleteError) {
+      await showErrorAlert('삭제 실패', deleteError instanceof Error ? deleteError.message : '삭제 중 오류가 발생했습니다.');
+    }
+  };
+
+  const pageNumbers = Array.from({ length: Math.min(10, totalPages) }, (_, index) => Math.floor((page - 1) / 10) * 10 + index + 1).filter((number) => number <= totalPages);
+
+  if (selectedPost) {
     return (
-        <div style={{ textAlign: "left" }}>
-            <div
-                style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: "1.5rem",
-                }}
-            >
-                <div>
-                    <h2 style={{ fontSize: "1.75rem" }}>게시판</h2>
-                    <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>
-                        게시글을 선택하면 댓글과 대댓글을 작성할 수 있습니다.
-                    </p>
-                </div>
-
-                <button
-                    className="btn btn-primary"
-                    onClick={() => navigate("/comment/write")}
-                >
-                    게시글 작성
-                </button>
-            </div>
-
-            <form
-                onSubmit={handleSearch}
-                style={{
-                    display: "flex",
-                    gap: "0.75rem",
-                    marginBottom: "1.5rem",
-                }}
-            >
-                <input
-                    className="form-input"
-                    type="text"
-                    placeholder="제목 또는 작성자 이메일 검색"
-                    value={searchInput}
-                    onChange={(e) => setSearchInput(e.target.value)}
-                    style={{ flex: 1 }}
-                />
-
-                <button
-                    className="btn btn-primary"
-                    type="submit"
-                >
-                    검색
-                </button>
-
-                {keyword && (
-                    <button
-                        type="button"
-                        className="btn btn-secondary"
-                        onClick={handleResetSearch}
-                    >
-                        초기화
-                    </button>
-                )}
-            </form>
-
-            <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                    <thead>
-                        <tr style={{ background: "var(--bg-tertiary)" }}>
-                            <th style={{ padding: "0.75rem", width: "80px" }}>번호</th>
-                            <th style={{ padding: "0.75rem", textAlign: "left" }}>제목</th>
-                            <th style={{ padding: "0.75rem", width: "220px" }}>작성자</th>
-                            <th style={{ padding: "0.75rem", width: "120px" }}>날짜</th>
-                            <th style={{ padding: "0.75rem", width: "90px" }}>좋아요</th>
-                            <th style={{ padding: "0.75rem", width: "90px" }}>댓글</th>
-                        </tr>
-                    </thead>
-
-                    <tbody>
-                        {posts.length === 0 && (
-                            <tr>
-                                <td
-                                    colSpan={6}
-                                    style={{
-                                        textAlign: "center",
-                                        padding: "2rem",
-                                        color: "var(--text-muted)",
-                                    }}
-                                >
-                                    {keyword
-                                        ? `"${keyword}" 검색 결과가 없습니다.`
-                                        : "게시글이 없습니다."}
-                                </td>
-                            </tr>
-                        )}
-
-                        {posts.map((post) => (
-                            <tr
-                                key={post.id}
-                                style={{
-                                    borderTop: "1px solid var(--border)",
-                                    cursor: "pointer",
-                                }}
-                                onClick={() => openPost(post.id)}
-                            >
-                                <td style={{ padding: "0.75rem", textAlign: "center" }}>
-                                    {post.id}
-                                </td>
-
-                                <td style={{ padding: "0.75rem", fontWeight: 600 }}>
-                                    {post.title}
-                                    {(post.commentCount || 0) > 0 && (
-                                        <span style={{ marginLeft: "0.5rem", color: "#0070c9" }}>
-                                            [{post.commentCount}]
-                                        </span>
-                                    )}
-                                </td>
-
-                                <td style={{ padding: "0.75rem", textAlign: "center" }}>
-                                    {getWriter(post)}
-                                </td>
-
-                                <td style={{ padding: "0.75rem", textAlign: "center" }}>
-                                    {post.createdAt?.slice(0, 10)}
-                                </td>
-
-                                <td style={{ padding: "0.75rem", textAlign: "center" }}>
-                                    <ThumbsUp size={14} /> {getLikeCount(post)}
-                                </td>
-
-                                <td style={{ padding: "0.75rem", textAlign: "center" }}>
-                                    <MessageCircle size={14} /> {post.commentCount || 0}
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-
-            <div
-                style={{
-                    display: "flex",
-                    justifyContent: "center",
-                    gap: "0.4rem",
-                    marginTop: "1.5rem",
-                }}
-            >
-                <button
-                    className="btn btn-secondary"
-                    disabled={page <= 1}
-                    onClick={() => setPage(page - 1)}
-                >
-                    이전
-                </button>
-
-                {getPageNumbers().map((num) => (
-                    <button
-                        key={num}
-                        className={page === num ? "btn btn-primary" : "btn btn-secondary"}
-                        onClick={() => setPage(num)}
-                    >
-                        {num}
-                    </button>
-                ))}
-
-                <button
-                    className="btn btn-secondary"
-                    disabled={page >= totalPages}
-                    onClick={() => setPage(page + 1)}
-                >
-                    다음
-                </button>
-            </div>
-        </div>
+      <div className="community-page">
+        <Button variant="secondary" onClick={() => { setSelectedPost(null); setReplyParentId(null); }}>← 게시판 목록으로</Button>
+        <ForumPostDetail
+          post={selectedPost}
+          liked={liked}
+          onLike={() => void toggleLike()}
+          onEdit={() => void checkOwner().then((allowed) => allowed && navigate(`/comment/${selectedPost.id}/edit`))}
+          onDelete={() => void removePost()}
+        />
+        <ForumCommentThread
+          comments={comments}
+          currentUserEmail={currentUser.email}
+          value={commentValue}
+          replyValue={replyValue}
+          replyParentId={replyParentId}
+          onValueChange={setCommentValue}
+          onReplyValueChange={setReplyValue}
+          onSubmit={submitComment}
+          onSubmitReply={submitReply}
+          onToggleReply={(id) => { setReplyParentId(id); setReplyValue(''); }}
+          onDelete={(id, reply) => void removeComment(id, reply)}
+        />
+      </div>
     );
+  }
+
+  return (
+    <div className="community-page">
+      <PageHeader eyebrow="Community" title="자유게시판" description="질문과 경험을 자유롭게 나누어 보세요." actions={<Button onClick={() => navigate('/comment/write')}>게시글 작성</Button>} />
+      <form className="community-search" onSubmit={(event) => { event.preventDefault(); setPage(1); setKeyword(searchInput.trim()); }} role="search">
+        <Field label="게시글 검색" htmlFor="comment-search-input">
+          <input id="comment-search-input" className="fc-input form-input" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="제목 또는 작성자 이메일" />
+        </Field>
+        <Button type="submit">검색</Button>
+        {keyword && <Button type="button" variant="secondary" onClick={() => { setSearchInput(''); setKeyword(''); setPage(1); }}>초기화</Button>}
+      </form>
+
+      {loading && <EmptyState title="게시글을 불러오는 중입니다." description="잠시만 기다려 주세요." aria-live="polite" />}
+      {!loading && error && <EmptyState title={error} action={<Button variant="secondary" onClick={() => void loadPosts()}>다시 시도</Button>} />}
+      {!loading && !error && posts.length === 0 && <EmptyState title={keyword ? '검색 결과가 없습니다.' : '등록된 게시글이 없습니다.'} description="첫 번째 이야기를 작성해 보세요." />}
+      {!loading && !error && posts.length > 0 && (
+        <TableContainer>
+          <Table density="compact">
+            <thead><tr><th scope="col">번호</th><th scope="col">제목</th><th scope="col">작성자</th><th scope="col">날짜</th><th scope="col">좋아요</th><th scope="col">댓글</th></tr></thead>
+            <tbody>
+              {posts.map((post) => (
+                <tr key={post.id}>
+                  <td>{post.id}</td>
+                  <td><button type="button" className="community-table-link" onClick={() => void openPost(post.id)}>{post.title}</button></td>
+                  <td>{getForumWriter(post)}</td>
+                  <td>{post.createdAt?.slice(0, 10)}</td>
+                  <td>{getForumLikeCount(post)}</td>
+                  <td>{post.commentCount ?? 0}</td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        </TableContainer>
+      )}
+      {totalPages > 1 && (
+        <nav className="community-pagination" aria-label="게시글 페이지">
+          <Button variant="secondary" size="sm" disabled={page === 1} onClick={() => setPage((value) => value - 1)}>이전</Button>
+          {pageNumbers.map((number) => <Button key={number} variant={page === number ? 'primary' : 'secondary'} size="sm" aria-current={page === number ? 'page' : undefined} onClick={() => setPage(number)}>{number}</Button>)}
+          <Button variant="secondary" size="sm" disabled={page === totalPages} onClick={() => setPage((value) => value + 1)}>다음</Button>
+        </nav>
+      )}
+    </div>
+  );
 }
