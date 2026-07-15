@@ -81,7 +81,7 @@ public class UIUXTestService {
         boolean hasActiveTest = testRequestRepository.existsByUserAndTestTypeAndTestStatusIn(
                 user, TEST_TYPE_UIUX, ACTIVE_TEST_STATUSES);
         if (hasActiveTest) {
-            throw new IllegalStateException("이미 진행 중인 UI 테스트가 있습니다. 완료 후 다시 시도해 주세요.");
+            throw new IllegalStateException("이미 진행 중인 UI/UX 테스트가 있습니다. 완료 후 다시 시도해 주세요.");
         }
 
         List<TestRequest> userUiRequests = testRequestRepository.findByUserAndTestTypeOrderByCreatedAtAsc(user, TEST_TYPE_UIUX);
@@ -93,7 +93,7 @@ public class UIUXTestService {
                 deleteVideoFromSupabase(oldestRequest.getId());
 
                 testRequestRepository.delete(oldestRequest);
-                log.info("10개 테스트 제한으로 인해 사용자 {}의 가장 오래된 UI 테스트 요청 기록 {}을 삭제했습니다.", userId, oldestRequest.getId());
+                log.info("10개 테스트 제한으로 인해 사용자 {}의 가장 오래된 UI/UX 테스트 요청 기록 {}을 삭제했습니다.", userId, oldestRequest.getId());
             }
         }
 
@@ -146,7 +146,7 @@ public class UIUXTestService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 테스트 요청입니다."));
 
         if (!"UIUX".equals(testRequest.getTestType())) {
-            throw new IllegalArgumentException("해당 요청은 UI 테스트 타입이 아닙니다.");
+            throw new IllegalArgumentException("해당 요청은 UI/UX 테스트 요청이 아닙니다.");
         }
 
         String reportMarkdown = "";
@@ -242,7 +242,7 @@ public class UIUXTestService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 테스트 요청입니다."));
 
         if (!"UIUX".equals(testRequest.getTestType())) {
-            throw new IllegalArgumentException("해당 요청은 UI 테스트 타입이 아닙니다.");
+            throw new IllegalArgumentException("해당 요청은 UI/UX 테스트 요청이 아닙니다.");
         }
 
         var reportOpt = UIUXTestReportRepository.findByTestRequestId(requestId);
@@ -342,14 +342,14 @@ public class UIUXTestService {
             uiuxTestDefectRepository.saveAll(defectsToSave);
         }
 
-        // 핵심 로직: 테스트 완료 상태로 변경
+        // 테스트 완료 상태로 변경
         if (!"FAILED".equals(testRequest.getTestStatus())) {
             testRequest.changeStatus("COMPLETED");
             testRequest.changePhase("FINISHED");
             testRequest.changeProgress(100);
         }
         testRequestRepository.save(testRequest);
-        log.info("요청 ID {}에 대한 최종 UI/UX 데이터 저장 및 요청 컨텍스트 완료됨", requestId);
+        log.info("UI/UX 테스트 요청 {}의 최종 데이터 저장을 완료했습니다.", requestId);
     }
 
     @Transactional
@@ -389,7 +389,7 @@ public class UIUXTestService {
 
         UIUXTestReportRepository.save(report);
 
-        // 핵심 로직: 첫 스텝이 접수되면 상태를 PENDING에서 RUNNING으로 갱신
+        // 첫 스텝이 접수되면 상태를 PENDING에서 RUNNING으로 갱신
         if ("PENDING".equals(testRequest.getTestStatus())) {
             testRequest.changeStatus("RUNNING");
             testRequest.changePhase("EXPLORING");
@@ -403,7 +403,7 @@ public class UIUXTestService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 테스트 요청입니다."));
 
         if (!"UIUX".equals(testRequest.getTestType())) {
-            throw new IllegalArgumentException("해당 요청은 UI 테스트 타입이 아닙니다.");
+            throw new IllegalArgumentException("해당 요청은 UI/UX 테스트 요청이 아닙니다.");
         }
 
         testRequest.changeStatus("FAILED");
@@ -429,7 +429,7 @@ public class UIUXTestService {
                     .build();
         }
 
-        // Failure case can optionally create a defect or just log
+        // 실패 상태에서도 기존 리포트 데이터는 유지합니다.
         UIUXTestReport failedReport = UIUXTestReport.builder()
                 .id(report.getId())
                 .testRequest(testRequest)
@@ -445,7 +445,7 @@ public class UIUXTestService {
                 .uiuxTestReview(report.getUiuxTestReview() != null ? report.getUiuxTestReview() : "")
                 .build();
         UIUXTestReportRepository.save(failedReport);
-        log.info("UI 컨텍스트 요청 {}을(를) FAILED로 표시했습니다. 사유: {}", requestId, reason);
+        log.info("UI/UX 테스트 요청 {}을 FAILED로 표시했습니다. 사유: {}", requestId, reason);
     }
 
     private String stepKey(Map<String, Object> step) {
@@ -474,7 +474,7 @@ public class UIUXTestService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 테스트 요청입니다."));
 
         if (!TEST_TYPE_UIUX.equals(testRequest.getTestType())) {
-            throw new IllegalArgumentException("UIUX 테스트 요청이 아닙니다.");
+            throw new IllegalArgumentException("UI/UX 테스트 요청이 아닙니다.");
         }
 
         UIUXTestReport report = UIUXTestReportRepository.findByTestRequestId(requestId)

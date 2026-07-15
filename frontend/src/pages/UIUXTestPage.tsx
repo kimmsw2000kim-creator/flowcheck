@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import apiClient from '../api/client';
 import ApiURL from '../api/ApiURL';
 import { startUIUXTest, getUIUXTestStatus, UIUXTestStepData, UIUXTestStatusResponse } from '../api/UIUXTestApi';
@@ -71,52 +71,44 @@ const parseReportCards = (report?: string) => {
 
   if (!lines?.length) return [];
 
-  const cards: Array<{ id: string; title: string; body: string }> = [];
+  const cards: Array<{ id: string; title: string; items: string[] }> = [];
+  let currentCard: { id: string; title: string; items: string[] } | null = null;
 
   lines.forEach((line) => {
     const isHeading = line.startsWith('#');
     const normalized = line
       .replace(/^#{1,6}\s*/, '')
       .replace(/^[-*]\s*/, '')
-      .replace(/\*\*/g, '');
+      .replace(/\*\*/g, '')
+      .trim();
 
-    const [rawTitle, ...rest] = normalized.split(':');
-    const hasInlineTitle = rest.length > 0 && rawTitle.length <= 34;
+    if (!normalized) return;
 
     if (isHeading) {
-      cards.push({
+      currentCard = {
         id: `${cards.length}-${normalized.slice(0, 20)}`,
         title: normalized,
-        body: '',
-      });
+        items: [],
+      };
+      cards.push(currentCard);
       return;
     }
 
-    if (hasInlineTitle) {
-      cards.push({
-        id: `${cards.length}-${normalized.slice(0, 20)}`,
-        title: rawTitle.trim(),
-        body: rest.join(':').trim(),
-      });
-      return;
+    if (!currentCard) {
+      currentCard = {
+        id: `${cards.length}-summary`,
+        title: '진단 요약',
+        items: [],
+      };
+      cards.push(currentCard);
     }
 
-    const lastCard = cards[cards.length - 1];
-    if (lastCard && !lastCard.body) {
-      lastCard.body = normalized;
-      return;
-    }
-
-    cards.push({
-      id: `${cards.length}-${normalized.slice(0, 20)}`,
-      title: `분석 항목 ${cards.length + 1}`,
-      body: normalized,
-    });
+    currentCard.items.push(normalized);
   });
 
   return cards.map((card) => ({
     ...card,
-    body: card.body || '이번 테스트에서 이 항목에 대한 추가 결함 설명은 감지되지 않았습니다.',
+    items: card.items.length ? card.items : ['이번 테스트에서 추가 설명이 감지되지 않았습니다.'],
   }));
 };
 
@@ -181,13 +173,13 @@ const getEngineSummary = (scoreBreakdown?: Record<string, unknown>) => {
   return [
     {
       label: 'Lighthouse',
-      value: lighthouse?.available ? '활성' : '대체 규칙',
-      detail: lighthouse?.available ? '공식 성능/기술 품질 점수 반영' : lighthouse?.error || '실행 결과 없음',
+      value: lighthouse?.available ? '정상' : '대체 규칙',
+      detail: lighthouse?.available ? '성능, 접근성, 기술 품질 점수를 반영했습니다.' : lighthouse?.error || '실행 결과가 없습니다.',
     },
     {
       label: 'axe-core',
-      value: axe?.available ? '활성' : '대체 규칙',
-      detail: axe?.available ? `${axe?.violationCount ?? 0}개 접근성 위반 감지` : axe?.error || '실행 결과 없음',
+      value: axe?.available ? '정상' : '대체 규칙',
+      detail: axe?.available ? `${axe?.violationCount ?? 0}개 접근성 위반을 분석했습니다.` : axe?.error || '실행 결과가 없습니다.',
     },
   ];
 };
@@ -280,7 +272,7 @@ export default function UIUXTestPage({
       const requestId = startRes.requestId;
       setCurrentRequestId(requestId);
 
-      showAlert('AI UI 테스트 에이전트가 시작되었습니다.', 'success');
+      showAlert('AI UI/UX 테스트 에이전트가 시작되었습니다.', 'success');
 
       try {
         const mypageRes = await apiClient.get('/api/mypage');
@@ -319,13 +311,13 @@ export default function UIUXTestPage({
             stopPolling();
             setUIUXTestStatus('success');
             setReportData(statusRes);
-            showAlert('AI UI 테스트가 완료되었습니다.', 'success');
+            showAlert('AI UI/UX 테스트가 완료되었습니다.', 'success');
           } else if (statusRes.status === 'FAILED') {
             stopPolling();
             setUIUXTestStatus('error');
-            showAlert('AI UI 테스트 중 오류가 발생했습니다.', 'error');
+            showAlert('AI UI/UX 테스트 중 오류가 발생했습니다.', 'error');
           }
-        } catch (pollErr) {
+        } catch {
           pollErrorCountRef.current += 1;
           if (pollErrorCountRef.current >= MAX_POLL_ERRORS) {
             stopPolling();
@@ -366,7 +358,6 @@ export default function UIUXTestPage({
       <p>{description}</p>
     </div>
   );
-
   return (
     <div className="uiux-page">
       <header className="uiux-header">
@@ -413,7 +404,7 @@ export default function UIUXTestPage({
             </div>
             <div className="uiux-select-shell readonly">
               <div className={`uiux-selected-url ${targetUrl ? '' : 'empty'}`}>
-                {targetUrl || '선택된 도메인 주소가 여기에 표시됩니다'}
+                {targetUrl || '선택한 도메인 주소가 여기에 표시됩니다.'}
               </div>
             </div>
             <p className="uiux-select-hint">위에서 선택한 인증 도메인 주소가 테스트 대상으로 사용됩니다.</p>
@@ -537,7 +528,7 @@ export default function UIUXTestPage({
             </div>
           )}
 
-          {UIUXTestStatus === 'success' && reportData?.scores && (
+          {reportData.scores && (
             <div className="uiux-score-grid">
               <div className="uiux-card uiux-chart-card">
                 <UIUXScoreRadarChart scores={reportData.scores} />
@@ -557,7 +548,7 @@ export default function UIUXTestPage({
                 </div>
               </div>
               <div className="uiux-youtube-frame">
-                {reportData?.videoUrl ? (
+                {reportData.videoUrl ? (
                   <CustomVideoPlayer
                     ref={customVideoRef}
                     src={reportData.videoUrl}
@@ -587,12 +578,7 @@ export default function UIUXTestPage({
               </div>
 
               <div className="uiux-defect-list">
-                {isRunning ? (
-                  <div className="uiux-empty-steps">
-                    <span className="uiux-loading-ring small" />
-                    <p>실시간 분석 중</p>
-                  </div>
-                ) : reportData?.defects && reportData.defects.length > 0 ? (
+                {reportData.defects && reportData.defects.length > 0 ? (
                   reportData.defects.map((defect) => (
                     <button
                       type="button"
@@ -622,50 +608,54 @@ export default function UIUXTestPage({
             </div>
           </div>
 
-          {UIUXTestStatus === 'success' && reportData && (
-            <div className="uiux-card uiux-report-card">
-              <button className="uiux-report-toggle" type="button" onClick={() => setShowHeuristics(!showHeuristics)}>
-                <span>상세 보고서</span>
-                <small>{showHeuristics ? '접기' : '펼치기'}</small>
-              </button>
+          <div className="uiux-card uiux-report-card">
+            <button className="uiux-report-toggle" type="button" onClick={() => setShowHeuristics(!showHeuristics)}>
+              <span>상세 보고서</span>
+              <small>{showHeuristics ? '접기' : '펼치기'}</small>
+            </button>
 
-              {showHeuristics && (
-                <div className="uiux-report-details">
-                  {reportData.scoreBreakdown && (
-                    <article className="uiux-report-detail-card">
-                      <div className="uiux-report-detail-index">EV</div>
-                      <div>
-                        <strong>평가 기준 버전 {reportData.evaluationVersion || 'v1'}</strong>
-                        <p>사용성 25%, 접근성 25%, 성능 20%, 탐색 효율 15%, 기술 품질 15% 가중치로 종합 점수를 산정했습니다.</p>
-                      </div>
-                    </article>
-                  )}
-                  {engineSummary.map((engine, index) => (
-                    <article className="uiux-report-detail-card" key={`engine-${engine.label}`}>
+            {showHeuristics && (
+              <div className="uiux-report-details">
+                {reportData.scoreBreakdown && (
+                  <article className="uiux-report-detail-card">
+                    <div className="uiux-report-detail-index">EV</div>
+                    <div>
+                      <strong>평가 기준 버전 {reportData.evaluationVersion || 'v1'}</strong>
+                      <p>사용성 25%, 접근성 25%, 성능 20%, 탐색 효율 15%, 기술 품질 15% 가중치로 종합 점수를 산정했습니다.</p>
+                    </div>
+                  </article>
+                )}
+                <article className="uiux-report-detail-card">
+                  <div className="uiux-report-detail-index">EN</div>
+                  <div>
+                    <strong>검사 엔진 상태</strong>
+                    <ul className="uiux-report-detail-list">
+                      {engineSummary.map((engine) => (
+                        <li key={`engine-${engine.label}`}>{engine.label} {engine.value}: {engine.detail}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </article>
+                {reportCards.length > 0 ? (
+                  reportCards.map((card, index) => (
+                    <article className="uiux-report-detail-card" key={card.id}>
                       <div className="uiux-report-detail-index">{formatStepNumber(index + 1)}</div>
                       <div>
-                        <strong>{engine.label} {engine.value}</strong>
-                        <p>{engine.detail}</p>
+                        <strong>{card.title}</strong>
+                        <ul className="uiux-report-detail-list">
+                          {card.items.map((item, itemIndex) => (
+                            <li key={`${card.id}-${itemIndex}`}>{item}</li>
+                          ))}
+                        </ul>
                       </div>
                     </article>
-                  ))}
-                  {reportCards.length > 0 ? (
-                    reportCards.map((card, index) => (
-                      <article className="uiux-report-detail-card" key={card.id}>
-                        <div className="uiux-report-detail-index">{formatStepNumber(index + 1)}</div>
-                        <div>
-                          <strong>{card.title}</strong>
-                          {card.body && <p>{card.body}</p>}
-                        </div>
-                      </article>
-                    ))
-                  ) : (
-                    <p>상세 보고서가 없습니다.</p>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+                  ))
+                ) : (
+                  <p>상세 보고서가 없습니다.</p>
+                )}
+              </div>
+            )}
+          </div>
         </section>
       )}
     </div>

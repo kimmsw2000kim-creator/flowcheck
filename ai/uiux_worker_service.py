@@ -97,8 +97,9 @@ def report_failure(request_id: str, reason: str):
 
 def upload_video_to_supabase(file_path: str, request_id: str) -> Optional[str]:
     supabase_url = os.getenv("SUPABASE_URL")
-    supabase_key = os.getenv("SUPABASE_ANON_KEY")
+    supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_ANON_KEY")
     if not supabase_url or not supabase_key:
+        print("Supabase upload skipped: SUPABASE_URL or Supabase key is missing.")
         return None
         
     bucket_name = "ui-test-videos"
@@ -107,18 +108,21 @@ def upload_video_to_supabase(file_path: str, request_id: str) -> Optional[str]:
     
     headers = {
         "Authorization": f"Bearer {supabase_key}",
-        "Content-Type": "video/webm"
+        "Content-Type": "video/webm",
+        "x-upsert": "true",
     }
     
     try:
         with open(file_path, "rb") as f:
             file_data = f.read()
-        r = httpx.post(url, headers=headers, content=file_data, timeout=30.0)
-        if r.status_code == 200:
+        r = httpx.post(url, headers=headers, content=file_data, timeout=60.0)
+        if r.status_code in (200, 201):
             public_url = f"{supabase_url}/storage/v1/object/public/{bucket_name}/{dest_path}"
             return public_url
+        print(f"Supabase upload failed: status={r.status_code}, body={r.text[:500]}")
         return None
     except Exception as e:
+        print(f"Supabase upload crashed: {e}")
         return None
 
 def severity_from_impact(impact: Optional[str]) -> str:
@@ -315,7 +319,7 @@ def evaluate_accessibility_rules(page, add_defect_fn, start_time):
                         results.push({
                             ruleId: 'form-label',
                             selector: selectorFor(el),
-                            description: '입력 요소와 연결된 라벨이 없습니다.',
+                            description: '입력 요소에 연결된 라벨이 없습니다.',
                             recommendation: 'label[for] 또는 aria-label을 사용해 입력 목적을 명확히 연결하세요.',
                             evidence: { type: el.getAttribute('type') || el.tagName.toLowerCase(), placeholder: el.getAttribute('placeholder') || '' },
                             severity: 'MAJOR',
@@ -331,7 +335,7 @@ def evaluate_accessibility_rules(page, add_defect_fn, start_time):
                             ruleId: 'image-alt',
                             selector: selectorFor(el),
                             description: '이미지에 alt 속성이 없습니다.',
-                            recommendation: '의미 있는 이미지는 대체 텍스트를 제공하고, 장식 이미지는 alt=""로 표시하세요.',
+                            recommendation: '의미 있는 이미지에는 대체 텍스트를 제공하고, 장식 이미지는 alt=""로 표시하세요.',
                             evidence: { src: el.currentSrc || el.src || '' },
                             severity: 'MINOR',
                             deduction: 4,
@@ -501,7 +505,7 @@ def evaluate_best_practices(page, target_url, console_errors, page_errors, add_d
         add_issue(
             "console-errors",
             f"브라우저 콘솔 오류가 {len(console_errors)}건 감지되었습니다.",
-            "콘솔 오류를 확인해 런타임 예외, 리소스 로드 실패, 잘못된 API 호출을 수정하세요.",
+            "콘솔 오류를 확인해 프론트 예외, 리소스 로드 실패, 잘못된 API 호출을 수정하세요.",
             min(20, len(console_errors) * 5),
             {"errors": console_errors[:5]},
             "MAJOR"
@@ -665,29 +669,59 @@ def evaluate_usability_rules(page, steps_history, failed_selectors, add_defect_f
     return clamp_score(score), deductions
 
 def build_report_markdown(scores, breakdown, defects):
-    lines = [
-        "### UI/UX 테스트 평가 보고서",
-        "",
-        f"- 종합 점수: **{scores['overall']}점**",
-        f"- 사용성: **{scores['usability']}점**",
-        f"- 접근성: **{scores['accessibility']}점**",
-        f"- 탐색 효율: **{scores['efficiency']}점**",
-        f"- 성능: **{scores['performance']}점**",
-        f"- 기술 품질: **{scores['bestPractices']}점**",
-        "",
-        "### 주요 감지 결함",
-    ]
-    if not defects:
-        lines.append("- 특이사항 없음")
+    category_labels = {
+        "USABILITY": "사용성",
+        "ACCESSIBILITY": "접근성",
+        "EFFICIENCY": "탐색 효율",
+        "PERFORMANCE": "성능",
+        "BEST_PRACTICES": "기술 품질",
+    }
+    severity_rank = {"CRITICAL": 0, "MAJOR": 1, "MINOR": 2}
+    sorted_defects = sorted(
+        defects,
+        key=lambda defect: (severity_rank.get(defect.severity, 3), defect.timestamp_offset)
+    )
+    top_defects = sorted_defects[:5]
+
+    if scores["overall"] >= 85:
+        summary = "핵심 흐름은 안정적입니다. 일부 세부 품질 항목만 보완하면 더 완성도 높은 경험을 만들 수 있습니다."
+    elif scores["overall"] >= 70:
+        summary = "서비스 사용은 가능하지만 사용성, 접근성, 탐색 흐름에서 개선 여지가 확인되었습니다."
     else:
-        for defect in defects[:8]:
-            recommendation = f" 개선 제안: {defect.recommendation}" if defect.recommendation else ""
-            lines.append(f"- [{defect.category}] {defect.description}{recommendation}")
+        summary = "사용자가 핵심 행동을 완료하는 과정에서 마찰이 큽니다. 주요 결함부터 우선 개선하는 것이 좋습니다."
+
+    lines = [
+        "### 종합 진단",
+        f"- 종합 점수는 {scores['overall']}점입니다.",
+        f"- {summary}",
+        "",
+        "### 세부 점수",
+        f"- 사용성 {scores['usability']}점",
+        f"- 접근성 {scores['accessibility']}점",
+        f"- 탐색 효율 {scores['efficiency']}점",
+        f"- 성능 {scores['performance']}점",
+        f"- 기술 품질 {scores['bestPractices']}점",
+        "",
+        "### 주요 개선 항목",
+    ]
+
+    if not top_defects:
+        lines.append("- 이번 테스트에서 우선 조치가 필요한 주요 결함은 감지되지 않았습니다.")
+    else:
+        for defect in top_defects:
+            label = category_labels.get(defect.category, "품질")
+            description = (defect.description or "").strip().rstrip(".")
+            recommendation = (defect.recommendation or "").strip().rstrip(".")
+            if recommendation:
+                lines.append(f"- {label}: {description}. 개선안: {recommendation}.")
+            else:
+                lines.append(f"- {label}: {description}.")
+
     lines.extend([
         "",
         "### 평가 기준",
-        "- 점수는 Playwright 브라우저 실행 결과와 고정 규칙 기반 감점으로 산정했습니다.",
-        "- AI는 점수 산정이 아니라 리포트 문장 보강에만 사용됩니다.",
+        "- Lighthouse 성능/기술 품질, axe-core 접근성, Playwright 기반 사용성 규칙을 함께 반영했습니다.",
+        "- 점수는 고정 규칙과 공식 엔진 결과로 산정하며, 보고서 문장은 결과를 이해하기 쉽게 정리하는 용도로만 사용합니다.",
     ])
     return "\n".join(lines)
 
@@ -759,7 +793,7 @@ def deterministic_primary_action(page, add_defect_fn, start_time):
             source="PLAYWRIGHT",
             rule_id="primary-action-click-failed",
             evidence={"selector": selector, "text": action.get("text"), "error": str(e)},
-            recommendation="주요 CTA가 클릭 가능한 상태인지, 오버레이에 가려지지 않았는지, 클릭 영역이 충분한지 확인하세요."
+            recommendation="주요 CTA가 클릭 가능한 상태인지, 오버레이가 가리지 않는지, 클릭 영역이 충분한지 확인하세요."
         )
         return {"ok": False, "selector": selector, "text": action.get("text"), "error": str(e)}
 
@@ -798,7 +832,7 @@ def deterministic_form_feedback_check(page, add_defect_fn, start_time):
         }
     """)
     if not form_info:
-        return {"ok": True, "reason": "검사할 입력 폼이 없습니다."}
+        return {"ok": True, "reason": "검사할 입력 필드가 없습니다."}
 
     current_offset = int(time.time() - start_time)
     invalid_value = "invalid-email" if "email" in (form_info.get("inputType") or "").lower() else "x"
@@ -895,7 +929,7 @@ def deterministic_navigation_check(page, add_defect_fn, start_time):
                 source="PLAYWRIGHT",
                 rule_id="navigation-no-url-change",
                 evidence={"selector": nav_info["selector"], "href": nav_info["href"], "text": nav_info["text"]},
-                recommendation="링크 대상, 라우터 처리, 클릭 이벤트가 정상적으로 동작하는지 확인하세요."
+                recommendation="링크 라우팅 처리와 클릭 이벤트가 정상적으로 동작하는지 확인하세요."
             )
         try:
             page.go_back(timeout=5000, wait_until="domcontentloaded")
@@ -1034,7 +1068,7 @@ def main():
 
             report_step(request_id, 4, page.url, "CHECK_DOM_RULES", reason="DOM 기반 접근성 및 기본 사용성 규칙을 검사합니다.", screenshot_url=capture_live_frame(page))
             accessibility_score, accessibility_deductions = evaluate_accessibility_rules(page, add_defect, start_time)
-            steps_history.append({"step": 4, "url": page.url, "action": "CHECK_DOM_RULES", "reason": "터치 대상, 라벨, 이미지 대체 텍스트 등 DOM 규칙을 검사했습니다."})
+            steps_history.append({"step": 4, "url": page.url, "action": "CHECK_DOM_RULES", "reason": "터치 대상 크기, 라벨, 이미지 대체 텍스트 등 DOM 규칙을 검사했습니다."})
 
             report_step(request_id, 5, page.url, "EXPLORE_PRIMARY_ACTION", reason="우선순위가 높은 주요 CTA 또는 인터랙션을 결정론적으로 선택해 검사합니다.", screenshot_url=capture_live_frame(page))
             primary_result = deterministic_primary_action(page, add_defect, start_time)
@@ -1044,7 +1078,7 @@ def main():
                 failed_selectors.append(primary_result["selector"])
             steps_history.append({"step": 5, "url": page.url, "action": "EXPLORE_PRIMARY_ACTION", "reason": "주요 액션 요소의 클릭 가능 여부를 검사했습니다.", **primary_result})
 
-            report_step(request_id, 6, page.url, "CHECK_FORM_FEEDBACK", reason="입력 폼의 오류 피드백과 검증 안내를 검사합니다.", screenshot_url=capture_live_frame(page))
+            report_step(request_id, 6, page.url, "CHECK_FORM_FEEDBACK", reason="입력 필드의 오류 피드백과 검증 안내를 검사합니다.", screenshot_url=capture_live_frame(page))
             form_result = deterministic_form_feedback_check(page, add_defect, start_time)
             if not form_result.get("ok") and form_result.get("inputSelector"):
                 failed_selectors.append(form_result["inputSelector"])
@@ -1057,8 +1091,8 @@ def main():
             if not navigation_result.get("ok") and navigation_result.get("selector"):
                 failed_selectors.append(navigation_result["selector"])
             steps_history.append({"step": 7, "url": page.url, "action": "CHECK_NAVIGATION", "reason": "내부 링크 이동과 복귀 흐름을 검사했습니다.", **navigation_result})
-            report_step(request_id, 8, page.url, "CALCULATE_SCORE", reason="수집된 audit와 탐색 결과로 최종 점수를 산정합니다.", screenshot_url=capture_live_frame(page))
-            steps_history.append({"step": 8, "url": page.url, "action": "CALCULATE_SCORE", "reason": "수집된 audit와 탐색 결과로 최종 점수를 산정합니다."})
+            report_step(request_id, 8, page.url, "CALCULATE_SCORE", reason="수집한 audit과 탐색 결과로 최종 점수를 산정합니다.", screenshot_url=capture_live_frame(page))
+            steps_history.append({"step": 8, "url": page.url, "action": "CALCULATE_SCORE", "reason": "수집한 audit과 탐색 결과로 최종 점수를 산정합니다."})
 
             # Final score calculation. Official engines provide core scores; AI never changes scores.
             lighthouse_deductions = add_lighthouse_findings(lighthouse_result, add_defect, start_time)
@@ -1187,7 +1221,7 @@ def main():
             }
             final_evaluation_md = build_report_markdown(scores_payload, score_breakdown, defects)
             
-            # 사용자 경험을 위해 컨테이너가 즉시 종료되지 않고 30초간 최종 화면을 유지하도록 대기
+            # 사용자가 최종 화면을 확인할 수 있도록 컨테이너를 잠시 유지합니다.
             keepalive_seconds = int(os.getenv("VNC_KEEPALIVE_SECONDS", "180"))
             print(f"Test finished. Keeping VNC alive for {keepalive_seconds} seconds...")
             time.sleep(keepalive_seconds)

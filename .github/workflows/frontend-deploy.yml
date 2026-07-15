@@ -89,7 +89,7 @@ jobs:
             ${{ secrets.DOCKER_USERNAME }}/${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
           build-args: |
             VITE_SUPABASE_URL=${{ env.VITE_SUPABASE_URL }}
-            VITE_SUPABASE_PUBLIC_ANON=${{ env.VITE_SUPABASE_ANON_KEY }}
+            VITE_SUPABASE_ANON_KEY=${{ env.VITE_SUPABASE_ANON_KEY }}
 
   deploy:
     needs: build
@@ -114,6 +114,9 @@ jobs:
           printf 'FRONTEND_IMAGE=%s\n' "$FRONTEND_IMAGE" >> deployment.env
           printf 'BACKEND_IMAGE=%s\n' "$BACKEND_IMAGE" >> deployment.env
           printf 'AI_IMAGE=%s\n' "$AI_IMAGE" >> deployment.env
+          printf 'USE_FARGATE=true\n' >> deployment.env
+          grep -q "^ECS_UIUX_TASK_FAMILY=" deployment.env || printf 'ECS_UIUX_TASK_FAMILY=flowcheck-uiux-task\n' >> deployment.env
+          grep -q "^ECS_UIUX_CONTAINER_NAME=" deployment.env || printf 'ECS_UIUX_CONTAINER_NAME=flowcheck-ai\n' >> deployment.env
 
       - name: Prepare EC2 directory
         uses: appleboy/ssh-action@v1.2.0

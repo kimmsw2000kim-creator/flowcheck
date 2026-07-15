@@ -18,7 +18,7 @@ RUN apt-get update \
 
 COPY . .
 
-RUN chmod +x entrypoint.sh
+RUN sed -i 's/\r$//' entrypoint.sh && chmod +x entrypoint.sh
 
 EXPOSE 8000
 EXPOSE 6080

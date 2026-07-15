@@ -844,6 +844,35 @@
   margin-top: 7px;
 }
 
+.uiux-report-detail-list {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.uiux-report-detail-list li {
+  position: relative;
+  padding-left: 14px;
+  color: #42526b;
+  font-size: 14px;
+  line-height: 1.65;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.uiux-report-detail-list li::before {
+  content: '';
+  position: absolute;
+  top: 0.72em;
+  left: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
 .uiux-report-details > p {
   padding: 18px;
   border: 1px solid #e5edf5;
