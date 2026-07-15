@@ -73,27 +73,12 @@ public class PostController {
         }
 
         @PostMapping
-        public PostListResponse createPost(@RequestBody PostRequest request) {
-                Post post = new Post();
+        public PostListResponse createPost(
+                        @RequestBody PostRequest request,
+                        @AuthenticationPrincipal Jwt jwt) {
 
-                String email = request.getEmail();
-
-                post.setTitle(request.getTitle());
-                post.setContent(request.getContent());
-                post.setEmail(email);
-                post.setWriterEmail(email);
-                post.setUserId(email);
-
-                Post savedPost = postRepository.save(post);
-
-                return new PostListResponse(
-                                savedPost.getId(),
-                                savedPost.getTitle(),
-                                savedPost.getContent(),
-                                savedPost.getWriterEmail(),
-                                savedPost.getCreatedAt(),
-                                savedPost.getLikeCount(),
-                                0);
+                String email = jwt.getClaimAsString("email");
+                // JWT에서 얻은 email만 작성자로 사용
         }
 
         @PostMapping("/{postId}/like")
