@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { AlertCircle, MessageCircle, Share2, ThumbsUp } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -95,17 +95,7 @@ export default function CommunityPage({
 
   const pageSize = 10;
 
-  useEffect(() => {
-    loadPosts();
-  }, [page, keyword]);
-
-  useEffect(() => {
-    if (activePost && activePost.id !== "new") {
-      loadComments(activePost.id);
-    }
-  }, [activePost]);
-
-  const loadPosts = async () => {
+  const loadPosts = useCallback(async () => {
     try {
       const data = await getPosts(
         page - 1,
@@ -124,7 +114,11 @@ export default function CommunityPage({
       console.error(error);
       showAlert("게시글 목록을 불러오지 못했습니다.", "error");
     }
-  };
+  }, [keyword, page, showAlert]);
+
+  useEffect(() => {
+    loadPosts();
+  }, [loadPosts]);
 
   const handleSearch = (
     e: React.FormEvent<HTMLFormElement>
@@ -141,7 +135,7 @@ export default function CommunityPage({
     setPage(1);
   };
 
-  const loadComments = async (postId: number) => {
+  const loadComments = useCallback(async (postId: number) => {
     try {
       const data = await getComments(postId);
       setComments(data || []);
@@ -149,7 +143,13 @@ export default function CommunityPage({
       console.error(error);
       showAlert("댓글을 불러오지 못했습니다.", "error");
     }
-  };
+  }, [showAlert]);
+
+  useEffect(() => {
+    if (activePost && activePost.id !== "new") {
+      loadComments(activePost.id);
+    }
+  }, [activePost, loadComments]);
 
   const openPost = async (postId: number) => {
     try {

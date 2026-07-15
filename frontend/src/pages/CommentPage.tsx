@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { MessageCircle, ThumbsUp } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -71,11 +71,7 @@ export default function CommentPage({
     const [keyword, setKeyword] = useState("");
     const pageSize = 10;
 
-    useEffect(() => {
-        loadPosts();
-    }, [page, keyword]);
-
-    const loadPosts = async () => {
+    const loadPosts = useCallback(async () => {
         try {
             const data = await getPosts(page - 1, pageSize, keyword);
 
@@ -90,7 +86,11 @@ export default function CommentPage({
             console.error(error);
             showAlert("게시글 목록을 불러오지 못했습니다.", "error");
         }
-    };
+    }, [keyword, page, showAlert]);
+
+    useEffect(() => {
+        loadPosts();
+    }, [loadPosts]);
 
     const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();

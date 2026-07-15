@@ -6,6 +6,7 @@ from typing import Dict, List, Optional
 import boto3
 import httpx
 from botocore.config import Config
+from botocore.exceptions import WaiterError
 from dotenv import load_dotenv
 
 ENV_PATH = os.path.join(os.path.dirname(__file__), "..", ".env")
@@ -245,6 +246,9 @@ def _optional_task_env() -> List[dict]:
 
 def run_fargate_task(request_id: str, target_url: str) -> None:
     print(f"[FARGATE] Starting UIUX task requestId={request_id}, targetUrl={target_url}", flush=True)
+    ecs_client = None
+    task_arn = None
+    cluster = None
     try:
         env = _required_env([
             "AWS_ACCESS_KEY_ID",
@@ -253,6 +257,7 @@ def run_fargate_task(request_id: str, target_url: str) -> None:
             "ECS_SUBNET_ID",
             "ECS_SECURITY_GROUP_ID",
         ])
+        cluster = env["ECS_CLUSTER"]
         task_family = os.getenv("ECS_UIUX_TASK_FAMILY") or os.getenv("ECS_TASK_FAMILY")
         if not task_family:
             raise RuntimeError("Missing ECS_UIUX_TASK_FAMILY or ECS_TASK_FAMILY")
@@ -269,7 +274,7 @@ def run_fargate_task(request_id: str, target_url: str) -> None:
         ec2_client = boto3.client("ec2", region_name=AWS_REGION, config=AWS_CLIENT_CONFIG)
 
         response = ecs_client.run_task(
-            cluster=env["ECS_CLUSTER"],
+            cluster=cluster,
             launchType="FARGATE",
             taskDefinition=task_family,
             networkConfiguration={
@@ -304,10 +309,14 @@ def run_fargate_task(request_id: str, target_url: str) -> None:
         print(f"[FARGATE] Started taskArn={task_arn}", flush=True)
         waiter = ecs_client.get_waiter("tasks_running")
         print("[FARGATE] Waiting for task RUNNING...", flush=True)
-        waiter.wait(cluster=env["ECS_CLUSTER"], tasks=[task_arn], WaiterConfig={"Delay": 3, "MaxAttempts": 40})
+        try:
+            waiter.wait(cluster=cluster, tasks=[task_arn], WaiterConfig={"Delay": 3, "MaxAttempts": 40})
+        except WaiterError as exc:
+            task_failure = _describe_task_failure(ecs_client, cluster, task_arn)
+            raise RuntimeError(f"{exc}. {task_failure}") from exc
 
         print("[FARGATE] Resolving task network interface...", flush=True)
-        task_desc = ecs_client.describe_tasks(cluster=env["ECS_CLUSTER"], tasks=[task_arn])["tasks"][0]
+        task_desc = ecs_client.describe_tasks(cluster=cluster, tasks=[task_arn])["tasks"][0]
         eni_id = _extract_eni_id(task_desc)
         if not eni_id:
             raise RuntimeError("Could not resolve Fargate task ENI")
@@ -328,8 +337,43 @@ def run_fargate_task(request_id: str, target_url: str) -> None:
             vnc_url=vnc_url,
         )
     except Exception as exc:
-        print(f"[FARGATE] Failed: {exc}", flush=True)
-        report_failure(request_id, f"Fargate UIUX start failed: {exc}")
+        failure_detail = str(exc)
+        if ecs_client is not None and cluster and task_arn and "Task detail:" not in failure_detail:
+            failure_detail = f"{failure_detail}. {_describe_task_failure(ecs_client, cluster, task_arn)}"
+        print(f"[FARGATE] Failed: {failure_detail}", flush=True)
+        report_failure(request_id, f"Fargate UIUX start failed: {failure_detail}")
+
+
+def _describe_task_failure(ecs_client, cluster: str, task_arn: str) -> str:
+    try:
+        tasks = ecs_client.describe_tasks(cluster=cluster, tasks=[task_arn]).get("tasks", [])
+        if not tasks:
+            return "Task detail: ECS returned no task description."
+
+        task = tasks[0]
+        parts = [
+            f"lastStatus={task.get('lastStatus')}",
+            f"desiredStatus={task.get('desiredStatus')}",
+        ]
+        if stopped_reason := task.get("stoppedReason"):
+            parts.append(f"stoppedReason={stopped_reason}")
+        if stop_code := task.get("stopCode"):
+            parts.append(f"stopCode={stop_code}")
+
+        for container in task.get("containers", []):
+            container_parts = [
+                f"name={container.get('name')}",
+                f"lastStatus={container.get('lastStatus')}",
+            ]
+            if "exitCode" in container:
+                container_parts.append(f"exitCode={container.get('exitCode')}")
+            if reason := container.get("reason"):
+                container_parts.append(f"reason={reason}")
+            parts.append("container(" + ", ".join(container_parts) + ")")
+
+        return "Task detail: " + "; ".join(parts)
+    except Exception as detail_exc:
+        return f"Task detail unavailable: {detail_exc}"
 
 
 def _extract_eni_id(task_desc: dict) -> Optional[str]:
