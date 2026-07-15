@@ -14,26 +14,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Login to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_TOKEN }}
 
       - name: Build and push backend image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ./backend
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/${{ env.BACKEND_IMAGE }}:latest
 
       - name: Build and push AI image 
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ./ai
           push: true
@@ -61,7 +61,7 @@ jobs:
           echo "VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY" >> "$GITHUB_ENV"
 
       - name: Build and push frontend image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ./frontend
           push: true
@@ -75,7 +75,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Prepare EC2 app directory
         uses: appleboy/ssh-action@v1.2.0
