@@ -5,8 +5,6 @@ import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.config.Customizer;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -19,85 +17,143 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, CorsConfigurationSource corsConfigurationSource) throws Exception {
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            CorsConfigurationSource corsConfigurationSource
+    ) throws Exception {
+
         http
-            .cors(cors -> cors.configurationSource(corsConfigurationSource))
-            .csrf(AbstractHttpConfigurer::disable)
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/health").permitAll()
-                .requestMatchers("/api/billing/webhook", "/api/payment/webhook").permitAll() // Toss payments webhook does not require token
-                .requestMatchers("/api/uiux-tests/*/report", "/api/uiux-tests/*/fail", "/api/uiux-tests/*/steps").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/load-tests/*/progress").permitAll()
-                .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                .anyRequest().authenticated()
-            )
-            .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {}));
+                // CORS 설정 적용
+                .cors(cors ->
+                        cors.configurationSource(corsConfigurationSource)
+                )
 
-                http
-                                .csrf(csrf -> csrf.disable())
+                // JWT 방식이므로 CSRF 비활성화
+                .csrf(AbstractHttpConfigurer::disable)
 
-                                // 아래에서 만든 CORS 설정을 Spring Security에 적용
-                                .cors(Customizer.withDefaults())
+                // 세션을 생성하지 않는 Stateless 방식
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(
+                                SessionCreationPolicy.STATELESS
+                        )
+                )
 
-                                .sessionManagement(session -> session
-                                                .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // API 접근 권한 설정
+                .authorizeHttpRequests(auth -> auth
 
-                                .authorizeHttpRequests(auth -> auth
-                                                // 브라우저의 CORS 사전 요청 허용
-                                                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        // 브라우저 CORS 사전 요청 허용
+                        .requestMatchers(HttpMethod.OPTIONS, "/**")
+                        .permitAll()
 
-                                                // 게시판 조회가 비로그인 사용자에게도 가능하다면 추가
-                                                .requestMatchers(HttpMethod.GET, "/api/posts/**").permitAll()
-                                                .requestMatchers(HttpMethod.GET, "/posts/**").permitAll()
+                        // 서버 상태 확인
+                        .requestMatchers("/api/health")
+                        .permitAll()
 
-                                                // 실제 프로젝트에서 공개해야 하는 경로
-                                                .requestMatchers(
-                                                                "/api/auth/**",
-                                                                "/auth/**",
-                                                                "/swagger-ui/**",
-                                                                "/v3/api-docs/**")
-                                                .permitAll()
+                        // 로그인 및 회원가입 API
+                        .requestMatchers(
+                                "/api/auth/**",
+                                "/auth/**"
+                        )
+                        .permitAll()
 
-                                                .anyRequest().authenticated());
+                        // Toss Payments 웹훅
+                        .requestMatchers(
+                                "/api/billing/webhook",
+                                "/api/payment/webhook"
+                        )
+                        .permitAll()
 
-                return http.build();
-        }
+                        // UI/UX 테스트 결과 전송 API
+                        .requestMatchers(
+                                "/api/uiux-tests/*/report",
+                                "/api/uiux-tests/*/fail",
+                                "/api/uiux-tests/*/steps"
+                        )
+                        .permitAll()
 
-        @Bean
-        public CorsConfigurationSource corsConfigurationSource() {
-                CorsConfiguration configuration = new CorsConfiguration();
+                        // 부하 테스트 진행 상황 전송 API
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/load-tests/*/progress"
+                        )
+                        .permitAll()
 
-                configuration.setAllowedOrigins(List.of(
-                                "http://localhost:5173",
-                                "http://127.0.0.1:5173",
-                                "https://flow-check.duckdns.org"));
+                        // 게시판 조회 API
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/posts/**",
+                                "/posts/**"
+                        )
+                        .permitAll()
 
-                configuration.setAllowedMethods(List.of(
-                                "GET",
-                                "POST",
-                                "PUT",
-                                "PATCH",
-                                "DELETE",
-                                "OPTIONS"));
+                        // Swagger
+                        .requestMatchers(
+                                "/v3/api-docs/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html"
+                        )
+                        .permitAll()
 
-                configuration.setAllowedHeaders(List.of(
-                                "Authorization",
-                                "Content-Type",
-                                "Accept",
-                                "Origin",
-                                "X-Requested-With"));
+                        // 그 외 API는 JWT 인증 필요
+                        .anyRequest()
+                        .authenticated()
+                )
 
-                configuration.setExposedHeaders(List.of(
-                                "Authorization"));
+                // Supabase 등의 JWT 검증
+                .oauth2ResourceServer(oauth2 ->
+                        oauth2.jwt(jwt -> {
+                        })
+                );
 
-                configuration.setAllowCredentials(true);
-                configuration.setMaxAge(3600L);
+        return http.build();
+    }
 
-                UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
 
-                source.registerCorsConfiguration("/**", configuration);
+        // 접근을 허용할 프론트엔드 주소
+        configuration.setAllowedOrigins(List.of(
+                "http://localhost:5173",
+                "http://127.0.0.1:5173",
+                "https://flow-check.duckdns.org"
+        ));
 
-                return source;
-        }
+        // 허용할 HTTP Method
+        configuration.setAllowedMethods(List.of(
+                "GET",
+                "POST",
+                "PUT",
+                "PATCH",
+                "DELETE",
+                "OPTIONS"
+        ));
+
+        // 프론트엔드가 전송할 수 있는 헤더
+        configuration.setAllowedHeaders(List.of(
+                "Authorization",
+                "Content-Type",
+                "Accept",
+                "Origin",
+                "X-Requested-With"
+        ));
+
+        // 프론트엔드에서 읽을 수 있는 응답 헤더
+        configuration.setExposedHeaders(List.of(
+                "Authorization"
+        ));
+
+        // 쿠키 및 인증 정보 허용
+        configuration.setAllowCredentials(true);
+
+        // 브라우저 사전 요청 캐시 시간
+        configuration.setMaxAge(3600L);
+
+        UrlBasedCorsConfigurationSource source =
+                new UrlBasedCorsConfigurationSource();
+
+        source.registerCorsConfiguration("/**", configuration);
+
+        return source;
+    }
 }

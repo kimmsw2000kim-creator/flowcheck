@@ -53,28 +53,13 @@ interface CommunityPageProps {
     balance: number;
     coupons: number;
   };
-<<<<<<< HEAD
-  onUserUpdate: (updatedUser: {
-    balance: number;
-    coupons: number;
-  }) => void;
-  ledger: LedgerItem[];
-  onAddLedger: (ledgerItem: LedgerItem) => void;
-=======
   showAlert: (message: string, type?: string) => void;
->>>>>>> dev
   handleSubmitReport: (type: string, id: number) => void;
 }
 
 export default function CommunityPage({
   currentUser,
-<<<<<<< HEAD
-  onUserUpdate,
-  ledger,
-  onAddLedger,
-=======
   showAlert,
->>>>>>> dev
   handleSubmitReport,
 }: CommunityPageProps) {
   const navigate = useNavigate();
@@ -137,10 +122,7 @@ export default function CommunityPage({
       }
     } catch (error) {
       console.error(error);
-      await showErrorAlert(
-        "목록 조회 실패",
-        "게시글 목록을 불러오지 못했습니다."
-      );
+      showAlert("게시글 목록을 불러오지 못했습니다.", "error");
     }
   };
 
@@ -165,10 +147,7 @@ export default function CommunityPage({
       setComments(data || []);
     } catch (error) {
       console.error(error);
-      await showErrorAlert(
-        "댓글 조회 실패",
-        "댓글을 불러오지 못했습니다."
-      );
+      showAlert("댓글을 불러오지 못했습니다.", "error");
     }
   };
 
@@ -185,10 +164,7 @@ export default function CommunityPage({
       setLiked(likeStatus.liked);
     } catch (error) {
       console.error("게시글 상세 조회 실패:", error);
-      await showErrorAlert(
-        "게시글 조회 실패",
-        "게시글을 불러오지 못했습니다."
-      );
+      showAlert("게시글을 불러오지 못했습니다.", "error");
     }
   };
 
@@ -218,15 +194,12 @@ export default function CommunityPage({
           description: "홍보 게시판 첫 글 등록 보상",
         });
 
-        await showSuccessAlert(
-          "게시글 등록 완료",
-          "첫 홍보글 보상으로 20,000 크레딧이 지급되었습니다."
+        showAlert(
+          "첫 홍보글이 등록되었습니다! 20,000 크레딧이 지급되었습니다!",
+          "success"
         );
       } else {
-        await showSuccessAlert(
-          "게시글 등록 완료",
-          "홍보 게시글이 정상적으로 등록되었습니다."
-        );
+        showAlert("홍보글이 등록되었습니다.", "success");
       }
 
       setNewPostTitle("");
@@ -236,12 +209,7 @@ export default function CommunityPage({
       loadPosts();
     } catch (error) {
       console.error(error);
-      await showErrorAlert(
-        "게시글 등록 실패",
-        error instanceof Error
-          ? error.message
-          : "게시글 작성 중 오류가 발생했습니다."
-      );
+      showAlert("게시글 작성에 실패했습니다.", "error");
     }
   };
 
@@ -273,7 +241,7 @@ export default function CommunityPage({
         )
       );
 
-      await showToast(
+      showAlert(
         result.liked
           ? "좋아요를 눌렀습니다."
           : "좋아요를 취소했습니다.",
@@ -282,11 +250,11 @@ export default function CommunityPage({
     } catch (error) {
       console.error("좋아요 처리 실패:", error);
 
-      await showErrorAlert(
-        "좋아요 처리 실패",
+      showAlert(
         error instanceof Error
           ? error.message
-          : "좋아요 처리 중 오류가 발생했습니다."
+          : "좋아요 처리에 실패했습니다.",
+        "error"
       );
     }
   };
@@ -361,18 +329,15 @@ export default function CommunityPage({
 
       await loadPosts();
 
-      await showSuccessAlert(
-        "삭제 완료",
-        "게시글이 정상적으로 삭제되었습니다."
-      );
+      showAlert("게시글이 삭제되었습니다.", "success");
     } catch (error) {
       console.error("게시글 삭제 실패:", error);
 
-      await showErrorAlert(
-        "삭제 실패",
+      showAlert(
         error instanceof Error
           ? error.message
-          : "게시글 삭제 중 오류가 발생했습니다."
+          : "게시글 삭제에 실패했습니다.",
+        "error"
       );
     }
   };
@@ -407,15 +372,12 @@ export default function CommunityPage({
           description: `게시글: ${activePost.id} 첫 피드백 댓글 리워드`,
         });
 
-        await showSuccessAlert(
-          "댓글 등록 완료",
-          "첫 피드백 보상으로 5,000 크레딧이 지급되었습니다."
+        showAlert(
+          "피드백 댓글이 등록되었습니다! 5,000 크레딧이 지급되었습니다!",
+          "success"
         );
       } else {
-        await showSuccessAlert(
-          "댓글 등록 완료",
-          "댓글이 정상적으로 등록되었습니다."
-        );
+        showAlert("댓글이 등록되었습니다.", "success");
       }
 
       setNewCommentContent("");
@@ -423,10 +385,7 @@ export default function CommunityPage({
       loadPosts();
     } catch (error) {
       console.error(error);
-      await showErrorAlert(
-        "댓글 등록 실패",
-        "댓글 작성 중 오류가 발생했습니다."
-      );
+      showAlert("댓글 작성에 실패했습니다.", "error");
     }
   };
 
@@ -451,16 +410,10 @@ export default function CommunityPage({
       await loadComments(activePost.id);
       await loadPosts();
 
-      await showSuccessAlert(
-        "답글 등록 완료",
-        "답글이 정상적으로 등록되었습니다."
-      );
+      showAlert("답글이 등록되었습니다.", "success");
     } catch (error) {
       console.error(error);
-      await showErrorAlert(
-        "답글 등록 실패",
-        "답글 작성 중 오류가 발생했습니다."
-      );
+      showAlert("답글 작성에 실패했습니다.", "error");
     }
   };
 
@@ -470,15 +423,11 @@ export default function CommunityPage({
   ) => {
     if (!activePost || activePost.id === "new") return;
 
-    const confirmed = await showConfirmAlert({
-      title: isReply
-        ? "답글을 삭제하시겠습니까?"
-        : "댓글을 삭제하시겠습니까?",
-      text: "삭제한 내용은 복구할 수 없습니다.",
-      confirmText: "삭제",
-      cancelText: "취소",
-      danger: true,
-    });
+    const confirmed = window.confirm(
+      isReply
+        ? "이 답글을 삭제하시겠습니까?"
+        : "이 댓글을 삭제하시겠습니까?"
+    );
 
     if (!confirmed) return;
 
@@ -493,29 +442,26 @@ export default function CommunityPage({
 
       await loadPosts();
 
-      await showSuccessAlert(
-        isReply ? "답글 삭제 완료" : "댓글 삭제 완료",
+      showAlert(
         isReply
-          ? "답글이 정상적으로 삭제되었습니다."
-          : "댓글이 정상적으로 삭제되었습니다."
+          ? "답글이 삭제되었습니다."
+          : "댓글이 삭제되었습니다.",
+        "success"
       );
     } catch (error) {
       console.error("댓글 삭제 실패:", error);
 
-      await showErrorAlert(
-        isReply ? "답글 삭제 실패" : "댓글 삭제 실패",
+      showAlert(
         error instanceof Error
           ? error.message
-          : "삭제 중 오류가 발생했습니다."
+          : "댓글 삭제에 실패했습니다.",
+        "error"
       );
     }
   };
 
-  const handleSharePost = async (postId: number) => {
-    await showToast(
-      `게시글 ${postId} 공유 기능은 준비 중입니다.`,
-      "info"
-    );
+  const handleSharePost = (postId: number) => {
+    showAlert(`게시글 ${postId} 공유 기능은 추후 연결하면 됩니다.`, "success");
   };
 
   const getWriter = (post: Post) => {

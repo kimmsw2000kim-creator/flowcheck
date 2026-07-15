@@ -1,43 +1,64 @@
 import { useState } from 'react';
+import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from 'react-router-dom';
+
 import Header from './components/Header';
 import Footer from './components/Footer';
-import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import Toast from './components/common/Toast';
 import Chatbot from './components/Chatbot';
+import Toast from './components/common/Toast';
 
 // Pages
+import LandingPage from './pages/LandingPage';
+import AuthPage from './pages/AuthPage';
+import AuthCallback from './pages/AuthCallback';
 import DashboardPage from './pages/DashboardPage';
 import DomainsPage from './pages/DomainsPage';
 import UIUXTestPage from './pages/UIUXTestPage';
 import LoadPage from './pages/LoadPage';
 import PaymentPage from './pages/PaymentPage';
 import CommunityPage from './pages/CommunityPage';
-import PostWritePage from "./pages/PostWritePage";
-import PostDetailPage from "./pages/PostDetailPage";
-import PostEditPage from "./pages/PostEditPage";
-import AdminPage from './pages/admin/AdminPage';
+import PostWritePage from './pages/PostWritePage';
+import PostDetailPage from './pages/PostDetailPage';
+import PostEditPage from './pages/PostEditPage';
+import CommentPage from './pages/CommentPage';
 import SupportPage from './pages/SupportPage';
 import Mypage from './pages/Mypage';
-import AuthPage from './pages/AuthPage';
-import AuthCallback from './pages/AuthCallback';
-import LandingPage from './pages/LandingPage';
-import CommentPage from "./pages/CommentPage";
+import AdminPage from './pages/admin/AdminPage';
 
-// Types & Utils
+// Stores & Hooks
 import { useUserStore } from './store/userStore';
 import { useAlertStore } from './store/alertStore';
 import { useSessionBootstrap } from './hooks/useSessionBootstrap';
 
-// 신고
 interface Report {
   id: number;
   reporterId: string;
   targetType: string;
   targetId: number;
   reason: string;
-  status: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
   createdAt: string;
 }
+
+const TAB_ROUTES: Record<string, string> = {
+  dashboard: '/dashboard',
+  mypage: '/mypage',
+  domains: '/domains',
+  UIUXTest: '/UIUXTest',
+  load: '/load',
+  billing: '/billing',
+  community: '/community',
+  comment: '/comment',
+  admin: '/admin',
+  support: '/support',
+  login: '/login',
+  signup: '/signup',
+};
 
 function App() {
   useSessionBootstrap();
@@ -45,65 +66,76 @@ function App() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // 라우팅
-  const tabRoutes: Record<string, string> = {
-    dashboard: '/dashboard',
-    mypage: '/mypage',
-    domains: '/domains',
-    UIUXTest: '/UIUXTest',
-    load: '/load',
-    billing: '/billing',
-    community: '/community',
-    admin: '/admin',
-    support: '/support',
-    login: '/login',
-    signup: '/signup',
-    comment: "/comment",
-  };
-
-  // Supports sub-paths for active tab checking (e.g., /community/write)
-  const activeTab =
-    Object.entries(tabRoutes).find(([, path]) =>
-      location.pathname === path || location.pathname.startsWith(`${path}/`)
-    )?.[0] ?? 'dashboard';
-
-  const setActiveTab = (tab: string) => {
-    navigate(tabRoutes[tab] ?? '/dashboard');
-  };
-
   const currentUser = useUserStore((state) => state.currentUser);
   const authStatus = useUserStore((state) => state.authStatus);
+
   const alertMsg = useAlertStore((state) => state.alertMsg);
   const showAlert = useAlertStore((state) => state.showAlert);
 
   const [, setReports] = useState<Report[]>([]);
+  const [selectedUIUXTestDomain, setSelectedUIUXTestDomain] =
+    useState<number>(1);
 
-  const isLoggedIn = authStatus === 'authenticated';
-  const isLandingPage = !isLoggedIn && location.pathname === '/';
+  const isLoggedIn =
+    authStatus === 'authenticated' && currentUser !== null;
 
-  const [selectedUIUXTestDomain, setSelectedUIUXTestDomain] = useState<number>(1);
+  const isLandingPage =
+    !isLoggedIn && location.pathname === '/';
+
+  const activeTab =
+    Object.entries(TAB_ROUTES).find(([, path]) => {
+      return (
+        location.pathname === path ||
+        location.pathname.startsWith(`${path}/`)
+      );
+    })?.[0] ?? 'dashboard';
+
+  const setActiveTab = (tab: string) => {
+    navigate(TAB_ROUTES[tab] ?? '/dashboard');
+  };
 
   const handleSubmitReport = (type: string, id: number) => {
+    if (!currentUser) {
+      showAlert('로그인이 필요합니다.');
+      return;
+    }
+
     const report: Report = {
       id: Date.now(),
       reporterId: currentUser.id,
       targetType: type,
       targetId: id,
-      reason: "부적절한 내용",
-      status: "PENDING",
-      createdAt: new Date().toISOString().split("T")[0],
+      reason: '부적절한 내용',
+      status: 'PENDING',
+      createdAt: new Date().toISOString().split('T')[0],
     };
 
-    setReports((prev) => [...prev, report]);
-    showAlert("신고가 접수되었습니다.");
+    setReports((previousReports) => [
+      ...previousReports,
+      report,
+    ]);
+
+    showAlert('신고가 접수되었습니다.');
   };
 
   if (authStatus === 'checking') {
     return (
       <div className="app-container">
-        {alertMsg && <Toast message={alertMsg.message} type={alertMsg.type} />}
+        {alertMsg && (
+          <Toast
+            message={alertMsg.message}
+            type={alertMsg.type}
+          />
+        )}
+
         <main className="main-content">
-          <div style={{ textAlign: 'center', padding: '4rem 0', color: 'var(--text-secondary)' }}>
+          <div
+            style={{
+              padding: '4rem 0',
+              textAlign: 'center',
+              color: 'var(--text-secondary)',
+            }}
+          >
             Loading...
           </div>
         </main>
@@ -113,81 +145,127 @@ function App() {
 
   return (
     <div className="app-container">
-      {alertMsg && <Toast message={alertMsg.message} type={alertMsg.type} />}
+      {alertMsg && (
+        <Toast
+          message={alertMsg.message}
+          type={alertMsg.type}
+        />
+      )}
 
       <Header activeTab={activeTab} />
 
-      <main className={isLandingPage ? "landing-main" : "main-content"}>
+      <main
+        className={
+          isLandingPage ? 'landing-main' : 'main-content'
+        }
+      >
         <Routes>
           {isLoggedIn ? (
             <>
-              {/* 로그인 상태인 경우 대시보드로 이동 */}
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/login" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/signup" element={<Navigate to="/dashboard" replace />} />
+              {/* 로그인 상태 접근 경로 */}
+              <Route
+                path="/"
+                element={
+                  <Navigate to="/dashboard" replace />
+                }
+              />
 
+              <Route
+                path="/login"
+                element={
+                  <Navigate to="/dashboard" replace />
+                }
+              />
+
+              <Route
+                path="/signup"
+                element={
+                  <Navigate to="/dashboard" replace />
+                }
+              />
+
+              {/* 대시보드 */}
               <Route
                 path="/dashboard"
                 element={
                   <DashboardPage
                     setActiveTab={setActiveTab}
-                    setSelectedUIUXTestDomain={setSelectedUIUXTestDomain}
+                    setSelectedUIUXTestDomain={
+                      setSelectedUIUXTestDomain
+                    }
                   />
                 }
               />
 
-              <Route path="/mypage/*" element={<Mypage />} />
-
+              {/* 마이페이지 */}
               <Route
-                path="/domains"
-                element={
-                  <DomainsPage />
-                }
+                path="/mypage/*"
+                element={<Mypage />}
               />
 
+              {/* 도메인 */}
+              <Route
+                path="/domains"
+                element={<DomainsPage />}
+              />
+
+              {/* UI/UX 테스트 */}
               <Route
                 path="/UIUXTest"
                 element={
                   <UIUXTestPage
-                    selectedUIUXTestDomain={selectedUIUXTestDomain}
-                    setSelectedUIUXTestDomain={setSelectedUIUXTestDomain}
+                    selectedUIUXTestDomain={
+                      selectedUIUXTestDomain
+                    }
+                    setSelectedUIUXTestDomain={
+                      setSelectedUIUXTestDomain
+                    }
                   />
                 }
               />
 
+              {/* 부하 테스트 */}
               <Route
                 path="/load"
                 element={<LoadPage />}
               />
 
+              {/* 결제 */}
               <Route
                 path="/billing"
                 element={<PaymentPage />}
               />
 
-              {/* Community Tab Sub-routing System */}
+              {/* 커뮤니티 */}
               <Route
                 path="/community"
                 element={
                   <CommunityPage
                     currentUser={currentUser}
-<<<<<<< HEAD
-                    onUserUpdate={handleUserUpdate}
-                    ledger={ledger}
-                    onAddLedger={handleAddLedger}
-=======
                     showAlert={showAlert}
->>>>>>> dev
-                    handleSubmitReport={handleSubmitReport}
+                    handleSubmitReport={
+                      handleSubmitReport
+                    }
                   />
                 }
               />
-              <Route path="/community/write" element={<PostWritePage />} />
-              <Route path="/comment/write" element={<PostWritePage />} />
-              <Route path="/community/:postId" element={<PostDetailPage />} />
-              <Route path="/community/:postId/edit" element={<PostEditPage />} />
-              <Route path="/comment/:postId/edit" element={<PostEditPage />} />
 
+              <Route
+                path="/community/write"
+                element={<PostWritePage />}
+              />
+
+              <Route
+                path="/community/:postId"
+                element={<PostDetailPage />}
+              />
+
+              <Route
+                path="/community/:postId/edit"
+                element={<PostEditPage />}
+              />
+
+              {/* 댓글 게시판 */}
               <Route
                 path="/comment"
                 element={
@@ -199,20 +277,43 @@ function App() {
               />
 
               <Route
-                path="/admin"
-                element={
-                  <AdminPage />
-                }
+                path="/comment/write"
+                element={<PostWritePage />}
               />
 
-              <Route path="/support" element={<SupportPage />} />
+              <Route
+                path="/comment/:postId/edit"
+                element={<PostEditPage />}
+              />
 
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              {/* 관리자 */}
+              <Route
+                path="/admin"
+                element={<AdminPage />}
+              />
+
+              {/* 고객지원 */}
+              <Route
+                path="/support"
+                element={<SupportPage />}
+              />
+
+              {/* 로그인 사용자의 잘못된 주소 */}
+              <Route
+                path="*"
+                element={
+                  <Navigate to="/dashboard" replace />
+                }
+              />
             </>
           ) : (
             <>
-              {/* Unauthenticated Routes */}
-              <Route path="/" element={<LandingPage />} />
+              {/* 비로그인 상태 접근 경로 */}
+              <Route
+                path="/"
+                element={<LandingPage />}
+              />
+
               <Route
                 path="/login"
                 element={
@@ -222,6 +323,7 @@ function App() {
                   />
                 }
               />
+
               <Route
                 path="/signup"
                 element={
@@ -231,14 +333,24 @@ function App() {
                   />
                 }
               />
-              <Route path="/auth/callback" element={<AuthCallback />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
+
+              <Route
+                path="/auth/callback"
+                element={<AuthCallback />}
+              />
+
+              {/* 비로그인 사용자의 잘못된 주소 */}
+              <Route
+                path="*"
+                element={<Navigate to="/" replace />}
+              />
             </>
           )}
         </Routes>
       </main>
 
       {isLoggedIn && <Footer />}
+
       <Chatbot />
     </div>
   );
