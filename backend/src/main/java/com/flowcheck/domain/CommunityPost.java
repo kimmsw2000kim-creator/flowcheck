@@ -92,12 +92,16 @@ public class CommunityPost {
     }
 
     /*
-     * 게시글 수정은 필드 Setter를 열어두지 않고
-     * 지정된 메서드를 통해서만 처리합니다.
+     * 게시글 수정 시 제목과 내용만 변경합니다.
+     *
+     * 카테고리, 연결 사이트, 테스트 결과와 홍보 URL은
+     * 게시글 작성 후 변경할 수 없습니다.
      */
-    public void update(String title, String content, String promoUrl) {
+    public void update(
+            String title,
+            String content
+    ) {
         this.title = title;
         this.content = content;
-        this.promoUrl = promoUrl;
     }
 }

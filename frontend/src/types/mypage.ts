@@ -36,6 +36,9 @@ export interface MypageTestHistoryItem {
   description: string | null;
   createdAt: string;
   updatedAt: string | null;
+
+  // 이미 공유한 테스트라면 연결된 커뮤니티 게시글 ID가 들어옵니다.
+  linkedPostId: number | null;
 }
 
 export interface MypagePointHistoryItem {
