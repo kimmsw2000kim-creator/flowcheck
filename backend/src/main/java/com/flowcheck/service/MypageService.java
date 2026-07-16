@@ -104,9 +104,9 @@ public class MypageService {
                                         performanceScore,
                                         null,
                                         test.getPromptInput(),
-                                        test.getCreatedAt(),
-                                        test.getUpdatedAt()));
-                });
+                                        test.getCommunityPost() == null
+                                                ? null
+                                                : test.getCommunityPost().getPostId()                });
 
                 List<TestRequest> uiRequests = testRequestRepository.findByUserAndTestTypeOrderByCreatedAtAsc(user, "UIUX");
                 uiRequests.forEach(test -> {

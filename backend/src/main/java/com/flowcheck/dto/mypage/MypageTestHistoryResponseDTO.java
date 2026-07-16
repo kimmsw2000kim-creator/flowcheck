@@ -20,5 +20,6 @@ public record MypageTestHistoryResponseDTO(
         String description,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt
+        Long linkedPostId
 ) {
 }
