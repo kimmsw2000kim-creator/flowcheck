@@ -8,6 +8,8 @@ import com.flowcheck.repository.PostRepository;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -63,6 +65,49 @@ public class CommentService {
                                 parent.getId(),
                                 List.of())))
                 .toList();
+    }
+
+    /**
+     * 부모 댓글을 페이지 단위로 조회합니다.
+     * 답글은 현재 페이지의 부모 댓글에 속한 항목만 한 번에 조회합니다.
+     */
+    public Page<CommentResponse> getCommentPage(
+            Long postId,
+            Pageable pageable) {
+
+        validatePostExists(postId);
+
+        Page<Comment> parentPage = commentRepository
+                .findByPostIdAndParentIdIsNullOrderByCreatedAtAsc(
+                        postId,
+                        pageable);
+
+        List<Long> parentIds = parentPage.stream()
+                .map(Comment::getId)
+                .toList();
+
+        Map<Long, List<CommentResponse>> repliesByParentId = parentIds.isEmpty()
+                ? Map.of()
+                : commentRepository
+                        .findByParentIdInOrderByCreatedAtAsc(parentIds)
+                        .stream()
+                        .collect(
+                                Collectors.groupingBy(
+                                        Comment::getParentId,
+                                        LinkedHashMap::new,
+                                        Collectors.mapping(
+                                                this::toReplyResponse,
+                                                Collectors.toList())));
+
+        return parentPage.map(parent -> new CommentResponse(
+                parent.getId(),
+                parent.getContent(),
+                parent.getWriterEmail(),
+                parent.getCreatedAt(),
+                null,
+                repliesByParentId.getOrDefault(
+                        parent.getId(),
+                        List.of())));
     }
 
     /*

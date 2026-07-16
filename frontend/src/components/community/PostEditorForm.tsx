@@ -1,4 +1,5 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
+import { COMMUNITY_LIMITS } from '../../constants/communityLimits';
 import { Button, Card, Field } from '../common';
 
 export interface PostEditorFormProps {
@@ -49,14 +50,14 @@ export default function PostEditorForm({
         <Field
           label="제목"
           htmlFor={`post-title-${uid}`}
-          description={`${title.length} / 100자`}
+          description={`${title.length} / ${COMMUNITY_LIMITS.POST_TITLE}자`}
           required
         >
           <input
             id={`post-title-${uid}`}
             className="fc-input"
             value={title}
-            maxLength={100}
+            maxLength={COMMUNITY_LIMITS.POST_TITLE}
             onChange={(event) => setTitle(event.target.value)}
             disabled={submitting}
             autoFocus
@@ -81,14 +82,14 @@ export default function PostEditorForm({
         <Field
           label="내용"
           htmlFor={`post-content-${uid}`}
-          description={`${content.length} / 5,000자`}
+          description={`${content.length} / ${COMMUNITY_LIMITS.POST_CONTENT.toLocaleString()}자`}
           required
         >
           <textarea
             id={`post-content-${uid}`}
             className="fc-input community-editor__textarea"
             value={content}
-            maxLength={5000}
+            maxLength={COMMUNITY_LIMITS.POST_CONTENT}
             rows={10}
             onChange={(event) => setContent(event.target.value)}
             disabled={submitting}
