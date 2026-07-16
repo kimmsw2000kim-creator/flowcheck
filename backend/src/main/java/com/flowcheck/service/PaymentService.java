@@ -66,7 +66,7 @@ public class PaymentService {
 
     /**
      * 결제 정보 생성 (주문서 생성)
-     * 프론트엔드에서 코인 패키지를 선택했을 때 호출되어 결제 데이터를 준비하고 고유 orderId를 발급합니다.
+     * 프론트엔드에서 크레딧 패키지를 선택했을 때 호출되어 결제 데이터를 준비하고 고유 orderId를 발급합니다.
      */
     @Transactional
     public PaymentInitiateResponseDto initiatePayment(PaymentInitiateRequestDto requestDto, String email) {
@@ -392,6 +392,7 @@ public class PaymentService {
                 .build();
         creditsLedgerRepository.save(ledger);
 
-        log.info("User {} successfully bought a {}-coupon ({}) package for {} credits.", email, count, targetType, cost);
+        log.info("User {} successfully bought a {}-coupon ({}) package for {} credits.", email, count, targetType,
+                cost);
     }
 }

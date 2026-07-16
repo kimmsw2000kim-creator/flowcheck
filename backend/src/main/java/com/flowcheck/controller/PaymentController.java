@@ -27,10 +27,9 @@ public class PaymentController {
 
     private final PaymentService paymentService;
 
-
     /**
      * 결제 정보 생성
-     * 프론트엔드에서 코인 패키지를 선택했을 때 호출되어 결제 데이터를 준비하고 고유 orderId를 발급합니다.
+     * 프론트엔드에서 크레딧 패키지를 선택했을 때 호출되어 결제 데이터를 준비하고 고유 orderId를 발급합니다.
      */
     @Operation(summary = "결제 정보 생성 (주문서 생성)", description = "결제를 시작하기 위해 주문 정보를 생성합니다.")
     @PostMapping("/initiate")
@@ -125,7 +124,8 @@ public class PaymentController {
             @RequestBody CouponBuyRequestDto requestDto,
             @AuthenticationPrincipal Jwt jwt) {
 
-        log.info("[API] /api/payment/buy-coupons - 쿠폰 패키지 구매 요청 수신. Count: {}, Type: {}", requestDto.count(), requestDto.couponType());
+        log.info("[API] /api/payment/buy-coupons - 쿠폰 패키지 구매 요청 수신. Count: {}, Type: {}", requestDto.count(),
+                requestDto.couponType());
         String email = jwt.getClaimAsString("email");
         paymentService.buyCoupons(email, requestDto.count(), requestDto.couponType());
         return ResponseEntity.ok().build();
