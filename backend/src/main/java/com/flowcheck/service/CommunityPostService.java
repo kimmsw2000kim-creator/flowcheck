@@ -399,17 +399,33 @@ public class CommunityPostService {
     }
 
     /*
-     * 로그인한 사용자가 작성한 게시글을 삭제합니다.
+     * 작성자 또는 Supabase JWT로 확인된 관리자가 게시글을 삭제합니다.
      */
     @Transactional
     public void delete(
             UUID userId,
-            Long postId
+            Long postId,
+            boolean isAdmin
     ) {
-        CommunityPost post = findOwnedPost(
-                userId,
-                postId
+        CommunityPost post = communityPostRepository
+                .findByPostId(postId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "게시글을 찾을 수 없습니다."
+                ));
+
+        boolean isOwner = Objects.equals(
+                post.getUser().getUserId(),
+                userId
         );
+
+        // 관리자는 타인의 글을 삭제할 수 있지만 수정 권한은 얻지 않습니다.
+        if (!isOwner && !isAdmin) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "작성자 또는 관리자만 게시글을 삭제할 수 있습니다."
+            );
+        }
 
         /*
          * 테스트 공유 게시글이 삭제되면 DB의 ON DELETE SET NULL에 의해

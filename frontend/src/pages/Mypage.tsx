@@ -12,17 +12,13 @@ import Button from '../components/common/Button';
 import MypageProfileSection from './mypage/MypageProfileSection';
 import MypageVerifiedSitesSection from './mypage/MypageVerifiedSitesSection';
 import MypageTestHistorySection from './mypage/MypageTestHistorySection';
-import MypagePointSection from './mypage/MypagePointSection';
 import MypagePointHistorySection from './mypage/MypagePointHistorySection';
+import MypageCouponHistorySection from './mypage/MypageCouponHistorySection';
 import MypageMyPostsSection from './mypage/MypageMyPostsSection';
-import MypageNotificationSettingsSection from './mypage/MypageNotificationSettingsSection';
-import MypageThemeSettingsSection from './mypage/MypageThemeSettingsSection';
-import MypageAccountSecuritySection from './mypage/MypageAccountSecuritySection';
 import MypageTestDetailSection from './mypage/MypageTestDetailSection';
 
 import { fetchMypage } from '../api/mypageApi';
 import { supabase } from '../lib/supabaseClient';
-import MypageCouponHistorySection from './mypage/MypageCouponHistorySection';
 
 const emptyData: MypageData = {
   email: '',
@@ -119,11 +115,7 @@ function Mypage() {
               element={<MypageTestDetailSection />}
             />
 
-            <Route
-              path="points"
-              element={<MypagePointSection data={data} />}
-            />
-
+            {/* 쿠폰·포인트 종합 화면은 숨기고, 사용 내역 화면만 유지합니다. */}
             <Route
               path="point-history"
               element={<MypagePointHistorySection />}
@@ -137,21 +129,6 @@ function Mypage() {
             <Route
               path="posts"
               element={<MypageMyPostsSection />}
-            />
-
-            <Route
-              path="notifications"
-              element={<MypageNotificationSettingsSection />}
-            />
-
-            <Route
-              path="theme"
-              element={<MypageThemeSettingsSection />}
-            />
-
-            <Route
-              path="security"
-              element={<MypageAccountSecuritySection email={data.email} />}
             />
 
             <Route path="*" element={<Navigate to="profile" replace />} />

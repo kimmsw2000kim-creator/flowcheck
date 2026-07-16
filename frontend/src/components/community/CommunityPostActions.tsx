@@ -27,8 +27,8 @@ export default function CommunityPostActions({
     onUpdated,
     onDeleted,
 }: CommunityPostActionsProps) {
-    const currentUserEmail = useUserStore(
-        (state) => state.currentUser.email
+    const currentUser = useUserStore(
+        (state) => state.currentUser
     );
 
     const showAlert = useAlertStore(
@@ -46,11 +46,15 @@ export default function CommunityPostActions({
      * 실제 보안 검사는 백엔드에서 JWT 사용자 ID로 다시 수행합니다.
      */
     const isOwner =
-        currentUserEmail.length > 0 &&
-        currentUserEmail.toLowerCase() ===
+        currentUser.email.length > 0 &&
+        currentUser.email.toLowerCase() ===
         post.writerEmail.toLowerCase();
 
-    if (!isOwner) {
+    // currentUser.role은 Supabase app_metadata에서 확인된 역할만 사용합니다.
+    const isAdmin = currentUser.role === 'ADMIN';
+    const canDelete = isOwner || isAdmin;
+
+    if (!isOwner && !isAdmin) {
         return null;
     }
 
@@ -169,24 +173,28 @@ export default function CommunityPostActions({
                     marginTop: '1rem',
                 }}
             >
-                <button
-                    type="button"
-                    className="btn btn-secondary"
-                    disabled={submitting}
-                    onClick={openEditModal}
-                >
-                    수정
-                </button>
+                {isOwner && (
+                    <button
+                        type="button"
+                        className="btn btn-secondary"
+                        disabled={submitting}
+                        onClick={openEditModal}
+                    >
+                        수정
+                    </button>
+                )}
 
-                <button
-                    type="button"
-                    className="btn btn-secondary"
-                    disabled={submitting}
-                    style={{ color: 'var(--error)' }}
-                    onClick={handleDelete}
-                >
-                    삭제
-                </button>
+                {canDelete && (
+                    <button
+                        type="button"
+                        className="btn btn-secondary"
+                        disabled={submitting}
+                        style={{ color: 'var(--error)' }}
+                        onClick={handleDelete}
+                    >
+                        삭제
+                    </button>
+                )}
             </div>
 
             {editing && (

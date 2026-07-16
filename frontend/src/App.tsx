@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Header from './components/Header';
 import Footer from './components/Footer';
+import AuthModal from './components/AuthModal';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Toast from './components/common/Toast';
 import Chatbot from './components/Chatbot';
@@ -84,6 +85,7 @@ function App() {
 
   const isLoggedIn = authStatus === 'authenticated';
   const isLandingPage = !isLoggedIn && location.pathname === '/';
+  const [authModalMode, setAuthModalMode] = useState<'login' | 'signup' | null>(null);
 
   const [selectedUIUXTestDomain, setSelectedUIUXTestDomain] = useState<number>(1);
   const [selectedLoadTestDomain, setSelectedLoadTestDomain] = useState<number>(0);
@@ -121,7 +123,25 @@ function App() {
       {alertMsg && <Toast message={alertMsg.message} type={alertMsg.type} />}
 
       <a className="skip-link" href="#main-content">본문으로 건너뛰기</a>
-      <Header activeTab={activeTab} />
+      <Header
+        activeTab={activeTab}
+        onOpenAuth={(mode) => {
+          // 랜딩페이지에서는 주소를 바꾸지 않고 인증 모달을 엽니다.
+          if (isLandingPage) {
+            setAuthModalMode(mode);
+            return;
+          }
+          navigate(`/${mode}`);
+        }}
+      />
+
+      {isLandingPage && authModalMode && (
+        <AuthModal
+          initialMode={authModalMode}
+          onClose={() => setAuthModalMode(null)}
+          setActiveTab={setActiveTab}
+        />
+      )}
 
       <main id="main-content" className={isLandingPage ? "landing-main" : "main-content"}>
         <Routes>

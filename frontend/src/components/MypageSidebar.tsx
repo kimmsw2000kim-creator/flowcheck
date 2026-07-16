@@ -25,18 +25,15 @@ const navigationGroups: NavigationGroup[] = [
   {
     label: '포인트 · 결제',
     items: [
-      { to: '/mypage/points', label: '쿠폰 · 포인트' },
+      // 쿠폰·포인트 종합 화면은 제외하고 내역 메뉴만 노출합니다.
       { to: '/mypage/point-history', label: '포인트 내역' },
       { to: '/mypage/coupon-history', label: '쿠폰 사용 내역' },
     ],
   },
   {
-    label: '커뮤니티 · 설정',
+    label: '커뮤니티',
     items: [
       { to: '/mypage/posts', label: '내 글 · 리뷰' },
-      { to: '/mypage/notifications', label: '알림 설정' },
-      { to: '/mypage/theme', label: '테마 설정' },
-      { to: '/mypage/security', label: '계정 · 보안' },
     ],
   },
 ];
