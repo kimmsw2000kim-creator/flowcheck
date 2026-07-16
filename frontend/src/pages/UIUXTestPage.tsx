@@ -208,6 +208,8 @@ const getScoreGrade = (score?: number) => {
 
 const getStepActionLabel = (action?: string) => {
   switch (action) {
+    case 'PROVISIONING_VNC':
+      return '클라우드 브라우저 준비 중';
     case 'STARTING_VNC':
     case 'STARTING_BROWSER':
       return '브라우저 준비';

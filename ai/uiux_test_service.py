@@ -6,7 +6,6 @@ from typing import Dict, List, Optional
 import boto3
 import httpx
 from botocore.config import Config
-from botocore.exceptions import WaiterError
 from dotenv import load_dotenv
 
 ENV_PATH = os.path.join(os.path.dirname(__file__), "..", ".env")
@@ -240,8 +239,43 @@ def _optional_task_env() -> List[dict]:
         "SUPABASE_ANON_KEY",
         "SUPABASE_SERVICE_ROLE_KEY",
         "VNC_KEEPALIVE_SECONDS",
+        "UIUX_INITIAL_PAGE_LOAD_TIMEOUT_MS",
+        "UIUX_INITIAL_SETTLE_TIMEOUT_MS",
+        "UIUX_LIGHTHOUSE_TIMEOUT_SECONDS",
     ]
     return [{"name": name, "value": value} for name in names if (value := os.getenv(name))]
+
+
+def _wait_for_task_public_ip(ecs_client, ec2_client, cluster: str, task_arn: str, request_id: str) -> str:
+    max_attempts = int(os.getenv("ECS_UIUX_VNC_URL_MAX_ATTEMPTS", "90"))
+    delay_seconds = float(os.getenv("ECS_UIUX_VNC_URL_POLL_SECONDS", "1"))
+    last_status = None
+
+    for attempt in range(1, max_attempts + 1):
+        task_desc = ecs_client.describe_tasks(cluster=cluster, tasks=[task_arn]).get("tasks", [{}])[0]
+        last_status = task_desc.get("lastStatus")
+        stopped_reason = task_desc.get("stoppedReason")
+        print(
+            f"[FARGATE] VNC network poll requestId={request_id}, attempt={attempt}/{max_attempts}, "
+            f"lastStatus={last_status}, stoppedReason={stopped_reason}",
+            flush=True,
+        )
+
+        if last_status == "STOPPED":
+            raise RuntimeError(f"Fargate task stopped before VNC URL was assigned. {_describe_task_failure(ecs_client, cluster, task_arn)}")
+
+        public_ip = None
+        eni_id = _extract_eni_id(task_desc)
+        if eni_id:
+            eni_info = ec2_client.describe_network_interfaces(NetworkInterfaceIds=[eni_id])
+            public_ip = eni_info["NetworkInterfaces"][0].get("Association", {}).get("PublicIp")
+
+        if public_ip:
+            return public_ip
+
+        time.sleep(delay_seconds)
+
+    raise RuntimeError(f"Timed out waiting for Fargate VNC public IP. lastStatus={last_status}")
 
 
 def run_fargate_task(request_id: str, target_url: str) -> None:
@@ -307,24 +341,16 @@ def run_fargate_task(request_id: str, target_url: str) -> None:
 
         task_arn = response["tasks"][0]["taskArn"]
         print(f"[FARGATE] Started taskArn={task_arn}", flush=True)
-        waiter = ecs_client.get_waiter("tasks_running")
-        print("[FARGATE] Waiting for task RUNNING...", flush=True)
-        try:
-            waiter.wait(cluster=cluster, tasks=[task_arn], WaiterConfig={"Delay": 1, "MaxAttempts": 120})
-        except WaiterError as exc:
-            task_failure = _describe_task_failure(ecs_client, cluster, task_arn)
-            raise RuntimeError(f"{exc}. {task_failure}") from exc
+        report_step(
+            request_id,
+            0,
+            target_url,
+            "PROVISIONING_VNC",
+            reason="Cloud browser task was submitted. Waiting for public VNC network address.",
+        )
 
-        print("[FARGATE] Resolving task network interface...", flush=True)
-        task_desc = ecs_client.describe_tasks(cluster=cluster, tasks=[task_arn])["tasks"][0]
-        eni_id = _extract_eni_id(task_desc)
-        if not eni_id:
-            raise RuntimeError("Could not resolve Fargate task ENI")
-
-        eni_info = ec2_client.describe_network_interfaces(NetworkInterfaceIds=[eni_id])
-        public_ip = eni_info["NetworkInterfaces"][0].get("Association", {}).get("PublicIp")
-        if not public_ip:
-            raise RuntimeError("Fargate task public IP is not assigned")
+        print("[FARGATE] Waiting for task public IP...", flush=True)
+        public_ip = _wait_for_task_public_ip(ecs_client, ec2_client, cluster, task_arn, request_id)
 
         vnc_url = f"http://{public_ip}:6080/vnc.html?autoconnect=true&resize=scale"
         print(f"[FARGATE] VNC URL ready: {vnc_url}", flush=True)
