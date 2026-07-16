@@ -16,6 +16,8 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 @Tag(name = "UI Test Explorer", description = "자율형 UI 탐색 API")
@@ -74,6 +76,39 @@ public class UIUXTestController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         } catch (Exception e) {
             log.error("테스트 상태 조회 중 오류 발생", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
+        }
+    }
+
+    @Operation(summary = "UI 탐색 VNC signed URL 발급", description = "로그인 사용자의 UI/UX 테스트 실시간 VNC 접근 URL을 발급합니다.")
+    @PostMapping("/{requestId}/vnc-token")
+    public ResponseEntity<?> issueVncToken(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID requestId) {
+        try {
+            UUID userId = UUID.fromString(jwt.getSubject());
+            long expiresAt = UIUXTestService.issueVncAccessExpiresAt(userId, requestId);
+            String token = UIUXTestService.signVncAccess(requestId, expiresAt);
+            String websocketPath = "/api/uiux-tests/" + requestId + "/vnc-ws"
+                    + "?expires=" + expiresAt
+                    + "&token=" + token;
+            String url = "/api/uiux-tests/" + requestId + "/vnc/vnc.html"
+                    + "?autoconnect=true"
+                    + "&resize=scale"
+                    + "&shared=true"
+                    + "&path=" + URLEncoder.encode(websocketPath, StandardCharsets.UTF_8)
+                    + "&expires=" + expiresAt
+                    + "&token=" + token;
+
+            return ResponseEntity.ok(new UIUXVncAccessResponse(url, expiresAt));
+        } catch (IllegalArgumentException e) {
+            log.warn("VNC signed URL 발급 실패: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalStateException e) {
+            log.warn("VNC signed URL 준비 실패: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
+        } catch (Exception e) {
+            log.error("VNC signed URL 발급 중 오류", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
         }
     }

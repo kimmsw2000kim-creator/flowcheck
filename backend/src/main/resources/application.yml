@@ -50,6 +50,11 @@ fastapi:
 internal:
   load-test-callback-token: ${LOAD_TEST_CALLBACK_TOKEN:}
 
+vnc:
+  signed-url:
+    secret: ${VNC_SIGNED_URL_SECRET:${SUPABASE_JWT_KEY:}}
+    ttl-seconds: ${VNC_SIGNED_URL_TTL_SECONDS:300}
+
 ---
 # 배포 환경(prod) 오버라이드: 개발 설정과 분리
 spring:

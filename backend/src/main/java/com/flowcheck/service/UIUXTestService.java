@@ -12,10 +12,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
 
-import java.time.Duration;
-import java.time.OffsetDateTime;
-
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -41,6 +46,12 @@ public class UIUXTestService {
 
     @Value("${supabase.anon-key:}")
     private String supabaseAnonKey;
+
+    @Value("${vnc.signed-url.secret:${SUPABASE_JWT_KEY:}}")
+    private String vncSignedUrlSecret;
+
+    @Value("${vnc.signed-url.ttl-seconds:300}")
+    private long vncSignedUrlTtlSeconds;
 
     private static final int TEST_COST = 1_000;
     private static final String TEST_TYPE_UIUX = "UIUX";
@@ -476,7 +487,15 @@ public class UIUXTestService {
     }
 
     private String stepKey(Map<String, Object> step) {
-        return String.valueOf(step.get("step")) + ":" + String.valueOf(step.get("action"));
+        return String.valueOf(step.get("step")) + ":" + normalizeStepAction(step.get("action"));
+    }
+
+    private String normalizeStepAction(Object rawAction) {
+        String action = String.valueOf(rawAction);
+        if ("STARTING_VNC".equals(action) || "STARTING_BROWSER".equals(action)) {
+            return "STARTING";
+        }
+        return action;
     }
 
     private String writeJsonOrNull(Object value, String label) {
@@ -522,6 +541,53 @@ public class UIUXTestService {
         }
 
         throw new IllegalStateException("아직 VNC 스트림 URL이 준비되지 않았습니다.");
+    }
+
+    @Transactional(readOnly = true)
+    public long issueVncAccessExpiresAt(UUID userId, UUID requestId) {
+        testRequestRepository.findByIdAndUser_UserIdAndTestType(requestId, userId, TEST_TYPE_UIUX)
+                .orElseThrow(() -> new IllegalArgumentException("UI/UX VNC 접근 권한이 없습니다."));
+
+        getLiveVncBaseUri(requestId);
+        return Instant.now().plusSeconds(vncSignedUrlTtlSeconds).getEpochSecond();
+    }
+
+    public String signVncAccess(UUID requestId, long expiresAt) {
+        if (vncSignedUrlSecret == null || vncSignedUrlSecret.isBlank()) {
+            throw new IllegalStateException("VNC signed URL secret is not configured.");
+        }
+
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(vncSignedUrlSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] signature = mac.doFinal(vncTokenPayload(requestId, expiresAt).getBytes(StandardCharsets.UTF_8));
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(signature);
+        } catch (Exception e) {
+            throw new IllegalStateException("VNC signed URL token could not be created.", e);
+        }
+    }
+
+    public void validateVncAccessToken(UUID requestId, long expiresAt, String token) {
+        if (token == null || token.isBlank()) {
+            throw new IllegalArgumentException("VNC token is required.");
+        }
+
+        if (Instant.now().getEpochSecond() > expiresAt) {
+            throw new IllegalArgumentException("VNC token has expired.");
+        }
+
+        String expectedToken = signVncAccess(requestId, expiresAt);
+        boolean tokenMatches = MessageDigest.isEqual(
+                expectedToken.getBytes(StandardCharsets.UTF_8),
+                token.getBytes(StandardCharsets.UTF_8));
+
+        if (!tokenMatches) {
+            throw new IllegalArgumentException("Invalid VNC token.");
+        }
+    }
+
+    private String vncTokenPayload(UUID requestId, long expiresAt) {
+        return requestId + ":" + expiresAt;
     }
 
     private URI validateVncBaseUri(String rawVncUrl) {

@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=24 <25",
-    "npm": ">=11 <12"
+    "node": ">=20 <25",
+    "npm": ">=9 <12"
   },
   "dependencies": {
     "axe-core": "^4.10.3",

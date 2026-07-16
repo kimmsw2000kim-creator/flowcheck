@@ -27,6 +27,12 @@ export interface MypageTestHistoryItem {
   status: string;
   phase: string | null;
   progress: number | null;
+  overallScore?: number | null;
+  scoreUsability?: number | null;
+  scoreAccessibility?: number | null;
+  scoreEfficiency?: number | null;
+  scorePerformance?: number | null;
+  scoreBestPractices?: number | null;
   description: string | null;
   createdAt: string;
   updatedAt: string | null;

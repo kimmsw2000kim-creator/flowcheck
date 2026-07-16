@@ -32,6 +32,7 @@ import AdminPage from './pages/admin/AdminPage';
 
 // Styles
 import './styles/CommunityPages.css';
+import './components/uiux/UIUXTestModule.css';
 import './styles/AppShell.css';
 import './styles/UtilityPages.css';
 
