@@ -11,11 +11,11 @@ import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.WebSocketHttpHeaders;
 import org.springframework.web.socket.WebSocketMessage;
 import org.springframework.web.socket.WebSocketSession;
-import org.springframework.web.socket.client.WebSocketClient;
 import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 
 import java.net.URI;
 import java.nio.ByteBuffer;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -26,8 +26,12 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 public class UIUXVncWebSocketProxyHandler implements WebSocketHandler, SubProtocolCapable {
 
+    private static final String TOMCAT_BINARY_BUFFER_SIZE = "org.apache.tomcat.websocket.binaryBufferSize";
+    private static final String TOMCAT_TEXT_BUFFER_SIZE = "org.apache.tomcat.websocket.textBufferSize";
+    private static final String VNC_WEBSOCKET_BUFFER_SIZE = "1048576";
+
     private final UIUXTestService uiuxTestService;
-    private final WebSocketClient webSocketClient = new StandardWebSocketClient();
+    private final StandardWebSocketClient webSocketClient = createWebSocketClient();
     private final Map<String, WebSocketSession> upstreamSessions = new ConcurrentHashMap<>();
 
     @Override
@@ -37,7 +41,14 @@ public class UIUXVncWebSocketProxyHandler implements WebSocketHandler, SubProtoc
         URI baseUri = uiuxTestService.getLiveVncBaseUri(requestId);
         URI upstreamUri = URI.create("ws://" + baseUri.getHost() + ":" + baseUri.getPort() + "/websockify");
         WebSocketHttpHeaders headers = new WebSocketHttpHeaders();
-        headers.setSecWebSocketProtocol(List.of("binary"));
+        String acceptedProtocol = clientSession.getAcceptedProtocol();
+        headers.setSecWebSocketProtocol(
+                acceptedProtocol != null && !acceptedProtocol.isBlank()
+                        ? List.of(acceptedProtocol)
+                        : List.of("binary"));
+
+        log.info("Opening VNC websocket proxy. requestId={}, clientSession={}, upstream={}",
+                requestId, clientSession.getId(), upstreamUri);
 
         WebSocketSession upstreamSession = webSocketClient.execute(
                 new UpstreamRelayHandler(clientSession),
@@ -45,6 +56,8 @@ public class UIUXVncWebSocketProxyHandler implements WebSocketHandler, SubProtoc
                 upstreamUri
         ).get();
         upstreamSessions.put(clientSession.getId(), upstreamSession);
+        log.info("VNC websocket proxy connected. requestId={}, clientSession={}, upstreamSession={}",
+                requestId, clientSession.getId(), upstreamSession.getId());
     }
 
     @Override
@@ -52,6 +65,9 @@ public class UIUXVncWebSocketProxyHandler implements WebSocketHandler, SubProtoc
         WebSocketSession upstreamSession = upstreamSessions.get(clientSession.getId());
         if (upstreamSession != null && upstreamSession.isOpen()) {
             send(upstreamSession, copyMessage(message));
+        } else {
+            log.warn("Dropping VNC client message because upstream is not open. clientSession={}",
+                    clientSession.getId());
         }
     }
 
@@ -63,12 +79,13 @@ public class UIUXVncWebSocketProxyHandler implements WebSocketHandler, SubProtoc
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus closeStatus) throws Exception {
+        log.info("VNC client websocket closed. clientSession={}, status={}", session.getId(), closeStatus);
         closePair(session, closeStatus);
     }
 
     @Override
     public boolean supportsPartialMessages() {
-        return false;
+        return true;
     }
 
     @Override
@@ -91,15 +108,24 @@ public class UIUXVncWebSocketProxyHandler implements WebSocketHandler, SubProtoc
 
     private WebSocketMessage<?> copyMessage(WebSocketMessage<?> message) {
         if (message instanceof TextMessage textMessage) {
-            return new TextMessage(textMessage.getPayload());
+            return new TextMessage(textMessage.getPayload(), message.isLast());
         }
         if (message instanceof BinaryMessage binaryMessage) {
             ByteBuffer payload = binaryMessage.getPayload().asReadOnlyBuffer();
             byte[] bytes = new byte[payload.remaining()];
             payload.get(bytes);
-            return new BinaryMessage(bytes);
+            return new BinaryMessage(bytes, message.isLast());
         }
         return message;
+    }
+
+    private static StandardWebSocketClient createWebSocketClient() {
+        StandardWebSocketClient client = new StandardWebSocketClient();
+        Map<String, Object> userProperties = new HashMap<>();
+        userProperties.put(TOMCAT_BINARY_BUFFER_SIZE, VNC_WEBSOCKET_BUFFER_SIZE);
+        userProperties.put(TOMCAT_TEXT_BUFFER_SIZE, VNC_WEBSOCKET_BUFFER_SIZE);
+        client.setUserProperties(userProperties);
+        return client;
     }
 
     private class UpstreamRelayHandler implements WebSocketHandler {
@@ -111,6 +137,7 @@ public class UIUXVncWebSocketProxyHandler implements WebSocketHandler, SubProtoc
 
         @Override
         public void afterConnectionEstablished(WebSocketSession session) {
+            log.info("VNC upstream websocket connected. upstreamSession={}", session.getId());
         }
 
         @Override
@@ -130,6 +157,7 @@ public class UIUXVncWebSocketProxyHandler implements WebSocketHandler, SubProtoc
 
         @Override
         public void afterConnectionClosed(WebSocketSession session, CloseStatus closeStatus) throws Exception {
+            log.info("VNC upstream websocket closed. upstreamSession={}, status={}", session.getId(), closeStatus);
             if (clientSession.isOpen()) {
                 clientSession.close(closeStatus);
             }
@@ -137,7 +165,7 @@ public class UIUXVncWebSocketProxyHandler implements WebSocketHandler, SubProtoc
 
         @Override
         public boolean supportsPartialMessages() {
-            return false;
+            return true;
         }
     }
 }

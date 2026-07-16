@@ -107,6 +107,36 @@ const getEngineLabel = (source?: string) => {
     }
 };
 
+const getDefectCategoryLabel = (category?: string) => {
+    switch (category) {
+        case 'USABILITY':
+            return '사용성';
+        case 'ACCESSIBILITY':
+            return '접근성';
+        case 'EFFICIENCY':
+            return '탐색 효율';
+        case 'PERFORMANCE':
+            return '성능';
+        case 'BEST_PRACTICES':
+            return '기술 품질';
+        default:
+            return '품질';
+    }
+};
+
+const getDefectSeverityLabel = (severity?: string) => {
+    switch (severity) {
+        case 'CRITICAL':
+            return '긴급';
+        case 'MAJOR':
+            return '중요';
+        case 'MINOR':
+            return '경미';
+        default:
+            return '확인 필요';
+    }
+};
+
 const getScoreGrade = (score?: number) => {
     if (score == null) return '대기';
     if (score >= 90) return '우수';
@@ -132,6 +162,22 @@ const getEngineSummary = (scoreBreakdown?: Record<string, unknown>) => {
             detail: axe?.available ? `${axe?.violationCount ?? 0}개 접근성 위반을 분석했습니다.` : axe?.error || '실행 결과가 없습니다.',
         },
     ];
+};
+
+const summarizeEngineFallback = (error?: string) => {
+    if (!error) {
+        return '분석 도구 결과를 가져오지 못해 브라우저 기반 대체 규칙으로 평가했습니다.';
+    }
+
+    if (/Command|returned non-zero exit status|node_modules|lighthouse\/cli|subprocess/i.test(error)) {
+        return '분석 도구 실행이 완료되지 않아 브라우저 기반 대체 규칙으로 평가했습니다.';
+    }
+
+    if (/timeout|timed out/i.test(error)) {
+        return '분석 도구 실행 시간이 초과되어 브라우저 기반 대체 규칙으로 평가했습니다.';
+    }
+
+    return '분석 도구 결과를 사용할 수 없어 브라우저 기반 대체 규칙으로 평가했습니다.';
 };
 
 function MypageTestDetailSection() {
@@ -255,7 +301,7 @@ function MypageTestDetailSection() {
                         </div>
 
                         <div className="uiux-card uiux-engine-card">
-                            <span className="uiux-eyebrow">Evaluation Engines</span>
+                            <span className="uiux-eyebrow">분석 도구 상태</span>
                             <div className="uiux-engine-list">
                                 {engineSummary.map((engine) => (
                                     <div className="uiux-engine-item" key={engine.label}>
@@ -327,10 +373,10 @@ function MypageTestDetailSection() {
                                 >
                                     <div>
                                         <span>{getEngineLabel(defect.source)}</span>
-                                        <strong>{defect.category}</strong>
+                                        <strong>{getDefectCategoryLabel(defect.category)}</strong>
                                     </div>
                                     <div className="uiux-defect-meta">
-                                        <span>{defect.severity}</span>
+                                        <span>{getDefectSeverityLabel(defect.severity)}</span>
                                         {defect.ruleId && <span>{defect.ruleId}</span>}
                                     </div>
                                     <p>{defect.description}</p>
@@ -366,7 +412,7 @@ function MypageTestDetailSection() {
                     <article className="uiux-report-detail-card">
                         <div className="uiux-report-detail-index">EN</div>
                         <div>
-                            <strong>검사 엔진 상태</strong>
+                            <strong>분석 도구 상태</strong>
                             <ul className="uiux-report-detail-list">
                                 {engineSummary.map((engine) => (
                                     <li key={`engine-${engine.label}`}>{engine.label} {engine.value}: {engine.detail}</li>

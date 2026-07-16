@@ -1,7 +1,13 @@
 ﻿import React, { useEffect, useRef, useState } from 'react';
 import apiClient from '../api/client';
 import ApiURL from '../api/ApiURL';
-import { startUIUXTest, getUIUXTestStatus, UIUXTestStepData, UIUXTestStatusResponse } from '../api/UIUXTestApi';
+import {
+  startUIUXTest,
+  getUIUXTestStatus,
+  issueUIUXVncAccess,
+  UIUXTestStepData,
+  UIUXTestStatusResponse,
+} from '../api/UIUXTestApi';
 import CustomVideoPlayer from '../components/video/CustomVideoPlayer';
 import UIUXScoreRadarChart from '../components/dashboard/UIUXScoreRadarChart';
 import UIUXScoreBarChart from '../components/dashboard/UIUXScoreBarChart';
@@ -33,30 +39,12 @@ const getLiveVncProxyOrigin = () => {
   return ApiURL;
 };
 
-const buildLiveVncProxyUrl = (requestId: string) => {
-  const path = `/api/uiux-tests/${requestId}/vnc/vnc.html`;
-  const websocketPath = `/api/uiux-tests/${requestId}/vnc/websockify`;
-  return `${getLiveVncProxyOrigin()}${path}?autoconnect=true&resize=scale&path=${encodeURIComponent(websocketPath)}`;
-};
-
-const isLocalBrowser = () => ['localhost', '127.0.0.1'].includes(window.location.hostname);
-
-const getDirectLocalVncUrl = (steps: UIUXTestStepData[]) => {
-  if (!isLocalBrowser()) return null;
-
-  const directUrl = [...steps]
-    .reverse()
-    .find((step) => typeof step.vncUrl === 'string' && step.vncUrl.length > 0)
-    ?.vncUrl;
-
-  if (!directUrl) return null;
-
-  try {
-    const parsed = new URL(directUrl);
-    return ['localhost', '127.0.0.1'].includes(parsed.hostname) ? directUrl : null;
-  } catch {
-    return null;
+const buildLiveVncProxyUrl = (url: string) => {
+  if (/^https?:\/\//i.test(url)) {
+    return url;
   }
+
+  return `${getLiveVncProxyOrigin()}${url}`;
 };
 
 const formatTimeForDisplay = (time: number) => {
@@ -130,6 +118,36 @@ const getEngineLabel = (source?: string) => {
   }
 };
 
+const getDefectCategoryLabel = (category?: string) => {
+  switch (category) {
+    case 'USABILITY':
+      return '사용성';
+    case 'ACCESSIBILITY':
+      return '접근성';
+    case 'EFFICIENCY':
+      return '탐색 효율';
+    case 'PERFORMANCE':
+      return '성능';
+    case 'BEST_PRACTICES':
+      return '기술 품질';
+    default:
+      return '품질';
+  }
+};
+
+const getDefectSeverityLabel = (severity?: string) => {
+  switch (severity) {
+    case 'CRITICAL':
+      return '긴급';
+    case 'MAJOR':
+      return '중요';
+    case 'MINOR':
+      return '경미';
+    default:
+      return '확인 필요';
+  }
+};
+
 const getScoreGrade = (score?: number) => {
   if (score == null) return '대기';
   if (score >= 90) return '우수';
@@ -145,6 +163,8 @@ const getStepActionLabel = (action?: string) => {
       return '브라우저 준비';
     case 'LOAD_PAGE':
       return '페이지 로드';
+    case 'CLASSIFY_SITE':
+      return '사이트 유형 분류';
     case 'RUN_LIGHTHOUSE':
       return 'Lighthouse 측정';
     case 'RUN_AXE':
@@ -177,14 +197,30 @@ const getEngineSummary = (scoreBreakdown?: Record<string, unknown>) => {
     {
       label: 'Lighthouse',
       value: lighthouse?.available ? '정상' : '대체 규칙',
-      detail: lighthouse?.available ? '성능, 접근성, 기술 품질 점수를 반영했습니다.' : lighthouse?.error || '실행 결과가 없습니다.',
+      detail: lighthouse?.available ? '성능, 접근성, 기술 품질 점수를 반영했습니다.' : summarizeEngineFallback(lighthouse?.error),
     },
     {
       label: 'axe-core',
       value: axe?.available ? '정상' : '대체 규칙',
-      detail: axe?.available ? `${axe?.violationCount ?? 0}개 접근성 위반을 분석했습니다.` : axe?.error || '실행 결과가 없습니다.',
+      detail: axe?.available ? `${axe?.violationCount ?? 0}개 접근성 위반을 분석했습니다.` : summarizeEngineFallback(axe?.error),
     },
   ];
+};
+
+const summarizeEngineFallback = (error?: string) => {
+  if (!error) {
+    return '분석 도구 결과를 가져오지 못해 브라우저 기반 대체 규칙으로 평가했습니다.';
+  }
+
+  if (/Command|returned non-zero exit status|node_modules|lighthouse\/cli|subprocess/i.test(error)) {
+    return '분석 도구 실행이 완료되지 않아 브라우저 기반 대체 규칙으로 평가했습니다.';
+  }
+
+  if (/timeout|timed out/i.test(error)) {
+    return '분석 도구 실행 시간이 초과되어 브라우저 기반 대체 규칙으로 평가했습니다.';
+  }
+
+  return '분석 도구 결과를 사용할 수 없어 브라우저 기반 대체 규칙으로 평가했습니다.';
 };
 
 export default function UIUXTestPage({
@@ -200,6 +236,8 @@ export default function UIUXTestPage({
   const [UIUXTestStatus, setUIUXTestStatus] = useState('idle');
   const [UIUXTestSteps, setUIUXTestSteps] = useState<UIUXTestStepData[]>([]);
   const [currentRequestId, setCurrentRequestId] = useState<string | null>(null);
+  const [liveVncProxyUrl, setLiveVncProxyUrl] = useState<string | null>(null);
+  const [vncAccessRequestId, setVncAccessRequestId] = useState<string | null>(null);
   const [reportData, setReportData] = useState<UIUXTestStatusResponse | null>(null);
   const [activeDefectId, setActiveDefectId] = useState<number | null>(null);
   const [showHeuristics, setShowHeuristics] = useState(false);
@@ -230,8 +268,6 @@ export default function UIUXTestPage({
 
   const isRunning = UIUXTestStatus === 'running';
   const hasLiveVncUrl = UIUXTestSteps.some((step) => typeof step.vncUrl === 'string' && step.vncUrl.length > 0);
-  const directLocalVncUrl = getDirectLocalVncUrl(UIUXTestSteps);
-  const liveVncProxyUrl = directLocalVncUrl || (currentRequestId && hasLiveVncUrl ? buildLiveVncProxyUrl(currentRequestId) : null);
   const reportCards = parseReportCards(reportData?.report);
   const overallScore = reportData?.scores?.overall;
   const engineSummary = getEngineSummary(reportData?.scoreBreakdown);
@@ -239,6 +275,33 @@ export default function UIUXTestPage({
     .reverse()
     .find((step) => typeof step.screenshotUrl === 'string' && step.screenshotUrl.startsWith('data:image/'))
     ?.screenshotUrl;
+
+  useEffect(() => {
+    if (!isRunning || !currentRequestId || !hasLiveVncUrl) {
+      return;
+    }
+
+    if (vncAccessRequestId === currentRequestId && liveVncProxyUrl) {
+      return;
+    }
+
+    let disposed = false;
+
+    void issueUIUXVncAccess(currentRequestId)
+      .then((response) => {
+        if (disposed) return;
+        setLiveVncProxyUrl(buildLiveVncProxyUrl(response.url));
+        setVncAccessRequestId(currentRequestId);
+      })
+      .catch((error) => {
+        if (disposed) return;
+        console.error('Failed to issue VNC access URL:', error);
+      });
+
+    return () => {
+      disposed = true;
+    };
+  }, [currentRequestId, hasLiveVncUrl, isRunning, liveVncProxyUrl, vncAccessRequestId]);
 
   const handleRunUIUXTest = async () => {
     if (isSubmittingRef.current) {
@@ -270,6 +333,8 @@ export default function UIUXTestPage({
     setUIUXTestSteps([]);
     setReportData(null);
     setCurrentRequestId(null);
+    setLiveVncProxyUrl(null);
+    setVncAccessRequestId(null);
     isSubmittingRef.current = true;
 
     try {
@@ -532,7 +597,7 @@ export default function UIUXTestPage({
               </div>
 
               <div className="uiux-card uiux-engine-card">
-                <span className="uiux-eyebrow">Evaluation Engines</span>
+                <span className="uiux-eyebrow">분석 도구 상태</span>
                 <div className="uiux-engine-list">
                   {engineSummary.map((engine) => (
                     <div className="uiux-engine-item" key={engine.label}>
@@ -608,10 +673,10 @@ export default function UIUXTestPage({
                     >
                       <div>
                         <span>{getEngineLabel(defect.source)}</span>
-                        <strong>{defect.category}</strong>
+                        <strong>{getDefectCategoryLabel(defect.category)}</strong>
                       </div>
                       <div className="uiux-defect-meta">
-                        <span>{defect.severity}</span>
+                        <span>{getDefectSeverityLabel(defect.severity)}</span>
                         {defect.ruleId && <span>{defect.ruleId}</span>}
                       </div>
                       <p>{defect.description}</p>
@@ -648,7 +713,7 @@ export default function UIUXTestPage({
                 <article className="uiux-report-detail-card">
                   <div className="uiux-report-detail-index">EN</div>
                   <div>
-                    <strong>검사 엔진 상태</strong>
+                    <strong>분석 도구 상태</strong>
                     <ul className="uiux-report-detail-list">
                       {engineSummary.map((engine) => (
                         <li key={`engine-${engine.label}`}>{engine.label} {engine.value}: {engine.detail}</li>
