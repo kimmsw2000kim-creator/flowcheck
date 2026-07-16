@@ -10,7 +10,10 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-@RestControllerAdvice
+import com.flowcheck.controller.PostController;
+
+// 게시판 요청 검증 오류만 같은 응답 형식으로 변환합니다.
+@RestControllerAdvice(assignableTypes = PostController.class)
 public class GlobalExceptionHandler {
 
     /**

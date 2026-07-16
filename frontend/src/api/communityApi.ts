@@ -1,6 +1,7 @@
 import ApiURL from './ApiURL';
 import type {
   ForumComment,
+  ForumCommentPage,
   ForumLikeStatus,
   ForumPost,
   ForumPostPage,
@@ -159,6 +160,26 @@ export async function getComments(postId: number): Promise<ForumComment[]> {
     method: 'GET',
     headers: authHeaders(),
   });
+
+  if (!response.ok) {
+    throw new Error('댓글을 불러오지 못했습니다.');
+  }
+
+  return unwrap(await response.json());
+}
+
+export async function getCommentPage(
+  postId: number,
+  page = 0,
+  size = 20,
+): Promise<ForumCommentPage> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/posts/${postId}/comments/page?page=${page}&size=${size}`,
+    {
+      method: 'GET',
+      headers: authHeaders(),
+    },
+  );
 
   if (!response.ok) {
     throw new Error('댓글을 불러오지 못했습니다.');

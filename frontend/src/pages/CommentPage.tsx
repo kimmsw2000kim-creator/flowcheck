@@ -14,7 +14,7 @@ import {
     createComment,
     deleteComment,
     deletePost,
-    getComments,
+    getCommentPage,
     getLikeStatus,
     getPost,
     getPosts,
@@ -43,6 +43,7 @@ import { COMMUNITY_LIMITS } from '../constants/communityLimits';
 
 import type {
     ForumComment,
+    ForumCommentPage,
     ForumPost,
 } from '../types/community';
 
@@ -194,6 +195,9 @@ export default function CommentPage({
     const [commentPage, setCommentPage] =
         useState(1);
 
+    const [totalCommentPages, setTotalCommentPages] =
+        useState(1);
+
     const [commentValue, setCommentValue] =
         useState('');
 
@@ -231,19 +235,13 @@ export default function CommentPage({
         useRef(false);
 
     /**
-     * 댓글 20개 단위 페이징
+     * 서버가 반환한 댓글 페이지 정보를 화면 상태에 반영합니다.
      */
-    const totalCommentPages = Math.max(
-        1,
-        Math.ceil(
-            comments.length / COMMENTS_PER_PAGE,
-        ),
-    );
-
-    const paginatedComments = comments.slice(
-        (commentPage - 1) * COMMENTS_PER_PAGE,
-        commentPage * COMMENTS_PER_PAGE,
-    );
+    const applyCommentPage = useCallback((commentData: ForumCommentPage) => {
+        setComments(commentData.content ?? []);
+        setTotalCommentPages(Math.max(commentData.totalPages ?? 1, 1));
+        setCommentPage((commentData.number ?? 0) + 1);
+    }, []);
 
     /**
      * 로그인 사용자 정보
@@ -396,6 +394,7 @@ export default function CommentPage({
             setLiked(false);
 
             setCommentPage(1);
+            setTotalCommentPages(1);
             setCommentValue('');
             setReplyValue('');
             setReplyParentId(null);
@@ -414,11 +413,15 @@ export default function CommentPage({
 
                 const [
                     nextPost,
-                    nextComments,
+                    commentData,
                     likeStatus,
                 ] = await Promise.all([
                     getPost(targetPostId),
-                    getComments(targetPostId),
+                    getCommentPage(
+                        targetPostId,
+                        0,
+                        COMMENTS_PER_PAGE,
+                    ),
 
                     getLikeStatus(targetPostId)
                         .catch(() => ({
@@ -427,10 +430,9 @@ export default function CommentPage({
                 ]);
 
                 setSelectedPost(nextPost);
-                setComments(nextComments);
+                applyCommentPage(commentData);
                 setLiked(likeStatus.liked);
 
-                setCommentPage(1);
                 setCommentValue('');
                 setReplyValue('');
                 setReplyParentId(null);
@@ -457,6 +459,7 @@ export default function CommentPage({
         [
             navigate,
             listPath,
+            applyCommentPage,
             resetPostDetail,
             showAlert,
         ],
@@ -541,19 +544,83 @@ export default function CommentPage({
      */
     const refreshDetail = async (
         targetPostId: number,
+        requestedPage: number | 'last' = commentPage,
     ) => {
+        const requestedPageIndex = requestedPage === 'last'
+            ? 0
+            : Math.max(requestedPage - 1, 0);
+
         const [
             nextPost,
-            nextComments,
+            initialCommentData,
         ] = await Promise.all([
             getPost(targetPostId),
-            getComments(targetPostId),
+            getCommentPage(
+                targetPostId,
+                requestedPageIndex,
+                COMMENTS_PER_PAGE,
+            ),
         ]);
 
+        let commentData = initialCommentData;
+        const lastPageIndex = Math.max(initialCommentData.totalPages - 1, 0);
+
+        if (
+            requestedPage === 'last' &&
+            lastPageIndex !== requestedPageIndex
+        ) {
+            commentData = await getCommentPage(
+                targetPostId,
+                lastPageIndex,
+                COMMENTS_PER_PAGE,
+            );
+        } else if (
+            requestedPage !== 'last' &&
+            requestedPage > Math.max(initialCommentData.totalPages, 1)
+        ) {
+            commentData = await getCommentPage(
+                targetPostId,
+                lastPageIndex,
+                COMMENTS_PER_PAGE,
+            );
+        }
+
         setSelectedPost(nextPost);
-        setComments(nextComments);
+        applyCommentPage(commentData);
 
         await loadPosts();
+    };
+
+    /**
+     * 게시글과 목록을 다시 불러오지 않고 댓글 페이지만 변경합니다.
+     */
+    const loadCommentPage = async (
+        nextPage: number,
+    ) => {
+        if (!selectedPost) {
+            return;
+        }
+
+        try {
+            const commentData = await getCommentPage(
+                selectedPost.id,
+                nextPage - 1,
+                COMMENTS_PER_PAGE,
+            );
+
+            applyCommentPage(commentData);
+            setReplyParentId(null);
+            setReplyValue('');
+            replyLimitWarnedRef.current = false;
+        } catch (loadError) {
+            showAlert(
+                getErrorMessage(
+                    loadError,
+                    '댓글 페이지를 불러오지 못했습니다.',
+                ),
+                'error',
+            );
+        }
     };
 
     /**
@@ -763,12 +830,12 @@ export default function CommentPage({
             );
 
             setCommentValue('');
-            setCommentPage(1);
 
             commentLimitWarnedRef.current = false;
 
             await refreshDetail(
                 selectedPost.id,
+                'last',
             );
 
             await showSuccessAlert(
@@ -828,6 +895,7 @@ export default function CommentPage({
 
             await refreshDetail(
                 selectedPost.id,
+                commentPage,
             );
 
             await showSuccessAlert(
@@ -879,6 +947,7 @@ export default function CommentPage({
 
             await refreshDetail(
                 selectedPost.id,
+                commentPage,
             );
 
             await showSuccessAlert(
@@ -966,7 +1035,7 @@ export default function CommentPage({
                 />
 
                 <ForumCommentThread
-                    comments={paginatedComments}
+                    comments={comments}
                     commentCount={selectedPost?.commentCount ?? 0}
                     currentUserEmail={loginUserEmail}
                     value={commentValue}
@@ -990,11 +1059,7 @@ export default function CommentPage({
                     currentPage={commentPage}
                     totalPages={totalCommentPages}
                     onPageChange={(nextPage) => {
-                        setCommentPage(nextPage);
-                        setReplyParentId(null);
-                        setReplyValue('');
-
-                        replyLimitWarnedRef.current = false;
+                        void loadCommentPage(nextPage);
                     }}
                 />
             </div>

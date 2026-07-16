@@ -45,7 +45,7 @@ export default function CommentPagination({
 
         window.requestAnimationFrame(() => {
             document
-                .querySelector('.forum-comment-thread')
+                .querySelector('.community-comments')
                 ?.scrollIntoView({
                     behavior: 'smooth',
                     block: 'start',

@@ -5,6 +5,7 @@ import {
 
 import { MessageCircle } from 'lucide-react';
 
+import { COMMUNITY_LIMITS } from '../../constants/communityLimits';
 import type { ForumComment } from '../../types/community';
 
 import {
@@ -22,7 +23,7 @@ export interface ForumCommentThreadProps {
    * 페이징으로 잘린 배열 길이가 아니라
    * 게시글의 전체 댓글 개수를 전달합니다.
    */
-  commentCount: number;
+  commentCount?: number;
 
   currentUserEmail: string;
   value: string;
@@ -72,7 +73,10 @@ function getWriter(
 
 export default function ForumCommentThread({
   comments,
-  commentCount,
+  commentCount = comments.reduce(
+    (count, comment) => count + 1 + (comment.replies?.length ?? 0),
+    0,
+  ),
   currentUserEmail,
   value,
   replyValue,
@@ -137,6 +141,7 @@ export default function ForumCommentThread({
         <Field
           label={`${label} 작성`}
           htmlFor={`comment-${uid}`}
+          description={`${value.length} / ${COMMUNITY_LIMITS.COMMENT}자`}
           required
         >
           <textarea
@@ -257,6 +262,7 @@ export default function ForumCommentThread({
                     <Field
                       label={`${getWriter(comment)}님에게 답글`}
                       htmlFor={`${replyId}-input`}
+                      description={`${replyValue.length} / ${COMMUNITY_LIMITS.REPLY}자`}
                       required
                     >
                       <textarea

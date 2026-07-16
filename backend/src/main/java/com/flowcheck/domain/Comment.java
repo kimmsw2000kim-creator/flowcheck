@@ -23,7 +23,7 @@ public class Comment {
 
     private Long parentId;
 
-    @Column(nullable = false, length = 500)
+    @Column(columnDefinition = "TEXT")
     private String content;
 
     private String writerEmail;
