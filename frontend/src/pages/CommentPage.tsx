@@ -525,7 +525,7 @@ export default function CommentPage({
     const openPost = (
         targetPostId: number,
     ) => {
-        navigate(detailPath(postId));
+        navigate(detailPath(targetPostId));
     };
 
     const handleBackToList = () => {
