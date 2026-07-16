@@ -6,7 +6,6 @@ import com.flowcheck.domain.CreditsLedger;
 import com.flowcheck.domain.LoadTestReport;
 import com.flowcheck.domain.RegisteredSite;
 import com.flowcheck.domain.TestRequest;
-import com.flowcheck.domain.UIUXTestReport;
 import com.flowcheck.domain.User;
 import com.flowcheck.dto.mypage.MypageCouponHistoryResponseDTO;
 import com.flowcheck.dto.mypage.MypagePointHistoryResponseDTO;
@@ -110,7 +109,7 @@ public class MypageService {
 
                 List<TestRequest> uiRequests = testRequestRepository.findByUserAndTestTypeOrderByCreatedAtAsc(user, "UIUX");
                 uiRequests.forEach(test -> {
-                        UIUXTestReport report = uiuxTestReportRepository.findByTestRequestId(test.getId()).orElse(null);
+                        var report = uiuxTestReportRepository.findScoresProjectionByTestRequestId(test.getId()).orElse(null);
                         histories.add(new MypageTestHistoryResponseDTO(
                                         test.getId(),
                                         "UIUX",

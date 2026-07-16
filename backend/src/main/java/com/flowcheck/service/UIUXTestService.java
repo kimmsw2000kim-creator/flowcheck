@@ -182,9 +182,9 @@ public class UIUXTestService {
         String evaluationVersion = null;
         List<UIUXTestStatusResponse.DefectDto> defectDtos = new java.util.ArrayList<>();
         
-        var reportOpt = UIUXTestReportRepository.findByTestRequestId(requestId);
+        var reportOpt = UIUXTestReportRepository.findStatusProjectionByTestRequestId(requestId);
         if (reportOpt.isPresent()) {
-            UIUXTestReport report = reportOpt.get();
+            var report = reportOpt.get();
             reportMarkdown = report.getUiuxTestReview() != null ? report.getUiuxTestReview() : "";
             try {
                 stepsList = objectMapper.readValue(report.getRawLogs(), new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
@@ -218,8 +218,8 @@ public class UIUXTestService {
             }
             evaluationVersion = report.getEvaluationVersion();
             
-            List<UIUXTestDefect> defects = uiuxTestDefectRepository.findByTestRequestId(requestId);
-            for (UIUXTestDefect defect : defects) {
+            var defects = uiuxTestDefectRepository.findStatusProjectionsByTestRequestId(requestId);
+            for (var defect : defects) {
                 Map<String, Object> evidence = null;
                 try {
                     if (defect.getEvidence() != null) {
@@ -523,7 +523,7 @@ public class UIUXTestService {
             throw new IllegalArgumentException("UI/UX 테스트 요청이 아닙니다.");
         }
 
-        UIUXTestReport report = UIUXTestReportRepository.findByTestRequestId(requestId)
+        var report = UIUXTestReportRepository.findStatusProjectionByTestRequestId(requestId)
                 .orElseThrow(() -> new IllegalStateException("아직 VNC 스트림이 준비되지 않았습니다."));
 
         List<Map<String, Object>> logs;

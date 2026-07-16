@@ -9,12 +9,10 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URLEncoder;
@@ -108,20 +106,6 @@ public class UIUXTestController {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
         } catch (Exception e) {
             log.error("VNC signed URL 발급 중 오류", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
-        }
-    }
-
-    @Autowired
-    private jakarta.persistence.EntityManager entityManager;
-
-    @GetMapping("/fix-db")
-    @Transactional
-    public ResponseEntity<?> fixDb() {
-        try {
-            entityManager.createNativeQuery("ALTER TABLE public.uiux_test_reports DROP COLUMN ai_ux_review").executeUpdate();
-            return ResponseEntity.ok("ai_ux_review column dropped successfully.");
-        } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
         }
     }
