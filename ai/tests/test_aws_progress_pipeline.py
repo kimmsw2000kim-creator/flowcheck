@@ -245,7 +245,7 @@ class PipelineTest(unittest.IsolatedAsyncioTestCase):
         publish,
         _generate_script,
         execute,
-        _generate_analysis,
+        generate_analysis,
         _build_report,
         build_points,
     ):
@@ -271,6 +271,7 @@ class PipelineTest(unittest.IsolatedAsyncioTestCase):
         result = await run_load_test_pipeline(Mock(), request)
 
         validate_target.assert_awaited_once_with("https://example.com")
+        generate_analysis.assert_awaited_once()
         self.assertIsInstance(result, TestResultsResponse)
         self.assertEqual(12, result.maxTps)
         self.assertEqual(120.46, result.avgResponse)
