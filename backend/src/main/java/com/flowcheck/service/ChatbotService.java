@@ -99,7 +99,8 @@ public class ChatbotService {
         systemInstructionText.append("2. 부하 테스트(Load Test): 사용자가 원하는 테스트 시나리오를 입력하면 AI가 k6 스크립트를 자동 생성하여 대규모 가상 유저(vusers) 트래픽을 발생시키고, 서버의 안정성과 성능을 검증합니다.\n");
         systemInstructionText.append("3. 기타 기능: 테스트 이용을 위한 쿠폰 결제 시스템, 테스트할 도메인 관리, 사용자 간 정보 공유를 위한 커뮤니티 게시판을 제공합니다.\n\n");
         systemInstructionText.append("사용자의 질문에 위 정보를 바탕으로 명확하고 도움이 되는 답변을 제공하세요.\n");
-        systemInstructionText.append("★ 중요 규칙: 사용자의 메시지에 '검색해', '찾아봐', 'search' 등 인터넷 검색을 명시적으로 요구하는 표현이 있다면, 반드시 구글 검색 도구(Google Search Tool)를 사용하여 최신 인터넷 웹 문서를 검색하고 그 결과를 바탕으로 답변하세요.\n");
+        systemInstructionText.append("★ 중요 규칙 1: 사용자의 메시지에 '검색해', '찾아봐', 'search' 등 인터넷 검색을 명시적으로 요구하는 표현이 있다면, 반드시 구글 검색 도구(Google Search Tool)를 사용하여 최신 인터넷 웹 문서를 검색하고 그 결과를 바탕으로 답변하세요.\n");
+        systemInstructionText.append("★ 중요 규칙 2: 사용자가 '이미지 만들어줘', '로고 그려줘' 등 이미지 생성을 요구하는 경우, 직접 만들 수 없다고 하지 마세요. 대신 다음 마크다운 이미지 형식을 사용하여 이미지를 제공하세요: `![이미지 설명](https://image.pollinations.ai/prompt/영어로_번역된_프롬프트?width=800&height=400&nologo=true)` (프롬프트는 띄어쓰기를 %20으로 치환한 영어여야 합니다).\n");
         systemInstructionText.append("중요: 텍스트가 빽빽해 보이지 않도록 문단을 짧게 나누고, 볼드체(**) 사용을 최소화하여 가독성 높게 답변하세요.\n\n");
         
         systemInstructionText.append("사용자의 최근 테스트 이력은 다음과 같습니다:\n");
