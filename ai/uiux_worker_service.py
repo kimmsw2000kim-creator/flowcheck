@@ -324,15 +324,252 @@ def severity_from_impact(impact: Optional[str]) -> str:
         "minor": "MINOR",
     }.get((impact or "").lower(), "MINOR")
 
+def localize_axe_rule_id(rule_id: Optional[str]) -> Optional[str]:
+    """axe-core rule ID를 한글 설명으로 변환합니다."""
+    if not rule_id:
+        return None
+    mapping = {
+        "color-contrast": "텍스트와 배경의 색상 대비가 WCAG 기준을 충족하지 않습니다.",
+        "image-alt": "이미지에 대체 텍스트(alt)가 없습니다.",
+        "button-name": "버튼에 접근 가능한 이름이 없습니다.",
+        "link-name": "링크에 접근 가능한 텍스트가 없습니다.",
+        "label": "폼 입력 요소에 연결된 라벨이 없습니다.",
+        "aria-required-attr": "ARIA 역할에 필수 속성이 누락되었습니다.",
+        "aria-required-children": "ARIA 역할에 필수 자식 요소가 없습니다.",
+        "aria-required-parent": "ARIA 요소가 올바른 부모 요소 안에 있지 않습니다.",
+        "aria-roles": "유효하지 않은 ARIA 역할이 사용되었습니다.",
+        "aria-valid-attr": "유효하지 않은 ARIA 속성이 있습니다.",
+        "aria-valid-attr-value": "ARIA 속성 값이 올바르지 않습니다.",
+        "aria-hidden-body": "body 요소에 aria-hidden이 설정되어 있어 접근성을 차단합니다.",
+        "aria-hidden-focus": "aria-hidden 요소 안에 포커스 가능한 요소가 있습니다.",
+        "aria-allowed-attr": "해당 ARIA 역할에 허용되지 않는 속성이 있습니다.",
+        "aria-prohibited-attr": "해당 요소에 사용이 금지된 ARIA 속성이 있습니다.",
+        "frame-title": "iframe에 제목이 없습니다.",
+        "frame-tested": "iframe 내부를 검사할 수 없습니다.",
+        "html-lang-valid": "html 요소의 lang 속성이 유효하지 않습니다.",
+        "html-has-lang": "html 요소에 lang 속성이 없습니다.",
+        "document-title": "페이지 제목(title)이 없습니다.",
+        "duplicate-id": "페이지 내에 중복된 id 값이 있습니다.",
+        "duplicate-id-active": "포커스 가능한 요소에 중복된 id 값이 있습니다.",
+        "duplicate-id-aria": "ARIA 참조에 사용된 id 값이 중복되어 있습니다.",
+        "heading-order": "제목 계층 구조(h1~h6)가 올바르지 않습니다.",
+        "landmark-one-main": "문서에 main 랜드마크가 하나만 있어야 합니다.",
+        "landmark-complementary-is-top-level": "aside 랜드마크는 최상위 랜드마크여야 합니다.",
+        "landmark-no-duplicate-banner": "banner 랜드마크가 두 개 이상 있습니다.",
+        "landmark-no-duplicate-contentinfo": "contentinfo 랜드마크가 두 개 이상 있습니다.",
+        "landmark-no-duplicate-main": "main 랜드마크가 두 개 이상 있습니다.",
+        "region": "페이지의 주요 콘텐츠가 랜드마크 영역 안에 포함되지 않았습니다.",
+        "skip-link": "키보드 사용자를 위한 건너뛰기 링크가 없습니다.",
+        "tabindex": "tabindex 값이 0보다 크면 키보드 탐색 순서가 혼란스러워집니다.",
+        "target-size": "클릭/터치 대상의 크기가 최소 권장 기준(44x44px)보다 작습니다.",
+        "focus-trap": "포커스가 특정 영역에 갇혀 있어 키보드로 벗어날 수 없습니다.",
+        "focusable-disabled": "비활성화된 요소가 포커스를 받고 있습니다.",
+        "focusable-modal-open": "모달이 열려 있는 동안 배경 콘텐츠가 포커스 가능한 상태입니다.",
+        "scrollable-region-focusable": "스크롤 가능한 영역이 키보드로 접근 가능하지 않습니다.",
+        "select-name": "select 요소에 접근 가능한 이름이 없습니다.",
+        "input-button-name": "입력 버튼에 접근 가능한 이름이 없습니다.",
+        "input-image-alt": "이미지 입력 버튼에 대체 텍스트가 없습니다.",
+        "object-alt": "object 요소에 대체 텍스트가 없습니다.",
+        "video-caption": "동영상에 자막이 없습니다.",
+        "audio-caption": "오디오 콘텐츠에 자막이 없습니다.",
+        "th-has-data-cells": "th 요소에 연결된 데이터 셀이 없습니다.",
+        "td-headers-attr": "td 요소의 headers 속성이 올바르지 않습니다.",
+        "scope-attr-valid": "scope 속성 값이 올바르지 않습니다.",
+        "table-duplicate-name": "표의 요약(summary)과 캡션(caption)이 동일합니다.",
+        "table-fake-caption": "표의 캡션이 데이터 셀로 구현되어 있습니다.",
+        "definition-list": "dl 요소의 구조가 올바르지 않습니다.",
+        "dlitem": "dl 요소 안에 dt/dd가 올바르게 배치되지 않았습니다.",
+        "list": "ul/ol 요소 안에 li 이외의 직계 자식이 있습니다.",
+        "listitem": "li 요소가 ul 또는 ol 안에 없습니다.",
+        "meta-refresh": "meta refresh로 자동 새로고침이 설정되어 있습니다.",
+        "meta-viewport": "meta viewport가 사용자의 확대/축소를 막고 있습니다.",
+        "p-as-heading": "단락(p)이 굵은 텍스트만으로 제목처럼 사용되고 있습니다.",
+        "valid-lang": "lang 속성 값이 유효한 언어 코드가 아닙니다.",
+        "blink": "blink 요소는 접근성에 좋지 않습니다.",
+        "marquee": "marquee 요소는 접근성에 좋지 않습니다.",
+    }
+    return mapping.get(rule_id)
+
+
+# ---- axe-core violation.help 텍스트 → 한글 번역 테이블 ----
+# axe-core의 violation.help 필드에 들어오는 영어 원문을 한글로 매핑합니다.
+# 출처: https://github.com/dequelabs/axe-core/blob/develop/lib/rules/*.json
+_AXE_HELP_TEXT_KO: Dict[str, str] = {
+    # 색상 대비
+    "Background and foreground colors do not have a sufficient contrast ratio.": "텍스트와 배경의 색상 대비 비율이 충분하지 않습니다.",
+    "Background and foreground colors do not have a sufficient contrast ratio": "텍스트와 배경의 색상 대비 비율이 충분하지 않습니다.",
+    # 버튼/링크
+    "Buttons must have discernible text": "버튼에 인식 가능한 텍스트나 접근성 이름이 있어야 합니다.",
+    "Links must have discernible text": "링크에 인식 가능한 텍스트나 접근성 이름이 있어야 합니다.",
+    "Interactive controls must not be nested": "인터랙티브 컨트롤은 중첩해서 배치할 수 없습니다.",
+    # 이미지
+    "Images must have alternate text": "이미지에 대체 텍스트(alt)가 있어야 합니다.",
+    "Image buttons must have alternate text": "이미지 버튼에 대체 텍스트(alt)가 있어야 합니다.",
+    "<img> elements with [usemap] must use <map> and <area> elements": "usemap 속성이 있는 img 요소는 map과 area 요소를 함께 사용해야 합니다.",
+    # 폼
+    "Form elements must have labels": "폼 입력 요소에 라벨이 있어야 합니다.",
+    "Select element must have an accessible name": "select 요소에 접근 가능한 이름이 있어야 합니다.",
+    "Form field must not have multiple label elements": "폼 필드에 label 요소가 두 개 이상 있어서는 안 됩니다.",
+    # ARIA
+    "Required ARIA attributes must be provided": "ARIA 역할에 필수 속성이 제공되어야 합니다.",
+    "Required ARIA children role must be present": "ARIA 역할에 필수 자식 역할이 포함되어야 합니다.",
+    "Required ARIA parent role must be present": "ARIA 요소가 올바른 부모 역할 안에 있어야 합니다.",
+    "ARIA roles used must conform to valid values": "사용된 ARIA 역할이 유효한 값이어야 합니다.",
+    "ARIA attributes must conform to valid values": "ARIA 속성이 유효한 값을 가져야 합니다.",
+    "ARIA attributes must conform to valid names": "ARIA 속성 이름이 올바른 형식이어야 합니다.",
+    "Ensures aria-hidden='true' is not present on the document body.": "document body에 aria-hidden='true'를 사용하면 안 됩니다.",
+    "ARIA hidden element must not contain focusable elements": "aria-hidden 요소 안에 포커스 가능한 요소가 있으면 안 됩니다.",
+    "ARIA commands must have an accessible name": "ARIA 커맨드 요소에 접근 가능한 이름이 있어야 합니다.",
+    "ARIA meter must have accessible name": "ARIA meter 요소에 접근 가능한 이름이 있어야 합니다.",
+    "ARIA progressbar must have accessible name": "ARIA progressbar 요소에 접근 가능한 이름이 있어야 합니다.",
+    "ARIA toggle fields must have an accessible name": "ARIA 토글 필드에 접근 가능한 이름이 있어야 합니다.",
+    "ARIA tooltip must have an accessible name": "ARIA 툴팁에 접근 가능한 이름이 있어야 합니다.",
+    "ARIA treeitem must have an accessible name": "ARIA treeitem에 접근 가능한 이름이 있어야 합니다.",
+    "Elements must only use permitted ARIA attributes": "허용된 ARIA 속성만 사용해야 합니다.",
+    "Certain ARIA roles must contain particular children": "특정 ARIA 역할은 정해진 자식 요소를 포함해야 합니다.",
+    "Certain ARIA roles must be contained by particular parents": "특정 ARIA 역할은 정해진 부모 요소 안에 배치되어야 합니다.",
+    # HTML 구조
+    "<html> element must have a lang attribute": "html 요소에 lang 속성을 추가하세요.",
+    "<html> element must have a valid value for the lang attribute": "html 요소의 lang 속성에 유효한 언어 코드를 사용하세요.",
+    "Page must have means to bypass repeated blocks": "반복되는 블록을 건너뛸 수 있는 수단을 제공해야 합니다.",
+    "Page must have a level-one heading": "페이지에 최상위 제목(h1)이 있어야 합니다.",
+    "Page must contain a main landmark": "페이지에 main 랜드마크가 있어야 합니다.",
+    "Document must have one main landmark": "문서에 main 랜드마크가 하나만 있어야 합니다.",
+    "All page content must be contained by landmarks": "모든 페이지 콘텐츠는 랜드마크 영역 안에 포함되어야 합니다.",
+    "Document should not have more than one banner landmark": "banner 랜드마크가 두 개 이상 있어서는 안 됩니다.",
+    "Document should not have more than one contentinfo landmark": "contentinfo 랜드마크가 두 개 이상 있어서는 안 됩니다.",
+    "Document should not have more than one main landmark": "main 랜드마크가 두 개 이상 있어서는 안 됩니다.",
+    # 제목
+    "Heading levels should only increase by one": "제목 계층은 한 단계씩만 올라가야 합니다.",
+    "Page must have a title": "페이지에 제목(title)이 있어야 합니다.",
+    # ID 중복
+    "id attribute value must be unique": "id 속성 값이 페이지 내에서 유일해야 합니다.",
+    "IDs used in ARIA and target must be unique": "ARIA 참조에 사용된 id 값이 유일해야 합니다.",
+    "IDs of active elements must be unique": "활성 요소의 id 값이 유일해야 합니다.",
+    # 링크
+    "Links with the same name must have a similar purpose": "같은 이름의 링크는 같은 목적이어야 합니다.",
+    # 테이블
+    "Tables should not have both cells and role=presentation": "표에 데이터 셀과 presentation 역할을 함께 사용할 수 없습니다.",
+    # 탭인덱스
+    "Elements should not have tabindex greater than zero": "tabindex 값을 0 또는 -1로 설정하세요.",
+    # 비디오/오디오
+    "<video> elements must have captions": "video 요소에 자막이 있어야 합니다.",
+    "<video> elements must have an audio description track": "video 요소에 오디오 설명 트랙이 있어야 합니다.",
+    # 언어
+    "<html> element must have a valid value for the xml:lang attribute": "html 요소의 xml:lang 속성에 유효한 언어 코드를 사용하세요.",
+    "lang attribute must have a valid value": "lang 속성에 유효한 언어 코드를 사용하세요.",
+    # 터치 대상
+    "All interactive elements must be large enough to be easily activated": "모든 인터랙티브 요소는 터치/클릭하기 충분한 크기여야 합니다.",
+    # Lighthouse 색상 대비 description (dequeuniversity 링크 포함 버전)
+    "Low-contrast text is difficult or impossible for many users to read.": "명도 대비가 낮은 텍스트는 많은 사용자가 읽기 어렵습니다. 텍스트와 배경의 대비 비율을 4.5:1 이상으로 높이세요.",
+    # Lighthouse 기타 audit description 패턴
+    "Ensures the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds": "텍스트와 배경의 색상 대비가 WCAG AA 기준(4.5:1)을 충족해야 합니다.",
+}
+
+# ---- Lighthouse audit description 한글 번역 테이블 ----
+# Lighthouse audit.description 전체 문자열 → 한글 매핑
+# 출처: https://github.com/GoogleChrome/lighthouse/blob/main/core/audits/
+_LIGHTHOUSE_DESC_KO: Dict[str, str] = {
+    # 접근성 - 색상 대비
+    "Ensure the color-contrast of the text is high enough": "텍스트 색상 대비를 충분히 높이세요.",
+    # 접근성 - 이미지
+    "Ensures <img> elements have alternate text or a role of none or presentation": "img 요소에 alt 텍스트를 추가하거나 장식용이면 role=presentation으로 표시하세요.",
+    # 접근성 - 버튼
+    "Ensures buttons have discernible text": "버튼에 인식 가능한 텍스트나 aria-label을 추가하세요.",
+    # 접근성 - 링크
+    "Ensures links have discernible text": "링크에 인식 가능한 텍스트나 aria-label을 추가하세요.",
+    # 접근성 - 폼
+    "Ensures every form element has a label": "모든 폼 요소에 label 또는 aria-label을 제공하세요.",
+    # 모범 사례
+    "Does not use deprecated APIs": "더 이상 지원되지 않는 API 사용을 제거하세요.",
+    "Browser errors were logged to the console": "브라우저 콘솔에 오류가 기록되었습니다. 누락된 리소스나 스크립트 예외를 확인하세요.",
+    "Page has the HTML doctype": "HTML 문서 최상단에 <!DOCTYPE html>을 선언하세요.",
+    "Avoids front-end JavaScript libraries with known security vulnerabilities": "알려진 보안 취약점이 있는 JavaScript 라이브러리 사용을 피하세요.",
+    "Allows users to zoom in and out of the page by not using the 'user-scalable=no' param": "meta viewport에서 user-scalable=no를 제거해 사용자가 화면을 확대할 수 있게 하세요.",
+    "Issues were logged in the Issues panel in Chrome Devtools": "Chrome DevTools 이슈 패널에 문제가 기록되었습니다.",
+    "Avoid requesting the geolocation permission on page load": "페이지 로드 시 위치 정보 권한을 자동으로 요청하지 마세요.",
+    "Avoid requesting the notification permission on page load": "페이지 로드 시 알림 권한을 자동으로 요청하지 마세요.",
+    "Displays images with incorrect aspect ratio": "이미지가 원래 비율과 다르게 표시되고 있습니다.",
+    "Detected JavaScript libraries": "감지된 JavaScript 라이브러리 목록입니다.",
+}
+
+
+import re as _re
+
+def _strip_markdown_links(text: str) -> str:
+    """마크다운 링크 [text](url) 와 단독 URL을 제거하고 링크 텍스트만 남깁니다."""
+    # [링크 텍스트](URL) → 링크 텍스트
+    text = _re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)
+    # 단독 URL 제거
+    text = _re.sub(r'https?://\S+', '', text)
+    return ' '.join(text.split()).strip()
+
+
 def localize_uiux_text(text: Optional[str]) -> Optional[str]:
     if not text:
         return text
-    normalized = " ".join(str(text).strip().split())
+    # 1단계: 마크다운 링크/URL 제거 후 정규화
+    stripped = _strip_markdown_links(str(text))
+    normalized = " ".join(stripped.strip().split())
+    # 2단계: axe help 텍스트 직접 매핑 (마침표 유무 무관)
+    for src, tgt in _AXE_HELP_TEXT_KO.items():
+        src_norm = src.rstrip(".")
+        if normalized.rstrip(".") == src_norm:
+            return tgt
+    # 3단계: Lighthouse description 직접 매핑
+    for src, tgt in _LIGHTHOUSE_DESC_KO.items():
+        if normalized.rstrip(".") == src.rstrip("."):
+            return tgt
+    # 4단계: 기존 exact-match 테이블
     replacements = {
+        # 버튼/링크 접근성
         "Buttons must have discernible text": "버튼에는 사용자가 이해할 수 있는 텍스트나 접근성 이름이 있어야 합니다.",
         "Links must have discernible text": "링크에는 사용자가 이해할 수 있는 텍스트나 접근성 이름이 있어야 합니다.",
+        "Ensures buttons have discernible text": "버튼에 접근 가능한 텍스트나 이름을 추가하세요.",
+        "Ensures links have discernible text": "링크에 접근 가능한 텍스트나 이름을 추가하세요.",
         "An interactive element has no accessible name.": "인터랙티브 요소에 접근성 이름이 없습니다.",
         "Add clear text or aria-label to buttons and links.": "버튼과 링크에 명확한 텍스트를 넣거나 aria-label을 제공하세요.",
+        # 색상 대비
+        "Ensures the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds": "텍스트와 배경의 색상 대비가 WCAG AA 기준을 충족해야 합니다. 색상 대비 비율을 4.5:1 이상으로 높이세요.",
+        "Elements must meet minimum color contrast ratio thresholds": "텍스트와 배경의 색상 대비가 최소 기준을 충족해야 합니다.",
+        # 이미지 대체 텍스트
+        "Image elements must have alternate text": "이미지에는 대체 텍스트가 있어야 합니다.",
+        "Ensures <img> elements have alternate text or a role of none or presentation": "img 요소에 대체 텍스트(alt)를 추가하거나, 장식용이면 alt=\"\"로 설정하세요.",
+        "Images must have alternate text": "이미지에 대체 텍스트를 제공하세요.",
+        # 폼 라벨
+        "Form elements must have labels": "폼 입력 요소에는 연결된 라벨이 있어야 합니다.",
+        "Ensures every form element has a label": "모든 폼 입력 요소에 label 또는 aria-label을 제공하세요.",
+        "Ensures the label element has a text label and is associated with a form control": "label 요소에 텍스트와 연결된 폼 컨트롤이 있어야 합니다.",
+        # ARIA
+        "Ensures all ARIA attributes have valid values": "모든 ARIA 속성에 유효한 값을 설정하세요.",
+        "Ensures role attribute has an appropriate value for the element": "role 속성에 해당 요소에 적합한 값을 사용하세요.",
+        "Ensures every ARIA input field has an accessible name": "ARIA 입력 필드에 접근 가능한 이름을 제공하세요.",
+        "Ensures elements with an ARIA role that require child roles contain them": "ARIA 역할에 필요한 자식 요소가 있는지 확인하세요.",
+        "Ensures elements with an ARIA role that require parent roles are contained by them": "ARIA 요소가 올바른 부모 역할 안에 배치되어 있는지 확인하세요.",
+        # HTML 구조
+        "Ensures every HTML document has a lang attribute": "html 요소에 lang 속성을 추가하세요. 예: <html lang=\"ko\">.",
+        "Ensures the lang attribute of the <html> element has a valid value": "html 요소의 lang 속성에 유효한 언어 코드(예: ko, en)를 사용하세요.",
+        "Ensures that every page has at least one mechanism allowing users to bypass navigation": "키보드 사용자를 위해 본문으로 바로 이동하는 건너뛰기 링크를 제공하세요.",
+        "Ensures the document has at most one main landmark": "문서에 main 랜드마크는 하나만 있어야 합니다.",
+        "Ensures all page content is contained by landmarks": "페이지 콘텐츠는 header, main, nav, footer 같은 랜드마크 영역 안에 배치하세요.",
+        # 제목 구조
+        "Ensures the order of headings is semantically correct": "제목 계층(h1 → h2 → h3 …)이 순서대로 사용되고 있는지 확인하세요.",
+        "Ensures the document has a title element and its contents are not empty": "페이지에 의미 있는 title 요소를 추가하세요.",
+        # 중복 ID
+        "Ensures every id attribute value is unique": "페이지 내 id 값이 중복되지 않도록 수정하세요.",
+        "Ensures every id attribute value used in ARIA and target attributes is unique": "ARIA 참조에 사용된 id 값이 중복되지 않도록 수정하세요.",
+        # iframe
+        "Ensures <iframe> and <frame> elements have an accessible name": "iframe에 title 속성을 추가해 콘텐츠를 설명하세요.",
+        # 탭인덱스
+        "Ensures that tabindex attribute values are not greater than 0": "tabindex 값을 0 또는 -1로 설정해 자연스러운 키보드 탐색 순서를 유지하세요.",
+        # 스크롤 영역
+        "Ensures elements that have scrollable content are accessible by keyboard": "스크롤 가능한 영역에 tabindex=\"0\"을 추가해 키보드로 접근 가능하게 만드세요.",
+        # meta viewport
+        "Ensures <meta name=\"viewport\"> does not disable text scaling and zooming": "meta viewport에서 user-scalable=no 또는 maximum-scale=1을 제거해 사용자가 확대할 수 있도록 하세요.",
+        # 리스트 구조
+        "Ensures that lists are structured correctly": "ul/ol 요소 안에는 li 요소만 직접 자식으로 넣으세요.",
+        "Ensures <li> elements are used semantically": "li 요소는 ul 또는 ol 안에서만 사용하세요.",
+        # 접근성/UX 기타
         "Make clickable elements at least 44x44px and keep enough spacing around them.": "클릭 가능한 요소는 최소 44x44px 이상으로 만들고 주변 간격을 충분히 확보하세요.",
         "An accessibility issue was detected.": "접근성 문제가 감지되었습니다.",
         "Password requirements are not explained before input.": "비밀번호 입력 조건이 입력 전에 안내되지 않습니다.",
@@ -340,8 +577,7 @@ def localize_uiux_text(text: Optional[str]) -> Optional[str]:
         "Declare <!doctype html> at the top of the document.": "문서 최상단에 <!doctype html>을 선언하세요.",
         "Add rel=\"noopener noreferrer\" to target=_blank links.": "target=_blank 링크에는 rel=\"noopener noreferrer\"를 추가하세요.",
         "Use specific CTA text so users can predict the next action.": "사용자가 다음 행동을 예측할 수 있도록 구체적인 CTA 문구를 사용하세요.",
-        "Image elements must have alternate text": "이미지에는 대체 텍스트가 있어야 합니다.",
-        "Form elements must have labels": "폼 입력 요소에는 연결된 라벨이 있어야 합니다.",
+        # 성능 지표
         "First Contentful Paint": "첫 콘텐츠 표시 시간이 느립니다.",
         "Largest Contentful Paint": "가장 큰 콘텐츠가 화면에 표시되기까지 시간이 오래 걸립니다.",
         "Total Blocking Time": "사용자 입력을 막는 긴 작업 시간이 깁니다.",
@@ -352,6 +588,7 @@ def localize_uiux_text(text: Optional[str]) -> Optional[str]:
     for source, target in replacements.items():
         if normalized == source:
             return target
+    # 5단계: 패턴 기반 번역
     if normalized.startswith("Touch target size is ") and "below the recommended minimum" in normalized:
         return normalized.replace("Touch target size is", "터치 대상 크기가").replace(
             "px, below the recommended minimum.", "px로 권장 최소 기준보다 작습니다."
@@ -372,14 +609,36 @@ def localize_uiux_text(text: Optional[str]) -> Optional[str]:
         return "이미지와 광고 영역의 크기를 미리 지정하고, 로딩 중 레이아웃이 밀리지 않도록 공간을 예약하세요."
     if "ARIA roles must be contained" in normalized:
         return "일부 ARIA 역할은 정해진 부모 요소 안에 배치되어야 합니다."
-    if "minimum color contrast" in normalized or "color contrast ratio" in normalized:
-        return "텍스트와 배경의 색상 대비가 최소 기준을 충족해야 합니다."
     if "one main landmark" in normalized:
         return "문서에는 main 랜드마크가 하나만 있어야 합니다."
     if "level-one heading" in normalized:
         return "페이지에는 최상위 제목(h1)이 있어야 합니다."
     if "contained by landmarks" in normalized:
         return "페이지의 주요 콘텐츠는 header, main, nav, footer 같은 랜드마크 영역 안에 포함되어야 합니다."
+    # 6단계: 포함 검사 기반 패턴 (넓은 범위)
+    low = normalized.lower()
+    if ("contrast" in low and ("foreground" in low or "background" in low or "ratio" in low or "low-contrast" in low)):
+        return "텍스트와 배경의 색상 대비 비율을 WCAG 기준(4.5:1) 이상으로 높이세요."
+    if "bypass" in low and "navigation" in low:
+        return "키보드 사용자를 위해 본문으로 바로 이동하는 건너뛰기 링크를 제공하세요."
+    if "scrollable" in low and "keyboard" in low:
+        return "스크롤 가능한 영역에 tabindex=\"0\"을 추가해 키보드로 접근 가능하게 만드세요."
+    if "tabindex" in low and "greater than 0" in low:
+        return "tabindex 값을 0 또는 -1로 설정해 자연스러운 키보드 탐색 순서를 유지하세요."
+    if "viewport" in low and ("zoom" in low or "scaling" in low or "user-scalable" in low):
+        return "meta viewport에서 user-scalable=no를 제거해 사용자가 화면을 확대할 수 있도록 하세요."
+    if "lang" in low and "html" in low:
+        return "html 요소에 유효한 lang 속성을 추가하세요. 예: <html lang=\"ko\">."
+    if "heading" in low and "order" in low:
+        return "제목 계층 구조(h1 → h2 → h3)가 순서대로 사용되고 있는지 확인하세요."
+    if "duplicate" in low and "id" in low:
+        return "페이지 내에 중복된 id 값이 있습니다. id는 페이지에서 유일해야 합니다."
+    if "iframe" in low and ("title" in low or "accessible name" in low):
+        return "iframe 요소에 내용을 설명하는 title 속성을 추가하세요."
+    if "list" in low and "structured" in low:
+        return "목록(ul/ol) 요소의 구조가 올바른지 확인하세요. 직접 자식으로는 li 요소만 허용됩니다."
+    if "minimum color contrast" in low or "color contrast ratio" in low:
+        return "텍스트와 배경의 색상 대비가 최소 기준을 충족해야 합니다."
     return text
 
 def describe_defect_target(selector: Optional[str], evidence: Optional[dict]) -> str:
@@ -402,6 +661,7 @@ def describe_defect_target(selector: Optional[str], evidence: Optional[dict]) ->
 def localize_lighthouse_finding(finding: dict) -> tuple[str, str]:
     rule_id = finding.get("ruleId")
     display_value = finding.get("displayValue")
+    # 성능 지표 → 한글 제목/권장사항 직접 매핑
     metric_labels = {
         "first-contentful-paint": ("첫 콘텐츠 표시 시간이 느립니다.", "첫 텍스트나 이미지가 화면에 나타나는 시간을 줄이세요. 서버 응답, 렌더링 차단 CSS/JS, 웹폰트 로딩을 우선 확인하세요."),
         "largest-contentful-paint": ("가장 큰 콘텐츠 표시 시간이 느립니다.", "대표 이미지나 큰 텍스트 블록이 빨리 보이도록 이미지 최적화, preload, 서버 응답 개선을 적용하세요."),
@@ -410,11 +670,210 @@ def localize_lighthouse_finding(finding: dict) -> tuple[str, str]:
         "speed-index": ("화면 콘텐츠가 표시되는 속도가 느립니다.", "첫 화면에 필요한 리소스만 우선 로드하고 나머지는 지연 로딩하세요."),
         "interactive": ("상호작용 가능 시점이 늦습니다.", "초기 JavaScript 실행량을 줄여 버튼과 링크가 더 빨리 반응하게 하세요."),
     }
+    # 접근성 audit → 한글 제목/권장사항 직접 매핑
+    # 출처: https://github.com/GoogleChrome/lighthouse/blob/main/core/audits/accessibility/
+    accessibility_labels = {
+        "color-contrast": (
+            "텍스트와 배경의 색상 대비가 충분하지 않습니다.",
+            "텍스트와 배경 색상의 대비 비율을 4.5:1(일반 텍스트) 또는 3:1(큰 텍스트) 이상으로 높이세요.",
+        ),
+        "image-alt": (
+            "이미지에 대체 텍스트(alt)가 없습니다.",
+            "의미 있는 이미지에는 alt 텍스트를 추가하고, 장식용 이미지는 alt=\"\"로 표시하세요.",
+        ),
+        "button-name": (
+            "버튼에 접근 가능한 이름이 없습니다.",
+            "버튼에 텍스트를 넣거나 aria-label 속성으로 이름을 제공하세요.",
+        ),
+        "link-name": (
+            "링크에 인식 가능한 텍스트가 없습니다.",
+            "링크에 설명적인 텍스트를 넣거나 aria-label로 목적을 명시하세요.",
+        ),
+        "label": (
+            "폼 입력 요소에 라벨이 없습니다.",
+            "label[for] 또는 aria-label을 사용해 입력 필드의 목적을 명확히 연결하세요.",
+        ),
+        "html-has-lang": (
+            "html 요소에 lang 속성이 없습니다.",
+            "<html lang=\"ko\">처럼 페이지 언어를 명시하세요.",
+        ),
+        "html-lang-valid": (
+            "html 요소의 lang 속성 값이 유효하지 않습니다.",
+            "IETF 언어 태그 형식에 맞는 유효한 값(예: ko, en-US)을 사용하세요.",
+        ),
+        "document-title": (
+            "페이지 제목(title)이 없습니다.",
+            "페이지 내용을 명확히 설명하는 title 태그를 추가하세요.",
+        ),
+        "meta-viewport": (
+            "meta viewport가 사용자의 확대/축소를 막고 있습니다.",
+            "user-scalable=no 또는 maximum-scale=1 설정을 제거해 사용자가 화면을 확대할 수 있게 하세요.",
+        ),
+        "heading-order": (
+            "제목 계층 구조(h1~h6)가 올바르지 않습니다.",
+            "제목 태그는 h1부터 순서대로 사용하고 단계를 건너뛰지 마세요.",
+        ),
+        "bypass": (
+            "반복 탐색 블록을 건너뛸 수단이 없습니다.",
+            "키보드 사용자가 주요 내비게이션을 건너뛸 수 있는 '본문 바로가기' 링크를 페이지 상단에 제공하세요.",
+        ),
+        "landmark-one-main": (
+            "문서에 main 랜드마크가 없거나 두 개 이상입니다.",
+            "<main> 요소를 페이지 주요 콘텐츠 영역에 정확히 하나만 사용하세요.",
+        ),
+        "region": (
+            "페이지 콘텐츠가 랜드마크 영역 밖에 있습니다.",
+            "모든 콘텐츠를 header, main, nav, footer 같은 랜드마크 요소 안에 배치하세요.",
+        ),
+        "frame-title": (
+            "iframe에 제목이 없습니다.",
+            "iframe 요소에 title 속성을 추가해 콘텐츠를 설명하세요.",
+        ),
+        "duplicate-id-active": (
+            "활성 요소에 중복된 id 값이 있습니다.",
+            "페이지 내 모든 id 값이 유일한지 확인하세요.",
+        ),
+        "duplicate-id-aria": (
+            "ARIA 참조에 사용된 id 값이 중복되어 있습니다.",
+            "aria-labelledby, aria-describedby 등에 참조된 id가 페이지에서 유일한지 확인하세요.",
+        ),
+        "tabindex": (
+            "tabindex 값이 0보다 커서 키보드 탐색 순서가 혼란스럽습니다.",
+            "tabindex 값을 0 또는 -1로만 사용하고 양수 값은 피하세요.",
+        ),
+        "target-size": (
+            "클릭/터치 대상이 너무 작습니다.",
+            "버튼·링크 등 인터랙티브 요소의 클릭 영역을 최소 44×44px 이상으로 만드세요.",
+        ),
+        "aria-required-children": (
+            "ARIA 역할에 필수 자식 요소가 없습니다.",
+            "해당 ARIA 역할이 요구하는 자식 역할 요소를 추가하세요.",
+        ),
+        "aria-required-parent": (
+            "ARIA 요소가 올바른 부모 요소 안에 없습니다.",
+            "해당 ARIA 역할을 허용하는 부모 요소 안에 배치하세요.",
+        ),
+        "aria-roles": (
+            "유효하지 않은 ARIA 역할이 사용되었습니다.",
+            "WAI-ARIA 명세에서 허용하는 올바른 역할 값을 사용하세요.",
+        ),
+        "aria-valid-attr": (
+            "유효하지 않은 ARIA 속성이 있습니다.",
+            "WAI-ARIA 명세에서 허용하는 올바른 속성 이름을 사용하세요.",
+        ),
+        "aria-valid-attr-value": (
+            "ARIA 속성 값이 올바르지 않습니다.",
+            "해당 ARIA 속성에서 허용하는 유효한 값을 사용하세요.",
+        ),
+        "aria-hidden-focus": (
+            "aria-hidden 요소 안에 포커스 가능한 요소가 있습니다.",
+            "aria-hidden='true' 영역 안에는 포커스 가능한 요소(버튼, 링크, 입력 등)를 배치하지 마세요.",
+        ),
+        "scrollable-region-focusable": (
+            "스크롤 가능한 영역이 키보드로 접근 불가능합니다.",
+            "스크롤 가능한 div 등에 tabindex='0'을 추가해 키보드로 접근 가능하게 만드세요.",
+        ),
+        "select-name": (
+            "select 요소에 접근 가능한 이름이 없습니다.",
+            "select 요소에 연결된 label 또는 aria-label을 제공하세요.",
+        ),
+        "input-image-alt": (
+            "이미지 입력 버튼에 대체 텍스트가 없습니다.",
+            "input[type=image]에 alt 속성을 추가해 버튼의 기능을 설명하세요.",
+        ),
+        "object-alt": (
+            "object 요소에 대체 텍스트가 없습니다.",
+            "object 요소 안에 대체 콘텐츠를 제공하거나 title 속성을 추가하세요.",
+        ),
+        "video-caption": (
+            "동영상에 자막이 없습니다.",
+            "video 요소에 <track kind='captions'> 태그를 추가해 자막을 제공하세요.",
+        ),
+        "list": (
+            "목록(ul/ol) 요소의 구조가 올바르지 않습니다.",
+            "ul/ol 요소의 직접 자식으로는 li 요소만 사용하세요.",
+        ),
+        "listitem": (
+            "li 요소가 ul 또는 ol 밖에 있습니다.",
+            "li 요소는 반드시 ul 또는 ol 안에 배치하세요.",
+        ),
+        "definition-list": (
+            "dl 요소의 구조가 올바르지 않습니다.",
+            "dl 요소 안에는 dt/dd 쌍만 직접 자식으로 배치하세요.",
+        ),
+        "dlitem": (
+            "dl 요소 안에 dt/dd가 올바르게 배치되지 않았습니다.",
+            "dl 요소 안에 dt와 dd 요소만 직접 자식으로 배치하세요.",
+        ),
+        # 모범 사례 audit
+        "is-on-https": (
+            "HTTP로 제공되는 리소스가 있습니다.",
+            "모든 리소스와 페이지를 HTTPS로 제공하세요.",
+        ),
+        "no-unload-listeners": (
+            "unload 이벤트 리스너가 사용되고 있습니다.",
+            "unload 대신 pagehide 또는 visibilitychange 이벤트를 사용하세요.",
+        ),
+        "deprecations": (
+            "더 이상 지원되지 않는 웹 API가 사용되고 있습니다.",
+            "브라우저 콘솔 경고를 확인하고 지원 중단된 API를 최신 대안으로 교체하세요.",
+        ),
+        "errors-in-console": (
+            "브라우저 콘솔에 오류가 기록되었습니다.",
+            "콘솔 오류의 원인을 확인하고 누락된 리소스, 스크립트 예외, 실패한 API 요청을 수정하세요.",
+        ),
+        "doctype": (
+            "HTML 문서에 DOCTYPE 선언이 없습니다.",
+            "문서 최상단에 <!DOCTYPE html>을 추가하세요.",
+        ),
+        "charset": (
+            "문자 인코딩이 선언되지 않았습니다.",
+            "<meta charset='utf-8'>을 head 태그 상단에 추가하세요.",
+        ),
+        "geolocation-on-start": (
+            "페이지 로드 시 위치 정보 권한을 자동으로 요청합니다.",
+            "사용자 행동에 응답해 위치 정보를 요청하도록 변경하세요.",
+        ),
+        "notification-on-start": (
+            "페이지 로드 시 알림 권한을 자동으로 요청합니다.",
+            "사용자 행동에 응답해 알림 권한을 요청하도록 변경하세요.",
+        ),
+        "image-aspect-ratio": (
+            "이미지가 원래 비율과 다르게 표시됩니다.",
+            "이미지의 width/height 속성과 CSS 크기를 원본 비율에 맞게 설정하세요.",
+        ),
+        "inspector-issues": (
+            "Chrome DevTools 이슈 패널에 문제가 기록되었습니다.",
+            "DevTools의 Issues 탭을 확인해 쿠키, 혼합 콘텐츠, CSP 등의 문제를 해결하세요.",
+        ),
+        "js-libraries": (
+            "감지된 JavaScript 라이브러리 목록입니다.",
+            "사용 중인 라이브러리의 최신 버전과 보안 취약점 여부를 정기적으로 확인하세요.",
+        ),
+        "no-vulnerable-libraries": (
+            "알려진 보안 취약점이 있는 JavaScript 라이브러리가 감지되었습니다.",
+            "해당 라이브러리를 최신 버전으로 업데이트하거나 안전한 대안으로 교체하세요.",
+        ),
+        "valid-source-maps": (
+            "소스 맵이 올바르지 않거나 없습니다.",
+            "배포 시 올바른 소스 맵을 생성해 디버깅이 가능하게 하세요.",
+        ),
+        "unsized-images": (
+            "크기가 지정되지 않은 이미지가 있습니다.",
+            "이미지 요소에 width와 height 속성을 지정해 레이아웃 변화(CLS)를 방지하세요.",
+        ),
+    }
     if rule_id in metric_labels:
         title, recommendation = metric_labels[rule_id]
         if display_value:
             title = f"{title} 측정값: {display_value}"
         return title, recommendation
+    if rule_id in accessibility_labels:
+        title, recommendation = accessibility_labels[rule_id]
+        if display_value:
+            title = f"{title} 측정값: {display_value}"
+        return title, recommendation
+    # rule_id 매핑이 없는 경우 title/description을 번역 후 반환
     return (
         localize_uiux_text(finding.get("title")) or "Lighthouse 검사 항목에서 개선점이 발견되었습니다.",
         localize_uiux_text(finding.get("description")) or "Lighthouse 세부 결과를 확인해 해당 항목을 개선하세요.",
@@ -868,14 +1327,28 @@ def add_axe_findings(axe_result, add_defect_fn, start_time):
         first_node = nodes[0] if nodes else {}
         target = first_node.get("target") if isinstance(first_node.get("target"), list) else []
         selector = target[0] if target else "N/A"
+        rule_id = violation.get("id")
+        # axe-core 결함 설명: rule_id → 한글 우선, 없으면 help/description 한글화
+        raw_description = violation.get("help") or violation.get("description") or "axe-core 접근성 위반이 감지되었습니다."
+        localized_desc = (
+            localize_axe_rule_id(rule_id)
+            or localize_uiux_text(raw_description)
+            or raw_description
+        )
+        raw_recommendation = violation.get("help") or violation.get("description") or ""
+        localized_rec = (
+            localize_axe_rule_id(rule_id)
+            or localize_uiux_text(raw_recommendation)
+            or raw_recommendation
+        )
         add_defect_fn(
             category="ACCESSIBILITY",
             selector=selector,
             severity=severity_from_impact(impact),
-            description=violation.get("help") or violation.get("description") or "axe-core accessibility violation.",
+            description=localized_desc,
             timestamp_offset=current_offset,
             source="AXE",
-            rule_id=violation.get("id"),
+            rule_id=rule_id,
             evidence={
                 "impact": impact,
                 "description": violation.get("description"),
@@ -887,7 +1360,7 @@ def add_axe_findings(axe_result, add_defect_fn, start_time):
                     "failureSummary": node.get("failureSummary"),
                 } for node in nodes[:3]],
             },
-            recommendation=violation.get("help") or violation.get("description")
+            recommendation=localized_rec
         )
     return deductions
 
