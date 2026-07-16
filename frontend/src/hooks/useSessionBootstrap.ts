@@ -6,6 +6,29 @@ import { useAlertStore } from '../store/alertStore';
 import { useLedgerStore } from '../store/ledgerStore';
 import { useUserStore } from '../store/userStore';
 
+function hasAdminRole(value: unknown): boolean {
+  if (Array.isArray(value)) {
+    return value.some(hasAdminRole);
+  }
+
+  if (typeof value !== 'string') {
+    return false;
+  }
+
+  const normalizedRole = value.trim().toUpperCase();
+  return normalizedRole === 'ADMIN' || normalizedRole === 'ROLE_ADMIN';
+}
+
+function getSupabaseRole(session: Session): 'ADMIN' | 'USER' {
+  const appMetadata = session.user.app_metadata;
+
+  // 사용자가 직접 바꿀 수 있는 user_metadata가 아니라
+  // Supabase 관리자만 변경할 수 있는 app_metadata만 신뢰합니다.
+  return hasAdminRole(appMetadata?.role) || hasAdminRole(appMetadata?.roles)
+    ? 'ADMIN'
+    : 'USER';
+}
+
 function persistSession(session: Session): void {
   localStorage.setItem('accessToken', session.access_token);
   localStorage.setItem('refreshToken', session.refresh_token);
@@ -47,6 +70,7 @@ export function useSessionBootstrap(): void {
 
       const userId = session.user.id;
       const email = session.user.email ?? '';
+      const role = getSupabaseRole(session);
       const previousUserId = useUserStore.getState().currentUser.id;
 
       if (previousUserId !== userId) {
@@ -82,7 +106,7 @@ export function useSessionBootstrap(): void {
         const profile = profileResult.value;
         finishSession(userId, {
           email: profile.email ?? email,
-          role: profile.role ?? 'USER',
+          role,
           status: profile.status ?? 'ACTIVE',
           balance: profile.balance,
           coupons: profile.couponCount,
@@ -91,7 +115,8 @@ export function useSessionBootstrap(): void {
         });
       } else {
         console.error('Failed to hydrate user profile:', profileResult.reason);
-        finishSession(userId);
+        // 프로필 조회가 실패해도 검증된 Supabase 역할은 유지합니다.
+        finishSession(userId, { role });
         showAlert('사용자 정보를 불러오지 못했습니다. 기본 상태로 계속합니다.', 'warning');
       }
     };

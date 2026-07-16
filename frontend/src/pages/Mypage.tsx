@@ -12,17 +12,11 @@ import Button from '../components/common/Button';
 import MypageProfileSection from './mypage/MypageProfileSection';
 import MypageVerifiedSitesSection from './mypage/MypageVerifiedSitesSection';
 import MypageTestHistorySection from './mypage/MypageTestHistorySection';
-import MypagePointSection from './mypage/MypagePointSection';
-import MypagePointHistorySection from './mypage/MypagePointHistorySection';
 import MypageMyPostsSection from './mypage/MypageMyPostsSection';
-import MypageNotificationSettingsSection from './mypage/MypageNotificationSettingsSection';
-import MypageThemeSettingsSection from './mypage/MypageThemeSettingsSection';
-import MypageAccountSecuritySection from './mypage/MypageAccountSecuritySection';
 import MypageTestDetailSection from './mypage/MypageTestDetailSection';
 
 import { fetchMypage } from '../api/mypageApi';
 import { supabase } from '../lib/supabaseClient';
-import MypageCouponHistorySection from './mypage/MypageCouponHistorySection';
 
 const emptyData: MypageData = {
   email: '',
@@ -120,38 +114,8 @@ function Mypage() {
             />
 
             <Route
-              path="points"
-              element={<MypagePointSection data={data} />}
-            />
-
-            <Route
-              path="point-history"
-              element={<MypagePointHistorySection />}
-            />
-
-            <Route
-              path="coupon-history"
-              element={<MypageCouponHistorySection />}
-            />
-
-            <Route
               path="posts"
               element={<MypageMyPostsSection />}
-            />
-
-            <Route
-              path="notifications"
-              element={<MypageNotificationSettingsSection />}
-            />
-
-            <Route
-              path="theme"
-              element={<MypageThemeSettingsSection />}
-            />
-
-            <Route
-              path="security"
-              element={<MypageAccountSecuritySection email={data.email} />}
             />
 
             <Route path="*" element={<Navigate to="profile" replace />} />

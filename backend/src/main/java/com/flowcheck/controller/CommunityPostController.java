@@ -21,6 +21,9 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Collection;
+import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 @Tag(
@@ -145,10 +148,7 @@ public class CommunityPostController {
     }
 
     /*
-     * 로그인한 사용자가 본인의 게시글을 삭제합니다.
-     *
-     * 다른 사용자의 게시글을 삭제하려고 하면
-     * Service에서 403 Forbidden을 반환합니다.
+     * 작성자 또는 Supabase가 인정한 관리자가 게시글을 삭제합니다.
      */
     @Operation(summary = "커뮤니티 게시글 삭제")
     @DeleteMapping("/{postId}")
@@ -160,7 +160,8 @@ public class CommunityPostController {
 
         communityPostService.delete(
                 userId,
-                postId
+                postId,
+                isSupabaseAdmin(jwt)
         );
 
         /*
@@ -190,5 +191,40 @@ public class CommunityPostController {
                     "올바르지 않은 사용자 인증 정보입니다."
             );
         }
+    }
+
+    /*
+     * 서명 검증된 Supabase JWT의 app_metadata만 관리자 권한으로 신뢰합니다.
+     */
+    private boolean isSupabaseAdmin(Jwt jwt) {
+        if (jwt == null) {
+            return false;
+        }
+
+        Map<String, Object> appMetadata = jwt.getClaim("app_metadata");
+
+        if (appMetadata == null) {
+            return false;
+        }
+
+        return hasAdminRole(appMetadata.get("role"))
+                || hasAdminRole(appMetadata.get("roles"));
+    }
+
+    private boolean hasAdminRole(Object roleValue) {
+        if (roleValue == null) {
+            return false;
+        }
+
+        if (roleValue instanceof Collection<?> roles) {
+            return roles.stream().anyMatch(this::hasAdminRole);
+        }
+
+        String role = roleValue
+                .toString()
+                .trim()
+                .toUpperCase(Locale.ROOT);
+
+        return "ADMIN".equals(role) || "ROLE_ADMIN".equals(role);
     }
 }
