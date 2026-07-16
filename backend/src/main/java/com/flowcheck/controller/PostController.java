@@ -1,272 +1,299 @@
 package com.flowcheck.controller;
 
-import com.flowcheck.domain.Comment;
-import com.flowcheck.domain.Post;
-import com.flowcheck.domain.PostLike;
-import com.flowcheck.dto.*;
-import com.flowcheck.repository.CommentRepository;
-import com.flowcheck.repository.PostLikeRepository;
-import com.flowcheck.repository.PostRepository;
+import com.flowcheck.dto.CommentRequest;
+import com.flowcheck.dto.CommentResponse;
+import com.flowcheck.dto.PostLikeResponse;
+import com.flowcheck.dto.PostListResponse;
+import com.flowcheck.dto.PostRequest;
+import com.flowcheck.service.CommentService;
+import com.flowcheck.service.PostLikeService;
+import com.flowcheck.service.PostService;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/posts")
 @RequiredArgsConstructor
 public class PostController {
 
-        private final PostRepository postRepository;
-        private final CommentRepository commentRepository;
-        private final PostLikeRepository postLikeRepository;
+        private final PostService postService;
+        private final PostLikeService postLikeService;
+        private final CommentService commentService;
 
+        /*
+         * 게시글 목록 조회
+         */
         @GetMapping
         public Page<PostListResponse> getPosts(
-                @RequestParam(required = false) String keyword,
-                @PageableDefault(
-                        sort = "createdAt",
-                        direction = Sort.Direction.DESC
-                ) Pageable pageable) {
+                        @RequestParam(required = false) String keyword,
+                        Pageable pageable) {
 
-                Page<Post> posts;
-
-                if (keyword == null || keyword.isBlank()) {
-                        posts = postRepository.findAll(pageable);
-                } else {
-                        posts = postRepository
-                                        .findByTitleContainingIgnoreCaseOrWriterEmailContainingIgnoreCase(
-                                                        keyword,
-                                                        keyword,
-                                                        pageable);
-                }
-
-                return posts.map(post -> new PostListResponse(
-                                post.getId(),
-                                post.getTitle(),
-                                post.getContent(),
-                                post.getWriterEmail(),
-                                post.getCreatedAt(),
-                                post.getLikeCount(),
-                                commentRepository.countByPostId(post.getId())));
+                return postService.getPosts(
+                                keyword,
+                                pageable);
         }
 
+        /*
+         * 게시글 상세 조회
+         */
         @GetMapping("/{postId}")
-        public PostListResponse getPost(@PathVariable Long postId) {
-                Post post = postRepository.findById(postId)
-                                .orElseThrow(() -> new RuntimeException("게시글을 찾을 수 없습니다."));
+        public PostListResponse getPost(
+                        @PathVariable Long postId) {
 
-                return new PostListResponse(
-                                post.getId(),
-                                post.getTitle(),
-                                post.getContent(),
-                                post.getWriterEmail(),
-                                post.getCreatedAt(),
-                                post.getLikeCount(),
-                                commentRepository.countByPostId(post.getId()));
+                return postService.getPost(postId);
         }
 
+        /*
+         * 게시글 작성
+         */
         @PostMapping
+        @ResponseStatus(HttpStatus.CREATED)
         public PostListResponse createPost(
-                @RequestBody PostRequest request,
-                @AuthenticationPrincipal Jwt jwt) {
+                        @RequestBody PostRequest request,
+                        @AuthenticationPrincipal Jwt jwt) {
 
-                String email = jwt.getClaimAsString("email");
-                String userId = jwt.getSubject();
+                String email = getRequiredEmail(jwt);
+                String userId = getRequiredUserId(jwt);
 
-                Post post = new Post();
-                post.setTitle(request.getTitle());
-                post.setContent(request.getContent());
-                post.setEmail(email);
-                post.setWriterEmail(email);
-                post.setUserId(userId);
-
-                Post savedPost = postRepository.save(post);
-
-                return new PostListResponse(
-                        savedPost.getId(),
-                        savedPost.getTitle(),
-                        savedPost.getContent(),
-                        savedPost.getWriterEmail(),
-                        savedPost.getCreatedAt(),
-                        savedPost.getLikeCount(),
-                        0
-                );
+                return postService.createPost(
+                                request,
+                                email,
+                                userId);
         }
 
-        @PostMapping("/{postId}/like")
-        public PostLikeResponse toggleLike(
-                        @PathVariable Long postId,
-                        @RequestBody PostLikeRequest request) {
-                Post post = postRepository.findById(postId)
-                                .orElseThrow(() -> new RuntimeException("게시글을 찾을 수 없습니다."));
-
-                String email = request.getEmail();
-
-                if (email == null || email.isBlank()) {
-                        throw new IllegalArgumentException("로그인한 사용자 이메일이 필요합니다.");
-                }
-
-                boolean alreadyLiked = postLikeRepository.existsByPostIdAndUserEmail(postId, email);
-
-                boolean liked;
-                String message;
-
-                if (alreadyLiked) {
-                        PostLike existingLike = postLikeRepository
-                                        .findByPostIdAndUserEmail(postId, email)
-                                        .orElseThrow(() -> new RuntimeException("좋아요 정보를 찾을 수 없습니다."));
-
-                        postLikeRepository.delete(existingLike);
-
-                        liked = false;
-                        message = "좋아요가 취소되었습니다.";
-                } else {
-                        PostLike postLike = new PostLike();
-                        postLike.setPostId(postId);
-                        postLike.setUserEmail(email);
-
-                        postLikeRepository.save(postLike);
-
-                        liked = true;
-                        message = "좋아요가 등록되었습니다.";
-                }
-
-                long likeCount = postLikeRepository.countByPostId(postId);
-
-                post.setLikeCount((int) likeCount);
-                postRepository.save(post);
-
-                return new PostLikeResponse(
-                                postId,
-                                likeCount,
-                                liked,
-                                message);
-        }
-
-        @GetMapping("/{postId}/like-status")
-        public PostLikeResponse getLikeStatus(
-                        @PathVariable Long postId,
-                        @RequestParam String email) {
-                if (!postRepository.existsById(postId)) {
-                        throw new RuntimeException("게시글을 찾을 수 없습니다.");
-                }
-
-                boolean liked = postLikeRepository.existsByPostIdAndUserEmail(postId, email);
-
-                long likeCount = postLikeRepository.countByPostId(postId);
-
-                return new PostLikeResponse(
-                                postId,
-                                likeCount,
-                                liked,
-                                liked
-                                                ? "이미 좋아요를 누른 게시글입니다."
-                                                : "좋아요를 누르지 않은 게시글입니다.");
-        }
-
-        @GetMapping("/{postId}/comments")
-        public List<CommentResponse> getComments(@PathVariable Long postId) {
-                List<Comment> comments = commentRepository.findByPostIdOrderByCreatedAtAsc(postId);
-
-                List<Comment> parents = comments.stream()
-                                .filter(comment -> comment.getParentId() == null)
-                                .toList();
-
-                return parents.stream()
-                                .map(parent -> new CommentResponse(
-                                                parent.getId(),
-                                                parent.getContent(),
-                                                parent.getWriterEmail(),
-                                                parent.getCreatedAt(),
-                                                parent.getParentId(),
-                                                comments.stream()
-                                                                .filter(reply -> parent.getId()
-                                                                                .equals(reply.getParentId()))
-                                                                .map(reply -> new CommentResponse(
-                                                                                reply.getId(),
-                                                                                reply.getContent(),
-                                                                                reply.getWriterEmail(),
-                                                                                reply.getCreatedAt(),
-                                                                                reply.getParentId(),
-                                                                                List.of()))
-                                                                .toList()))
-                                .toList();
-        }
-
-        @PostMapping("/{postId}/comments")
-        public CommentResponse createComment(
-                        @PathVariable Long postId,
-                        @RequestBody CommentRequest request) {
-
-                Comment comment = new Comment();
-                comment.setPostId(postId);
-                comment.setParentId(request.getParentId());
-                comment.setContent(request.getContent());
-
-                String email = request.getEmail();
-
-                if (email == null || email.isBlank()) {
-                        email = "unknown@flowcheck.com";
-                }
-
-                comment.setWriterEmail(email);
-
-                Comment saved = commentRepository.save(comment);
-
-                return new CommentResponse(
-                                saved.getId(),
-                                saved.getContent(),
-                                saved.getWriterEmail(),
-                                saved.getCreatedAt(),
-                                saved.getParentId(),
-                                List.of());
-        }
-
-        @DeleteMapping("/comments/{commentId}")
-        public void deleteComment(@PathVariable Long commentId) {
-                Comment comment = commentRepository.findById(commentId)
-                                .orElseThrow(() -> new RuntimeException("댓글을 찾을 수 없습니다."));
-
-                commentRepository.delete(comment);
-        }
-
-        @DeleteMapping("/{postId}")
-        public void deletePost(@PathVariable Long postId) {
-                Post post = postRepository.findById(postId)
-                                .orElseThrow(() -> new RuntimeException("게시글을 찾을 수 없습니다."));
-
-                commentRepository.deleteByPostId(postId);
-                postLikeRepository.deleteByPostId(postId);
-
-                postRepository.delete(post);
-        }
-
+        /*
+         * 게시글 수정
+         *
+         * 현재는 작성자만 수정할 수 있도록 유지합니다.
+         */
         @PutMapping("/{postId}")
         public PostListResponse updatePost(
                         @PathVariable Long postId,
-                        @RequestBody PostRequest request) {
-                Post post = postRepository.findById(postId)
-                                .orElseThrow(() -> new RuntimeException("게시글을 찾을 수 없습니다."));
+                        @RequestBody PostRequest request,
+                        @AuthenticationPrincipal Jwt jwt) {
 
-                post.setTitle(request.getTitle());
-                post.setContent(request.getContent());
+                String email = getRequiredEmail(jwt);
 
-                Post updatedPost = postRepository.save(post);
+                return postService.updatePost(
+                                postId,
+                                request,
+                                email);
+        }
 
-                return new PostListResponse(
-                                updatedPost.getId(),
-                                updatedPost.getTitle(),
-                                updatedPost.getContent(),
-                                updatedPost.getWriterEmail(),
-                                updatedPost.getCreatedAt(),
-                                updatedPost.getLikeCount(),
-                                commentRepository.countByPostId(updatedPost.getId()));
+        /*
+         * 게시글 삭제
+         *
+         * 작성자 또는 관리자만 삭제할 수 있습니다.
+         */
+        @DeleteMapping("/{postId}")
+        @ResponseStatus(HttpStatus.NO_CONTENT)
+        public void deletePost(
+                        @PathVariable Long postId,
+                        @AuthenticationPrincipal Jwt jwt) {
+
+                String email = getRequiredEmail(jwt);
+                boolean admin = isAdmin(jwt);
+
+                postService.deletePost(
+                                postId,
+                                email,
+                                admin);
+        }
+
+        /*
+         * 좋아요 등록 또는 취소
+         */
+        @PostMapping("/{postId}/like")
+        public PostLikeResponse toggleLike(
+                        @PathVariable Long postId,
+                        @AuthenticationPrincipal Jwt jwt) {
+
+                String email = getRequiredEmail(jwt);
+
+                return postLikeService.toggleLike(
+                                postId,
+                                email);
+        }
+
+        /*
+         * 현재 사용자의 좋아요 상태 조회
+         */
+        @GetMapping("/{postId}/like-status")
+        public PostLikeResponse getLikeStatus(
+                        @PathVariable Long postId,
+                        @AuthenticationPrincipal Jwt jwt) {
+
+                String email = getRequiredEmail(jwt);
+
+                return postLikeService.getLikeStatus(
+                                postId,
+                                email);
+        }
+
+        /*
+         * 댓글 및 답글 조회
+         */
+        @GetMapping("/{postId}/comments")
+        public List<CommentResponse> getComments(
+                        @PathVariable Long postId) {
+
+                return commentService.getComments(postId);
+        }
+
+        /*
+         * 댓글 또는 답글 작성
+         */
+        @PostMapping("/{postId}/comments")
+        @ResponseStatus(HttpStatus.CREATED)
+        public CommentResponse createComment(
+                        @PathVariable Long postId,
+                        @RequestBody CommentRequest request,
+                        @AuthenticationPrincipal Jwt jwt) {
+
+                String email = getRequiredEmail(jwt);
+
+                return commentService.createComment(
+                                postId,
+                                request,
+                                email);
+        }
+
+        /*
+         * 댓글 또는 답글 삭제
+         *
+         * 현재는 댓글 작성자만 삭제할 수 있도록 유지합니다.
+         */
+        @DeleteMapping("/comments/{commentId}")
+        @ResponseStatus(HttpStatus.NO_CONTENT)
+        public void deleteComment(
+                        @PathVariable Long commentId,
+                        @AuthenticationPrincipal Jwt jwt) {
+
+                String email = getRequiredEmail(jwt);
+
+                commentService.deleteComment(
+                                commentId,
+                                email);
+        }
+
+        /*
+         * JWT 이메일 추출
+         */
+        private String getRequiredEmail(Jwt jwt) {
+                if (jwt == null) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.UNAUTHORIZED,
+                                        "로그인이 필요합니다.");
+                }
+
+                String email = jwt.getClaimAsString("email");
+
+                if (email == null || email.isBlank()) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.UNAUTHORIZED,
+                                        "JWT에서 이메일 정보를 확인할 수 없습니다.");
+                }
+
+                return normalizeEmail(email);
+        }
+
+        /*
+         * JWT 사용자 ID 추출
+         */
+        private String getRequiredUserId(Jwt jwt) {
+                if (jwt == null
+                                || jwt.getSubject() == null
+                                || jwt.getSubject().isBlank()) {
+
+                        throw new ResponseStatusException(
+                                        HttpStatus.UNAUTHORIZED,
+                                        "JWT에서 사용자 ID를 확인할 수 없습니다.");
+                }
+
+                return jwt.getSubject().trim();
+        }
+
+        /*
+         * 관리자 권한 확인
+         *
+         * Supabase app_metadata 예시:
+         *
+         * {
+         * "role": "ADMIN"
+         * }
+         *
+         * 또는:
+         *
+         * {
+         * "roles": ["ADMIN"]
+         * }
+         */
+        private boolean isAdmin(Jwt jwt) {
+                if (jwt == null) {
+                        return false;
+                }
+
+                /*
+                 * 별도의 신뢰 가능한 custom claim을 사용하는 경우
+                 */
+                if (hasAdminRole(jwt.getClaim("user_role"))) {
+                        return true;
+                }
+
+                /*
+                 * Supabase app_metadata의 역할 확인
+                 */
+                Map<String, Object> appMetadata = jwt.getClaim("app_metadata");
+
+                if (appMetadata == null) {
+                        return false;
+                }
+
+                return hasAdminRole(appMetadata.get("role"))
+                                || hasAdminRole(appMetadata.get("roles"));
+        }
+
+        /*
+         * 단일 역할 또는 역할 목록에서 관리자 권한 확인
+         */
+        private boolean hasAdminRole(Object roleValue) {
+                if (roleValue == null) {
+                        return false;
+                }
+
+                if (roleValue instanceof Collection<?> roles) {
+                        return roles.stream()
+                                        .anyMatch(this::hasAdminRole);
+                }
+
+                String role = roleValue
+                                .toString()
+                                .trim()
+                                .toUpperCase();
+
+                return "ADMIN".equals(role)
+                                || "ROLE_ADMIN".equals(role);
+        }
+
+        private String normalizeEmail(String email) {
+                if (email == null) {
+                        return "";
+                }
+
+                return email
+                                .trim()
+                                .toLowerCase();
         }
 }
