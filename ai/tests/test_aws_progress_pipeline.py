@@ -38,11 +38,15 @@ except ModuleNotFoundError:
     class ConnectError(RequestError):
         pass
 
+    class ReadTimeout(RequestError):
+        pass
+
     httpx.Request = Request
     httpx.Response = Response
     httpx.RequestError = RequestError
     httpx.HTTPStatusError = HTTPStatusError
     httpx.ConnectError = ConnectError
+    httpx.ReadTimeout = ReadTimeout
     httpx.AsyncClient = object
     sys.modules["httpx"] = httpx
 
@@ -71,7 +75,7 @@ except ModuleNotFoundError:
     sys.modules["botocore.exceptions"] = botocore_exceptions
 
 from load_test.aws_executor import AwsSettings, run_k6_aws_fargate
-from load_test.exceptions import LoadTestExecutionError
+from load_test.exceptions import LoadTestExecutionError, TargetUnavailableError
 from load_test.models import LoadTestProgressUpdate, TestResultsResponse
 from load_test.progress_publisher import publish_progress
 
@@ -234,8 +238,10 @@ class PipelineTest(unittest.IsolatedAsyncioTestCase):
     @patch("load_test.pipeline.run_k6_aws_fargate")
     @patch("load_test.pipeline.generate_k6_script", new_callable=AsyncMock, return_value="script")
     @patch("load_test.pipeline.publish_progress", new_callable=AsyncMock)
+    @patch("load_test.pipeline.validate_target_server", new_callable=AsyncMock)
     async def test_pipeline_orchestrates_phases_and_response(
         self,
+        validate_target,
         publish,
         _generate_script,
         execute,
@@ -264,6 +270,7 @@ class PipelineTest(unittest.IsolatedAsyncioTestCase):
 
         result = await run_load_test_pipeline(Mock(), request)
 
+        validate_target.assert_awaited_once_with("https://example.com")
         self.assertIsInstance(result, TestResultsResponse)
         self.assertEqual(12, result.maxTps)
         self.assertEqual(120.46, result.avgResponse)
@@ -272,6 +279,42 @@ class PipelineTest(unittest.IsolatedAsyncioTestCase):
             ["GENERATING_SCRIPT", "PROVISIONING_INFRA", "PROCESSING_RESULTS", "RESULT_READY"],
             [item.args[1].phase for item in publish.await_args_list],
         )
+
+    @patch("load_test.pipeline.generate_analysis_report", new_callable=AsyncMock)
+    @patch("load_test.pipeline.run_k6_aws_fargate")
+    @patch("load_test.pipeline.generate_k6_script", new_callable=AsyncMock)
+    @patch("load_test.pipeline.publish_progress", new_callable=AsyncMock)
+    @patch(
+        "load_test.pipeline.validate_target_server",
+        new_callable=AsyncMock,
+        side_effect=TargetUnavailableError("unavailable"),
+    )
+    async def test_pipeline_stops_before_external_work_when_target_is_unavailable(
+        self,
+        validate_target,
+        publish,
+        generate_script,
+        execute,
+        generate_analysis,
+    ):
+        from load_test.pipeline import run_load_test_pipeline
+
+        request = SimpleNamespace(
+            requestId="request-1",
+            targetUrl="https://unavailable.example.com",
+            vusers=2,
+            duration=10,
+            loadPrompt="",
+        )
+
+        with self.assertRaises(TargetUnavailableError):
+            await run_load_test_pipeline(Mock(), request)
+
+        validate_target.assert_awaited_once_with(request.targetUrl)
+        publish.assert_not_awaited()
+        generate_script.assert_not_awaited()
+        execute.assert_not_called()
+        generate_analysis.assert_not_awaited()
 
 
 class CompatibilityFacadeTest(unittest.TestCase):
@@ -282,6 +325,7 @@ class CompatibilityFacadeTest(unittest.TestCase):
             {
                 "LoadTestExecutionError",
                 "LoadTestGenerationError",
+                "TargetUnavailableError",
                 "TestResultsResponse",
                 "run_load_test_pipeline",
             },

@@ -1,7 +1,7 @@
 import truststore
 truststore.inject_into_ssl()
 
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import FastAPI, BackgroundTasks, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
@@ -14,6 +14,7 @@ from google import genai
 from load_test_service import (
     LoadTestExecutionError,
     LoadTestGenerationError,
+    TargetUnavailableError,
     TestResultsResponse,
     run_load_test_pipeline,
 )
@@ -88,8 +89,11 @@ class LoadTestRequest(BaseModel):
 async def run_load_test(request: LoadTestRequest):
     print(f"Spring Boot로부터 부하 테스트 요청 수신: {request.targetUrl}, vusers={request.vusers}", flush=True)
     try:
-        print("Gemini API 호출 중... (k6 스크립트 생성)", flush=True)
+        print("부하 테스트 파이프라인 시작...", flush=True)
         result = await run_load_test_pipeline(client, request)
+    except TargetUnavailableError as e:
+        print(f"타겟 서버 사전 확인 실패: {e}", flush=True)
+        raise HTTPException(status_code=424, detail=str(e)) from e
     except (LoadTestGenerationError, LoadTestExecutionError) as e:
         print(f"부하 테스트 처리 중 오류 발생: {e}", flush=True)
         raise RuntimeError(str(e))
