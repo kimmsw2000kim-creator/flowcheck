@@ -1,16 +1,17 @@
 .toast {
   position: fixed;
-  top: 20px;
-  right: 20px;
-  padding: 1rem 1.5rem;
-  border-radius: 0.5rem;
+  top: var(--space-5);
+  right: var(--space-5);
+  max-width: min(26rem, calc(100vw - var(--space-8)));
+  padding: var(--space-4) var(--space-6);
+  border-radius: var(--radius-md);
   z-index: 9999;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  box-shadow: var(--card-shadow);
+  gap: var(--space-3);
+  box-shadow: var(--shadow-raised);
   backdrop-filter: blur(8px);
-  animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: slideIn var(--motion-duration-slow) var(--motion-easing-emphasized) forwards;
 }
 
 @keyframes slideIn {
@@ -25,25 +26,40 @@
 }
 
 .success {
-  background-color: var(--bg-secondary);
-  color: var(--success);
-  border: 1px solid var(--success);
+  background-color: var(--color-bg-surface);
+  color: var(--color-status-success);
+  border: 1px solid var(--color-status-success);
 }
 
 .error {
-  background-color: var(--error-bg);
-  color: var(--error);
-  border: 1px solid var(--error);
+  background-color: var(--color-status-error-subtle);
+  color: var(--color-status-error);
+  border: 1px solid var(--color-status-error);
 }
 
 .warning {
-  background-color: var(--warning-bg);
-  color: var(--warning);
-  border: 1px solid var(--warning);
+  background-color: var(--color-status-warning-subtle);
+  color: var(--color-status-warning);
+  border: 1px solid var(--color-status-warning);
 }
 
 .info {
-  background-color: var(--accent-glow);
-  color: var(--accent);
-  border: 1px solid var(--accent-border);
+  background-color: var(--color-action-primary-subtle);
+  color: var(--color-action-primary);
+  border: 1px solid var(--color-border-accent);
+}
+
+@media (max-width: 560px) {
+  .toast {
+    top: var(--space-4);
+    right: var(--space-4);
+    left: var(--space-4);
+    max-width: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
 }

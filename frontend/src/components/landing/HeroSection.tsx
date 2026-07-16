@@ -1,103 +1,64 @@
-import React from 'react';
-import { ArrowRight, Activity } from 'lucide-react';
+import { Activity, ArrowRight, LogIn } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Badge, Button, Card } from '../common';
 import styles from '../../styles/landing.module.css';
 
 export default function HeroSection() {
   const navigate = useNavigate();
 
   return (
-    <section className={styles['hero-wrapper']}>
-      <div className={styles['hero-glow-blob']}></div>
-      <div className={`${styles['hero-split-grid']} ${styles['animate-fade-in-up']}`}>
-        {/* Left Side: Copy and Action Buttons */}
-        <div className={styles['hero-left']}>
-          <div className={styles['hero-badge']} onClick={() => navigate('/community')}>
-            <Activity size={16} />
-            <span>Gemini AI 기반 성능 검증 정식 출시!</span>
-            <ArrowRight size={14} />
-          </div>
-          
-          <h1 className={styles['hero-title']}>
-            URL 하나로 시작하는<br />
-            AI 자율 성능/UX 테스트
+    <section className={styles.hero} aria-labelledby="landing-hero-title">
+      <div className={styles['hero-grid']}>
+        <div className={styles['hero-copy']}>
+          <Badge tone="info" size="md" className={styles['hero-badge']}>
+            <Activity size={16} aria-hidden="true" /> Gemini AI 기반 자동 검증
+          </Badge>
+          <h1 id="landing-hero-title" className={styles['hero-title']}>
+            URL 하나로 시작하는<br />AI 성능·UI/UX 테스트
           </h1>
-          
           <p className={styles['hero-description']}>
-            복잡한 스크립트 작성은 이제 그만. 타겟 URL만 입력하면 Gemini가 부하 테스트부터 브라우저 자율 탐색, 상세 리포트 생성까지 완벽하게 수행합니다.
+            복잡한 스크립트 없이 URL과 테스트 조건만 입력하세요. FlowCheck가 부하 테스트와 자율 UI 탐색을 실행하고 이해하기 쉬운 결과를 제공합니다.
           </p>
-          
-          <div className={styles['hero-cta-group']}>
-            <button className={styles['btn-primary']} onClick={() => navigate('/login')}>
-              바로 테스트하러 가기
-              <ArrowRight size={18} />
-            </button>
+          <div className={styles['hero-actions']}>
+            <Button size="lg" icon={ArrowRight} onClick={() => navigate('/signup')}>무료로 시작하기</Button>
+            <Button size="lg" variant="secondary" icon={LogIn} onClick={() => navigate('/login')}>로그인</Button>
           </div>
+          <p className={styles['hero-note']}>설치 없이 시작 · 실행별 크레딧 차감 · 결과 이력 보관</p>
         </div>
 
-        {/* Right Side: Beautiful CSS Visual Mockups */}
-        <div className={styles['hero-right']}>
-          <div className={styles['mockup-container']}>
-            {/* Back Overlapping: k6 Terminal Screen */}
-            <div className={styles['terminal-mockup']}>
-              <div className={styles['terminal-header']}>
-                <div className={styles['terminal-dots']}>
-                  <span className={styles['terminal-dot']} style={{ backgroundColor: '#ef4444' }}></span>
-                  <span className={styles['terminal-dot']} style={{ backgroundColor: '#eab308' }}></span>
-                  <span className={styles['terminal-dot']} style={{ backgroundColor: '#22c55e' }}></span>
-                </div>
-                <div className={styles['terminal-title']}>bash - k6 load_test.js</div>
+        <div className={styles['hero-visual']} aria-hidden="true">
+          <Card variant="outlined" padding="none" className={styles['terminal-mockup']}>
+            <div className={styles['mockup-header']}>
+              <div className={styles['mockup-dots']}>
+                <span className={`${styles['mockup-dot']} ${styles.red}`} />
+                <span className={`${styles['mockup-dot']} ${styles.amber}`} />
+                <span className={`${styles['mockup-dot']} ${styles.green}`} />
               </div>
-              <div className={styles['terminal-content']}>
-                <p><span className={styles['terminal-prompt']}>$</span> k6 run load_test.js</p>
-                <p className={styles['terminal-text']}>  execution: local</p>
-                <p className={styles['terminal-text']}>  scenarios: (100.00%) 1 scenario, 50 VUs</p>
-                <p style={{ margin: '0.25rem 0' }}></p>
-                <p className={styles['terminal-success']}>✓ status is 200 ...............: 100.00%</p>
-                <p className={styles['terminal-success']}>✓ page_load_time &lt; 500ms ...: 99.45%</p>
-                <p style={{ margin: '0.25rem 0' }}></p>
-                <p className={styles['terminal-text']}>http_req_duration: avg=112ms max=245ms</p>
-                <p className={styles['terminal-text']}>vus_active.......: 50/50 running</p>
-              </div>
+              <span>k6 · load-test.js</span>
             </div>
+            <div className={styles['terminal-content']}>
+              <p><strong>$</strong> k6 run load-test.js</p>
+              <p>execution: local · 50 VUs</p>
+              <p className={styles['terminal-success']}>✓ status is 200 · 100.00%</p>
+              <p className={styles['terminal-success']}>✓ page load &lt; 500ms · 99.45%</p>
+              <p>http_req_duration: avg=112ms max=245ms</p>
+            </div>
+          </Card>
 
-            {/* Front Overlapping: Browser View showing Autonomous Action */}
-            <div className={styles['browser-mockup']}>
-              <div className={styles['browser-header']}>
-                <div className={styles['browser-dots']}>
-                  <span className={styles['browser-dot']} style={{ backgroundColor: '#cbd5e1' }}></span>
-                  <span className={styles['browser-dot']} style={{ backgroundColor: '#cbd5e1' }}></span>
-                  <span className={styles['browser-dot']} style={{ backgroundColor: '#cbd5e1' }}></span>
-                </div>
-                <div className={styles['browser-address']}>
-                  <span style={{ color: 'var(--success)', marginRight: '0.25rem' }}>● Secure</span>
-                  <span>https://flowcheck.site/target-url</span>
-                </div>
-              </div>
-              <div className={styles['browser-body']}>
-                <div className={styles['browser-sidebar']}>
-                  <div className={`${styles['browser-sidebar-item']} ${styles.active}`}></div>
-                  <div className={styles['browser-sidebar-item']}></div>
-                  <div className={styles['browser-sidebar-item']}></div>
-                </div>
-                <div className={styles['browser-main']}>
-                  <div className={styles['browser-rect']} style={{ width: '40%' }}></div>
-                  <div className={styles['browser-rect']} style={{ width: '80%' }}></div>
-                  <div className={styles['browser-rect']} style={{ width: '60%' }}></div>
-                  
-                  <div className={styles['browser-btn']}></div>
-                  
-                  {/* Floating Gemini Agent Hover Badge */}
-                  <div className={styles['gemini-agent-cursor']}>
-                    <div className={styles['cursor-pointer-dot']}></div>
-                    <div className={styles['cursor-agent-badge']}>
-                      Gemini Agent: Clicking 'Buy Now'
-                    </div>
-                  </div>
-                </div>
+          <Card variant="outlined" padding="none" className={styles['browser-mockup']}>
+            <div className={styles['browser-header']}>
+              <div className={styles['mockup-dots']}><span /><span /><span /></div>
+              <div className={styles['browser-address']}>● Secure · flowcheck.site/target-url</div>
+            </div>
+            <div className={styles['browser-body']}>
+              <aside className={styles['browser-sidebar']}><span /><span /><span /></aside>
+              <div className={styles['browser-main']}>
+                <span className={styles.short} /><span className={styles.long} /><span className={styles.medium} />
+                <span className={styles['browser-button']} />
+                <Badge tone="info" className={styles['agent-badge']}>Gemini Agent · Click</Badge>
               </div>
             </div>
-          </div>
+          </Card>
         </div>
       </div>
     </section>

@@ -2,7 +2,7 @@ import React from 'react';
 import { CheckCircle, AlertCircle, Info } from 'lucide-react';
 import styles from './Toast.module.css';
 
-interface ToastProps {
+export interface ToastProps {
   message: string;
   type?: 'success' | 'error' | 'warning' | 'info' | string;
 }
@@ -23,8 +23,15 @@ export default function Toast({ message, type = 'success' }: ToastProps) {
     Icon = Info;
   }
 
+  const isAssertive = type === 'error' || type === 'warning';
+
   return (
-    <div className={`${styles.toast} ${typeClass}`}>
+    <div
+      className={`${styles.toast} ${typeClass}`}
+      role={isAssertive ? 'alert' : 'status'}
+      aria-live={isAssertive ? 'assertive' : 'polite'}
+      aria-atomic="true"
+    >
       <Icon size={20} />
       <span>{message}</span>
     </div>

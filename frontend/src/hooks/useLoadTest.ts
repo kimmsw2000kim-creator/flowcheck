@@ -5,27 +5,8 @@ import apiClient from '../api/client';
 import { getSupabaseAccessToken } from '../api/sessionApi';
 import { useAlertStore } from '../store/alertStore';
 import { useUserStore } from '../store/userStore';
+import type { LoadTestResult } from '../types/loadTest';
 import { useDomains } from './useDomains';
-
-interface LoadChartDataPoint {
-  time: string;
-  tps: number;
-  avgResponse: number;
-}
-
-interface LoadMetrics {
-  maxTps: number;
-  avgResponse: number;
-  errorRate: number;
-  performanceScore: number;
-  performanceGrade: string;
-  scoreLabel: string;
-  scoreBreakdown: {
-    reliabilityScore: number;
-    latencyScore: number;
-  };
-  bottleneckComment: string;
-}
 
 interface LoadTestStreamPayload {
   status: string;
@@ -63,8 +44,7 @@ export function useLoadTest() {
   const [loadPhase, setLoadPhase] = useState<string>('');
   const [loadProgress, setLoadProgress] = useState<number>(0);
   const [loadMessage, setLoadMessage] = useState<string>('');
-  const [loadMetrics, setLoadMetrics] = useState<LoadMetrics | null>(null);
-  const [loadChartData, setLoadChartData] = useState<LoadChartDataPoint[]>([]);
+  const [loadResult, setLoadResult] = useState<LoadTestResult | null>(null);
   const streamRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -191,7 +171,7 @@ export function useLoadTest() {
 
                 if (testResults && testResults.maxTps !== undefined) {
                   setLoadStatus('success');
-                  setLoadMetrics({
+                  setLoadResult({
                     maxTps: testResults.maxTps,
                     avgResponse: testResults.avgResponse,
                     errorRate: testResults.errorRate,
@@ -200,8 +180,8 @@ export function useLoadTest() {
                     scoreLabel: testResults.scoreLabel,
                     scoreBreakdown: testResults.scoreBreakdown,
                     bottleneckComment: testResults.bottleneckComment,
+                    points: testResults.points || [],
                   });
-                  setLoadChartData(testResults.points);
                   showAlert('k6 부하 테스트가 완료되었습니다!', 'success');
                 }
               })
@@ -275,6 +255,7 @@ export function useLoadTest() {
     setLoadPhase('QUEUED');
     setLoadProgress(0);
     setLoadMessage('요청을 백엔드에 전달하는 중입니다.');
+    setLoadResult(null);
 
     try {
       const response = await apiClient.post('/api/load-tests', payload);
@@ -302,8 +283,7 @@ export function useLoadTest() {
     loadPhase,
     loadProgress,
     loadMessage,
-    loadMetrics,
-    loadChartData,
+    loadResult,
     runLoadTest,
   };
 }

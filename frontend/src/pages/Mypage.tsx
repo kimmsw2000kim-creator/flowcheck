@@ -75,7 +75,7 @@ function Mypage() {
     <div className={styles['mypage-layout']}>
       <MypageSidebar />
 
-      <main className={styles['mypage-main']}>
+      <div className={styles['mypage-main']}>
         {loading && (
           <EmptyState
             title="마이페이지 정보를 불러오는 중입니다."
@@ -157,7 +157,7 @@ function Mypage() {
             <Route path="*" element={<Navigate to="profile" replace />} />
           </Routes>
         )}
-      </main>
+      </div>
     </div>
   );
 }

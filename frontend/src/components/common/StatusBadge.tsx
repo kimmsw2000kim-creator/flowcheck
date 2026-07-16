@@ -1,29 +1,29 @@
-import React from 'react';
-import styles from './StatusBadge.module.css';
+import type { HTMLAttributes } from 'react';
+import Badge from './Badge';
+import type { BadgeTone } from './Badge';
 
-type BadgeStatus = 'COMPLETED' | 'FAILED' | 'PENDING' | 'RUNNING' | 'SUCCESS' | string;
+export type BadgeStatus = 'COMPLETED' | 'FAILED' | 'PENDING' | 'RUNNING' | 'SUCCESS' | string;
 
-interface StatusBadgeProps {
+export interface StatusBadgeProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'children'> {
   status: BadgeStatus;
   label: string;
 }
 
-export default function StatusBadge({ status, label }: StatusBadgeProps) {
+export default function StatusBadge({ status, label, ...props }: StatusBadgeProps) {
   const statusKey = status.toLowerCase();
-  
-  // Map standard status values to their respective class styles
-  let statusClass = styles.pending;
+  let tone: BadgeTone = 'warning';
+
   if (statusKey === 'completed' || statusKey === 'success') {
-    statusClass = styles.completed;
+    tone = 'success';
   } else if (statusKey === 'failed' || statusKey === 'error') {
-    statusClass = styles.failed;
+    tone = 'danger';
   } else if (statusKey === 'running') {
-    statusClass = styles.running;
+    tone = 'info';
   }
 
   return (
-    <span className={`${styles['status-badge']} ${statusClass}`}>
+    <Badge tone={tone} size="md" {...props}>
       {label}
-    </span>
+    </Badge>
   );
 }

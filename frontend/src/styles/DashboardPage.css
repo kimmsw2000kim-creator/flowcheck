@@ -1,0 +1,111 @@
+.dashboard-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
+  text-align: left;
+}
+
+.dashboard-page__stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.dashboard-page__stat-card {
+  min-width: 0;
+}
+
+.dashboard-page__stat-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+}
+
+.dashboard-page__stat-label svg {
+  color: var(--color-action-primary);
+}
+
+.dashboard-page__stat-value {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-black);
+  line-height: var(--line-height-tight);
+  overflow-wrap: anywhere;
+}
+
+.dashboard-page__stat-value--accent {
+  color: var(--color-action-primary);
+}
+
+.dashboard-page__stat-value span {
+  color: var(--color-status-success);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-bold);
+}
+
+.dashboard-page__coupon-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.dashboard-page__coupon-values span {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.dashboard-page__coupon-values strong {
+  color: var(--color-text-primary);
+}
+
+.dashboard-page__section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.dashboard-page__section-heading > div > span {
+  display: block;
+  margin-bottom: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+}
+
+.dashboard-page__section-heading h3 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-extrabold);
+}
+
+.dashboard-page__domain-url {
+  font-family: var(--font-family-mono);
+  overflow-wrap: anywhere;
+}
+
+.dashboard-page__domains .fc-empty-state {
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .dashboard-page__stats {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .dashboard-page__section-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
