@@ -3,6 +3,7 @@ import { Badge, Button, Card, EmptyState, PageHeader, Table, TableContainer } fr
 import { useDomains } from '../hooks/useDomains';
 import { useUserStore } from '../store/userStore';
 import '../styles/DashboardPage.css';
+import { formatDate } from '../utils/date';
 
 interface DashboardPageProps {
   setActiveTab: (tab: string) => void;
@@ -72,7 +73,7 @@ export default function DashboardPage({ setActiveTab, setSelectedUIUXTestDomain 
               {domains.map((domain) => (
                 <tr key={domain.id}>
                   <td className="dashboard-page__domain-url">{domain.domainUrl}</td>
-                  <td>{domain.createdAt}</td>
+                  <td>{formatDate(domain.createdAt)}</td>
                   <td>
                     <Badge tone={domain.verified ? 'success' : 'warning'}>
                       {domain.verified ? '인증됨' : '대기 중'}
