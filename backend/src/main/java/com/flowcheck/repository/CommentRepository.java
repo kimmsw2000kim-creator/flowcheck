@@ -14,4 +14,6 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
 
     @Transactional
     void deleteByPostId(Long postId);
+
+    void deleteByParentId(Long parentId);
 }

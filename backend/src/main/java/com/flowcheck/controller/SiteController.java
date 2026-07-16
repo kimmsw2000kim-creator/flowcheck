@@ -1,6 +1,5 @@
 package com.flowcheck.controller;
 
-
 import com.flowcheck.dto.SiteRegisterRequestDTO;
 import com.flowcheck.dto.SiteResponseDTO;
 import com.flowcheck.service.SiteService;
@@ -19,18 +18,19 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/sites")
 @RequiredArgsConstructor
-@CrossOrigin(origins = {"http://localhost:5173", "https://flow-check.duckdns.org"})
+@CrossOrigin(origins = {
+        "http://localhost:5173",
+        "https://flow-check.duckdns.org"
+}, allowCredentials = "true")
 public class SiteController {
 
     private final SiteService siteService;
-
 
     @Operation(summary = "새 사이트 등록", description = "검증 대상 웹사이트 도메인을 등록합니다. 소유권 검증 토큰이 발급됩니다.")
     @PostMapping
     public ResponseEntity<SiteResponseDTO> registerSite(
             @AuthenticationPrincipal Jwt jwt,
-            @RequestBody SiteRegisterRequestDTO requestDTO
-    ) {
+            @RequestBody SiteRegisterRequestDTO requestDTO) {
         String email = jwt.getClaimAsString("email");
         SiteResponseDTO response = siteService.registerSite(email, requestDTO);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -39,8 +39,7 @@ public class SiteController {
     @Operation(summary = "등록 사이트 목록 조회", description = "로그인한 유저가 등록한 웹사이트 목록을 조회합니다.")
     @GetMapping
     public ResponseEntity<List<SiteResponseDTO>> getSites(
-            @AuthenticationPrincipal Jwt jwt
-    ) {
+            @AuthenticationPrincipal Jwt jwt) {
         String email = jwt.getClaimAsString("email");
         List<SiteResponseDTO> response = siteService.getSites(email);
         return ResponseEntity.ok(response);
@@ -50,8 +49,7 @@ public class SiteController {
     @PostMapping("/{id}/verify")
     public ResponseEntity<SiteResponseDTO> verifySite(
             @AuthenticationPrincipal Jwt jwt,
-            @PathVariable("id") Long id
-    ) {
+            @PathVariable("id") Long id) {
         String email = jwt.getClaimAsString("email");
         SiteResponseDTO response = siteService.verifySite(email, id);
         return ResponseEntity.ok(response);
@@ -61,8 +59,7 @@ public class SiteController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteSite(
             @AuthenticationPrincipal Jwt jwt,
-            @PathVariable("id") Long id
-    ) {
+            @PathVariable("id") Long id) {
         String email = jwt.getClaimAsString("email");
         siteService.deleteSite(email, id);
         return ResponseEntity.noContent().build();
