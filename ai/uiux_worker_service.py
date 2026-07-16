@@ -6,6 +6,7 @@ import time
 import base64
 import subprocess
 import tempfile
+import math
 from urllib.parse import urljoin, urlparse
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
@@ -18,8 +19,8 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"), override=True
 BACKEND_URL = os.getenv("BACKEND_URL", "http://host.docker.internal:8080")
 INITIAL_PAGE_LOAD_TIMEOUT_MS = int(os.getenv("UIUX_INITIAL_PAGE_LOAD_TIMEOUT_MS", "7000"))
 INITIAL_SETTLE_TIMEOUT_MS = int(os.getenv("UIUX_INITIAL_SETTLE_TIMEOUT_MS", "250"))
-LIGHTHOUSE_TIMEOUT_SECONDS = int(os.getenv("UIUX_LIGHTHOUSE_TIMEOUT_SECONDS", "8"))
-LIGHTHOUSE_PRECHECK_TIMEOUT_SECONDS = float(os.getenv("UIUX_LIGHTHOUSE_PRECHECK_TIMEOUT_SECONDS", "5"))
+LIGHTHOUSE_TIMEOUT_SECONDS = int(os.getenv("UIUX_LIGHTHOUSE_TIMEOUT_SECONDS", "25"))
+LIGHTHOUSE_PRECHECK_TIMEOUT_SECONDS = float(os.getenv("UIUX_LIGHTHOUSE_PRECHECK_TIMEOUT_SECONDS", "8"))
 
 UNIVERSAL_UIUX_AGENT_PROMPT = """
 너는 범용 UI/UX 테스트 에이전트다.
@@ -369,6 +370,16 @@ def localize_uiux_text(text: Optional[str]) -> Optional[str]:
         return "초기 로딩 중 긴 JavaScript 작업을 줄이고 코드 분할, 지연 로딩, 불필요한 스크립트 제거를 적용하세요."
     if "Measures the movement of visible elements" in normalized:
         return "이미지와 광고 영역의 크기를 미리 지정하고, 로딩 중 레이아웃이 밀리지 않도록 공간을 예약하세요."
+    if "ARIA roles must be contained" in normalized:
+        return "일부 ARIA 역할은 정해진 부모 요소 안에 배치되어야 합니다."
+    if "minimum color contrast" in normalized or "color contrast ratio" in normalized:
+        return "텍스트와 배경의 색상 대비가 최소 기준을 충족해야 합니다."
+    if "one main landmark" in normalized:
+        return "문서에는 main 랜드마크가 하나만 있어야 합니다."
+    if "level-one heading" in normalized:
+        return "페이지에는 최상위 제목(h1)이 있어야 합니다."
+    if "contained by landmarks" in normalized:
+        return "페이지의 주요 콘텐츠는 header, main, nav, footer 같은 랜드마크 영역 안에 포함되어야 합니다."
     return text
 
 def describe_defect_target(selector: Optional[str], evidence: Optional[dict]) -> str:
@@ -633,13 +644,17 @@ def run_axe_audit(page) -> Dict[str, Any]:
             }
         """)
         violations = result.get("violations", [])
+        # 위반 유형별 감점: 동일 규칙 노드가 많을수록 log2 스케일로 완화
         total_deduction = 0
-        impact_weights = {"critical": 15, "serious": 10, "moderate": 5, "minor": 2}
+        impact_weights = {"critical": 20, "serious": 12, "moderate": 6, "minor": 2}
         for violation in violations:
             impact = violation.get("impact") or "minor"
             nodes = violation.get("nodes") or []
-            total_deduction += impact_weights.get(impact, 2) * max(1, len(nodes))
-        score = clamp_score(100 - min(100, total_deduction))
+            node_count = max(1, len(nodes))
+            weight = impact_weights.get(impact, 2)
+            total_deduction += weight * (1 + math.log2(node_count))
+        # 최대 감점 60점으로 제한 — 규모가 큰 사이트가 과도하게 낮아지지 않도록
+        score = clamp_score(100 - min(60, round(total_deduction)))
         return {
             "available": True,
             "score": score,
@@ -907,8 +922,8 @@ def evaluate_best_practices(page, target_url, console_errors, page_errors, add_d
     if not target_url.startswith("https://") and not target_url.startswith("http://localhost") and not target_url.startswith("http://127.0.0.1"):
         add_issue(
             "uses-https",
-            "??? ?? URL? HTTPS? ???? ????.",
-            "?? ????? HTTPS? ???? HTTP ??? HTTPS? ????????.",
+            "테스트 대상 URL이 HTTPS를 사용하지 않습니다.",
+            "운영 환경에서는 HTTPS를 적용하고 HTTP 요청은 HTTPS로 리다이렉트하세요.",
             15,
             {"url": target_url},
             "MAJOR"
@@ -917,8 +932,8 @@ def evaluate_best_practices(page, target_url, console_errors, page_errors, add_d
     if console_errors:
         add_issue(
             "console-errors",
-            f"???? ?? ??? {len(console_errors)}? ???????.",
-            "?? ??? ??? ??? ??, ??? ?? ??, ??? API ??? ?????.",
+            f"브라우저 콘솔 오류가 {len(console_errors)}건 발생했습니다.",
+            "콘솔 오류의 원인을 확인하고, 누락된 리소스, 스크립트 예외, 실패한 API 요청을 수정하세요.",
             min(20, len(console_errors) * 5),
             {"errors": console_errors[:5]},
             "MAJOR"
@@ -927,8 +942,8 @@ def evaluate_best_practices(page, target_url, console_errors, page_errors, add_d
     if page_errors:
         add_issue(
             "runtime-errors",
-            f"??? ??? ??? {len(page_errors)}? ???????.",
-            "???? pageerror ??? ???? ?? ?? ??? ?????.",
+            f"페이지 런타임 오류가 {len(page_errors)}건 발생했습니다.",
+            "브라우저 pageerror 로그를 확인해 예외가 발생한 스크립트와 상태 처리를 수정하세요.",
             min(20, len(page_errors) * 10),
             {"errors": page_errors[:5]},
             "MAJOR"
@@ -1028,8 +1043,8 @@ def evaluate_usability_rules(page, steps_history, failed_selectors, add_defect_f
                         results.push({
                             ruleId: 'generic-action-label',
                             selector: selectorFor(el),
-                            description: '? ? ??? rel="noopener" ?? noreferrer? ????.',
-                            recommendation: '???? ?? ??? ??? ? ??? ???? CTA ??? ?????.',
+                            description: '버튼이나 링크의 문구가 너무 일반적이어서 다음 행동을 예측하기 어렵습니다.',
+                            recommendation: '사용자가 클릭 결과를 알 수 있도록 구체적인 CTA 문구를 사용하세요.',
                             deduction: 6,
                             evidence: { text },
                         });
@@ -1045,8 +1060,8 @@ def evaluate_usability_rules(page, steps_history, failed_selectors, add_defect_f
                         results.push({
                             ruleId: 'password-requirements-help',
                             selector: selectorFor(passwordInputs[0]),
-                            description: '???? ?? ??? ?? ?? ???? ????.',
-                            recommendation: '?? ?? ???? ??? ?? ?? ??? ?? ?? ???? ?????.',
+                            description: '비밀번호 입력 조건이 입력 전에 안내되지 않습니다.',
+                            recommendation: '제출 전에 비밀번호 길이와 문자 조합 조건을 입력 필드 근처에 표시하세요.',
                             deduction: 6,
                             evidence: { passwordInputCount: passwordInputs.length },
                         });
