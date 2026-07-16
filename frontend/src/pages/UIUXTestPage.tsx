@@ -14,7 +14,6 @@ import UIUXScoreBarChart from '../components/dashboard/UIUXScoreBarChart';
 import { useUserStore } from '../store/userStore';
 import { useAlertStore } from '../store/alertStore';
 import { useDomains } from '../hooks/useDomains';
-import '../styles/UIUXTestPage.css';
 
 interface UIUXTestPageProps {
   selectedUIUXTestDomain: number;

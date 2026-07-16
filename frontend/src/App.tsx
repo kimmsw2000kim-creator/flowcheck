@@ -24,6 +24,7 @@ import LandingPage from './pages/LandingPage';
 import CommentPage from "./pages/CommentPage";
 import CommunityHubPage from './pages/community/CommunityHubPage';
 import './styles/CommunityPages.css';
+import './components/uiux/UIUXTestModule.css';
 import './styles/AppShell.css';
 import './styles/UtilityPages.css';
 
