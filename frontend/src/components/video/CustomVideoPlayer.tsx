@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { UIUXTestDefect } from '../../api/UIUXTestApi';
+import type { UIUXTestDefect } from '../../api/UIUXTestApi';
 import './CustomVideoPlayer.css';
 
 interface CustomVideoPlayerProps {
@@ -63,14 +63,19 @@ const CustomVideoPlayer = forwardRef<CustomVideoPlayerRef, CustomVideoPlayerProp
     };
   }, [onTimeUpdate]);
 
+  useEffect(() => {
+    const handleFullscreenChange = () => setIsFullscreen(document.fullscreenElement === containerRef.current);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
   const togglePlay = () => {
     if (videoRef.current) {
       if (isPlaying) {
         videoRef.current.pause();
       } else {
-        videoRef.current.play();
+        videoRef.current.play().catch(console.error);
       }
-      setIsPlaying(!isPlaying);
     }
   };
 
@@ -88,10 +93,8 @@ const CustomVideoPlayer = forwardRef<CustomVideoPlayerRef, CustomVideoPlayerProp
       containerRef.current.requestFullscreen().catch(err => {
         console.error(`Error attempting to enable fullscreen: ${err.message}`);
       });
-      setIsFullscreen(true);
     } else {
-      document.exitFullscreen();
-      setIsFullscreen(false);
+      document.exitFullscreen().catch(console.error);
     }
   };
 
@@ -124,6 +127,13 @@ const CustomVideoPlayer = forwardRef<CustomVideoPlayerRef, CustomVideoPlayerProp
     if (isPlaying) setShowControls(false);
   };
 
+  const handleVideoKeyDown = (event: React.KeyboardEvent<HTMLVideoElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      togglePlay();
+    }
+  };
+
   return (
     <div 
       className={`custom-video-container ${!showControls ? 'hide-cursor' : ''}`}
@@ -136,8 +146,13 @@ const CustomVideoPlayer = forwardRef<CustomVideoPlayerRef, CustomVideoPlayerProp
         src={src}
         className="custom-video-element"
         onClick={togglePlay}
+        onKeyDown={handleVideoKeyDown}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
         muted={isMuted}
         autoPlay
+        tabIndex={0}
+        aria-label="UI/UX 테스트 녹화 영상"
       />
 
       <div className={`video-controls-overlay ${showControls ? 'show' : 'hide'}`}>
@@ -151,30 +166,29 @@ const CustomVideoPlayer = forwardRef<CustomVideoPlayerRef, CustomVideoPlayerProp
             max="100"
             step="0.1"
             style={{ backgroundSize: `${progress}% 100%` }}
+            aria-label="영상 재생 위치"
+            aria-valuetext={`${formatTime(currentTime)} / ${formatTime(duration)}`}
           />
           {defects.map((defect) => {
-            const leftPos = (defect.timestampOffset / duration) * 100;
+            const leftPos = duration > 0 ? (defect.timestampOffset / duration) * 100 : 0;
             const isHovered = activeDefectId === defect.id;
-            let markerColor = '#eab308';
-            if (defect.severity === 'CRITICAL') markerColor = '#ef4444';
-            else if (defect.severity === 'MAJOR') markerColor = '#f59e0b';
+            const severityClass = defect.severity.toLowerCase();
             
             return (
-              <div 
+              <button
+                type="button"
                 key={defect.id}
-                className={`defect-marker ${isHovered ? 'active' : ''}`}
-                style={{ 
-                  left: `${leftPos}%`,
-                  backgroundColor: markerColor
-                }}
+                className={`defect-marker defect-marker--${severityClass} ${isHovered ? 'active' : ''}`}
+                style={{ left: `${leftPos}%` }}
                 onClick={(e) => {
                   e.stopPropagation();
                   if (videoRef.current) {
                     videoRef.current.currentTime = defect.timestampOffset;
-                    if (onDefectClick) onDefectClick(defect.timestampOffset);
+                    onDefectClick?.(defect.timestampOffset);
                   }
                 }}
-                title={`${defect.severity}: ${defect.category}`}
+                aria-label={`${defect.severity} 결함: ${defect.category}, ${formatTime(defect.timestampOffset)}`}
+                aria-pressed={isHovered}
               >
                 {isHovered && (
                   <div className="defect-marker-tooltip">
@@ -182,25 +196,26 @@ const CustomVideoPlayer = forwardRef<CustomVideoPlayerRef, CustomVideoPlayerProp
                     <div className="tooltip-desc">{defect.description}</div>
                   </div>
                 )}
-              </div>
+              </button>
             );
           })}
         </div>
 
         <div className="video-controls-row">
           <div className="video-controls-left">
-            <button className="control-btn" onClick={togglePlay}>
+            <button type="button" className="control-btn" aria-pressed={isPlaying} onClick={togglePlay}>
               {isPlaying ? '일시정지' : '재생'}
             </button>
-            <button className="control-btn" onClick={toggleMute}>
+            <button type="button" className="control-btn" aria-pressed={isMuted} onClick={toggleMute}>
               {isMuted ? '음소거 해제' : '음소거'}
             </button>
-            <div className="video-time">
+            <output className="video-time">
               {formatTime(currentTime)} / {formatTime(duration)}
-            </div>
+            </output>
           </div>
           <div className="video-controls-right">
             <button
+              type="button"
               className="control-btn"
               aria-pressed={isFullscreen}
               onClick={toggleFullscreen}
