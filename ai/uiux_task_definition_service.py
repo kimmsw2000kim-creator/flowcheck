@@ -1,6 +1,7 @@
 import os
 
 import boto3
+from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"), override=True)
@@ -23,6 +24,19 @@ if not DOCKER_USERNAME:
     raise SystemExit("DOCKER_USERNAME is required to build the flowcheck-ai image URI.")
 
 client = boto3.client("ecs", region_name=AWS_REGION)
+logs_client = boto3.client("logs", region_name=AWS_REGION)
+
+
+def ensure_log_group_exists(log_group_name: str) -> None:
+    try:
+        logs_client.create_log_group(logGroupName=log_group_name)
+        print(f"Created CloudWatch log group {log_group_name}")
+    except ClientError as exc:
+        error_code = exc.response.get("Error", {}).get("Code")
+        if error_code == "ResourceAlreadyExistsException":
+            print(f"CloudWatch log group already exists: {log_group_name}")
+            return
+        raise SystemExit(f"Failed to create CloudWatch log group {log_group_name}: {exc}") from exc
 
 try:
     source = client.describe_task_definition(taskDefinition=SOURCE_TASK_FAMILY)["taskDefinition"]
@@ -47,6 +61,8 @@ container_definition = {
 }
 
 if ENABLE_AWSLOGS:
+    ensure_log_group_exists(AWSLOGS_GROUP)
+
     log_options = {
         "awslogs-group": AWSLOGS_GROUP,
         "awslogs-region": AWS_REGION,

@@ -19,7 +19,7 @@ export default function CreditPackageSelector({
         <ShoppingBag size={22} aria-hidden="true" />
         <div>
           <span>Credit Packages</span>
-          <h3 id="payment-products-title">코인 패키지 충전</h3>
+          <h3 id="payment-products-title">크레딧 패키지 충전</h3>
         </div>
       </div>
 

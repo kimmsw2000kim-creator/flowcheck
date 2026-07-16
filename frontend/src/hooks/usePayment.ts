@@ -21,7 +21,7 @@ const AGREEMENT_SELECTOR = '#agreement';
 export const CREDIT_PRODUCTS: readonly CreditProduct[] = [
   {
     id: 'CREDIT_10K',
-    title: '스타터 코인팩',
+    title: '스타터 크레딧팩',
     credits: 10000,
     price: 10000,
     description: '기본 기능 체험을 위한 기본 충전',
@@ -30,7 +30,7 @@ export const CREDIT_PRODUCTS: readonly CreditProduct[] = [
   },
   {
     id: 'CREDIT_50K',
-    title: '프로 코인팩',
+    title: '프로 크레딧팩',
     credits: 50000,
     price: 45000,
     description: '10% 보너스 크레딧 추가 적립 패키지',
@@ -39,7 +39,7 @@ export const CREDIT_PRODUCTS: readonly CreditProduct[] = [
   },
   {
     id: 'CREDIT_100K',
-    title: '언리미티드 코인팩',
+    title: '언리미티드 크레딧팩',
     credits: 100000,
     price: 70000,
     description: '최대 30% 파격 할인가 적용 베스트 팩',

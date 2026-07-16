@@ -31,12 +31,10 @@ export default function PostEditPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { postId } = useParams<{ postId: string }>();
-
-  const isFreeBoard = location.pathname.startsWith('/comment/');
-  const returnPath = isFreeBoard ? '/comment' : '/community';
-
-  const [initialValue, setInitialValue] =
-    useState<PostEditorValue | null>(null);
+  const isFreeBoard = location.pathname.startsWith('/comment/')
+    || location.pathname.startsWith('/community/free/');
+  const returnPath = isFreeBoard ? '/community?tab=free' : '/community';
+  const [initialValue, setInitialValue] = useState<{ title: string; content: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');

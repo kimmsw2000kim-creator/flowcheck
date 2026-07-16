@@ -1,6 +1,7 @@
 import type { SiteSummary } from '../types/mypage';
 import { Badge, EmptyState, Table, TableContainer } from './common';
 import styles from '../styles/mypage.module.css';
+import { formatDate } from '../utils/date';
 
 interface MypageSiteListProps {
   sites: SiteSummary[];
@@ -32,7 +33,7 @@ function MypageSiteList({ sites }: MypageSiteListProps) {
             <tr key={site.siteId}>
               <td>{site.serviceName || '이름 없는 사이트'}</td>
               <td className={styles['break-all']}>{site.domainURL}</td>
-              <td>{site.createdAt || '-'}</td>
+              <td>{formatDate(site.createdAt) || '-'}</td>
               <td>
                 <Badge tone={site.isVerified ? 'success' : 'warning'}>
                   {site.isVerified ? '인증 완료' : '인증 대기'}

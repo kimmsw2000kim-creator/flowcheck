@@ -21,9 +21,9 @@ export default function PostWritePage() {
   const location = useLocation();
 
   const [submitting, setSubmitting] = useState(false);
-
-  const isFreeBoard = location.pathname.startsWith('/comment');
-  const returnPath = isFreeBoard ? '/comment' : '/community';
+  const isFreeBoard = location.pathname.startsWith('/comment')
+    || location.pathname.startsWith('/community/free');
+  const returnPath = isFreeBoard ? '/community?tab=free' : '/community';
 
   const submit = async (value: PostEditorValue) => {
     if (submitting) {

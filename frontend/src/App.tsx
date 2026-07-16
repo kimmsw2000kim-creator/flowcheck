@@ -62,14 +62,14 @@ function App() {
     support: '/support',
     login: '/login',
     signup: '/signup',
-    comment: "/comment",
   };
 
   // Supports sub-paths for active tab checking (e.g., /community/write)
-  const activeTab =
-    Object.entries(tabRoutes).find(([, path]) =>
+  const activeTab = location.pathname.startsWith('/comment')
+    ? 'community'
+    : (Object.entries(tabRoutes).find(([, path]) =>
       location.pathname === path || location.pathname.startsWith(`${path}/`)
-    )?.[0] ?? 'dashboard';
+    )?.[0] ?? 'dashboard');
 
   const setActiveTab = (tab: string) => {
     navigate(tabRoutes[tab] ?? '/dashboard');
@@ -86,6 +86,7 @@ function App() {
   const isLandingPage = !isLoggedIn && location.pathname === '/';
 
   const [selectedUIUXTestDomain, setSelectedUIUXTestDomain] = useState<number>(1);
+  const [selectedLoadTestDomain, setSelectedLoadTestDomain] = useState<number>(0);
 
   const handleSubmitReport = (type: string, id: number) => {
     const report: Report = {
@@ -137,6 +138,7 @@ function App() {
                   <DashboardPage
                     setActiveTab={setActiveTab}
                     setSelectedUIUXTestDomain={setSelectedUIUXTestDomain}
+                    setSelectedLoadTestDomain={setSelectedLoadTestDomain}
                   />
                 }
               />
@@ -162,7 +164,12 @@ function App() {
 
               <Route
                 path="/load"
-                element={<LoadPage />}
+                element={
+                  <LoadPage
+                    selectedLoadTestDomain={selectedLoadTestDomain}
+                    setSelectedLoadTestDomain={setSelectedLoadTestDomain}
+                  />
+                }
               />
 
               <Route
@@ -173,7 +180,12 @@ function App() {
               {/* 새 커뮤니티 허브를 실제 커뮤니티 주소로 사용합니다. */}
               <Route
                 path="/community"
-                element={<CommunityHubPage />}
+                element={
+                  <CommunityHubPage
+                    currentUser={currentUser}
+                    showAlert={showAlert}
+                  />
+                }
               />
 
               {/* 기존 미리보기 주소로 접근하면 실제 커뮤니티로 이동합니다. */}
@@ -203,6 +215,17 @@ function App() {
               <Route
                 path="/community/:postId/edit"
                 element={<Navigate to="/community" replace />}
+              />
+
+              {/* 자유게시판 로직은 유지하고 작성·수정 주소만 커뮤니티 하위로 제공합니다. */}
+              <Route
+                path="/community/free/write"
+                element={<PostWritePage />}
+              />
+
+              <Route
+                path="/community/free/:postId/edit"
+                element={<PostEditPage />}
               />
 
               {/* 자유게시판 작성과 수정 경로는 그대로 유지합니다. */}
