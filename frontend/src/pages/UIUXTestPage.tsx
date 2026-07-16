@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import apiClient from '../api/client';
 import ApiURL from '../api/ApiURL';
 import {
@@ -22,7 +22,6 @@ import { useDomains } from '../hooks/useDomains';
 interface UIUXTestPageProps {
   selectedUIUXTestDomain: number;
   setSelectedUIUXTestDomain: (id: number) => void;
-  onAddLedger: (ledgerItem: any) => void;
 }
 
 const formatStepNumber = (step: number) => String(step).padStart(2, '0');
