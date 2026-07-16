@@ -27,6 +27,14 @@ export interface UIUXTestScores {
   overall?: number;
 }
 
+export interface UIUXLiveStreamStatus {
+  status: 'WAITING' | 'READY' | 'ENDED' | 'FAILED' | string;
+  enabled: boolean;
+  message?: string;
+  vncHost?: string;
+  vncPort?: number;
+}
+
 export interface UIUXTestDefect {
   id?: number;
   category: string;
@@ -51,13 +59,16 @@ export interface UIUXTestStatusResponse {
   scoreBreakdown?: Record<string, unknown>;
   evaluationVersion?: string;
   videoUrl?: string;
+  liveStream?: UIUXLiveStreamStatus;
   deviceInfo?: any;
   defects?: UIUXTestDefect[];
 }
 
 export interface UIUXVncAccessResponse {
-  url: string;
+  ready: boolean;
+  url?: string;
   expiresAt: number;
+  message?: string;
 }
 
 /**
@@ -81,4 +92,12 @@ export async function getUIUXTestStatus(requestId: string): Promise<UIUXTestStat
 export async function issueUIUXVncAccess(requestId: string): Promise<UIUXVncAccessResponse> {
   const response = await apiClient.post(`/api/uiux-tests/${requestId}/vnc-token`);
   return response.data;
+}
+
+export async function cancelUIUXTest(requestId: string): Promise<void> {
+  await apiClient.post(`/api/uiux-tests/${requestId}/cancel`);
+}
+
+export async function reportUIUXClientLog(requestId: string, event: string, detail?: Record<string, unknown>): Promise<void> {
+  await apiClient.post(`/api/uiux-tests/${requestId}/client-log`, { event, detail });
 }

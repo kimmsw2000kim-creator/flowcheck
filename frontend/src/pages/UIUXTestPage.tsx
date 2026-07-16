@@ -5,6 +5,8 @@ import {
   startUIUXTest,
   getUIUXTestStatus,
   issueUIUXVncAccess,
+  cancelUIUXTest,
+  reportUIUXClientLog,
   UIUXTestStepData,
   UIUXTestStatusResponse,
 } from '../api/UIUXTestApi';
@@ -22,7 +24,9 @@ interface UIUXTestPageProps {
 }
 
 const formatStepNumber = (step: number) => String(step).padStart(2, '0');
-const UIUX_POLL_INTERVAL_MS = 3000;
+const UIUX_POLL_INTERVAL_MS = 1000;
+const UIUX_VNC_ACCESS_RETRY_MS = 1000;
+const UIUX_MAX_VNC_ACCESS_RETRIES = 90;
 const UIUX_MAX_POLL_COUNT = 200;
 const UIUX_MAX_POLL_ERRORS = 5;
 
@@ -44,6 +48,53 @@ const buildLiveVncProxyUrl = (url: string) => {
   }
 
   return `${getLiveVncProxyOrigin()}${url}`;
+};
+
+const describeVncUrlForLog = (rawUrl: string) => {
+  try {
+    const parsed = new URL(rawUrl, window.location.origin);
+    return {
+      origin: parsed.origin,
+      pathname: parsed.pathname,
+      queryKeys: Array.from(parsed.searchParams.keys()).sort(),
+    };
+  } catch {
+    return { malformed: true };
+  }
+};
+
+const sendUIUXClientLog = (requestId: string | null, event: string, detail?: Record<string, unknown>) => {
+  if (!requestId) return;
+  void reportUIUXClientLog(requestId, event, {
+    page: window.location.pathname,
+    userAgent: navigator.userAgent,
+    ...detail,
+  }).catch(() => {});
+};
+
+type LiveStreamClientStatus = 'idle' | 'waiting' | 'ready' | 'connected' | 'error' | 'ended';
+
+const getLiveStreamBadge = (
+  testStatus: string,
+  serverStatus: UIUXTestStatusResponse['liveStream'],
+  clientStatus: LiveStreamClientStatus,
+) => {
+  if (clientStatus === 'connected') {
+    return { label: '스트림 켜짐', tone: 'online' };
+  }
+  if (clientStatus === 'error' || serverStatus?.status === 'FAILED') {
+    return { label: '스트림 오류', tone: 'error' };
+  }
+  if (clientStatus === 'ready' || serverStatus?.status === 'READY') {
+    return { label: '스트림 연결 중', tone: 'ready' };
+  }
+  if (serverStatus?.status === 'WAITING' || clientStatus === 'waiting' || testStatus === 'running') {
+    return { label: '스트림 준비 중', tone: 'waiting' };
+  }
+  if (serverStatus?.status === 'ENDED' || testStatus === 'success') {
+    return { label: '스트림 종료', tone: 'ended' };
+  }
+  return { label: '스트림 대기', tone: 'idle' };
 };
 
 const formatTimeForDisplay = (time: number) => {
@@ -164,8 +215,12 @@ const getStepActionLabel = (action?: string) => {
       return '페이지 로드';
     case 'CLASSIFY_SITE':
       return '사이트 유형 분류';
+    case 'START_LIGHTHOUSE':
+      return 'Lighthouse 측정 시작';
     case 'RUN_LIGHTHOUSE':
       return 'Lighthouse 측정';
+    case 'START_AXE':
+      return 'axe-core 검사 시작';
     case 'RUN_AXE':
       return 'axe-core 접근성 검사';
     case 'CHECK_DOM_RULES':
@@ -237,9 +292,12 @@ export default function UIUXTestPage({
   const [currentRequestId, setCurrentRequestId] = useState<string | null>(null);
   const [liveVncProxyUrl, setLiveVncProxyUrl] = useState<string | null>(null);
   const [vncAccessRequestId, setVncAccessRequestId] = useState<string | null>(null);
+  const [liveStreamServerStatus, setLiveStreamServerStatus] = useState<UIUXTestStatusResponse['liveStream']>();
+  const [liveStreamClientStatus, setLiveStreamClientStatus] = useState<LiveStreamClientStatus>('idle');
   const [reportData, setReportData] = useState<UIUXTestStatusResponse | null>(null);
   const [activeDefectId, setActiveDefectId] = useState<number | null>(null);
   const [showHeuristics, setShowHeuristics] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
 
   const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollErrorCountRef = useRef(0);
@@ -266,17 +324,17 @@ export default function UIUXTestPage({
   useEffect(() => () => stopPolling(), [stopPolling]);
 
   const isRunning = UIUXTestStatus === 'running';
-  const hasLiveVncUrl = UIUXTestSteps.some((step) => typeof step.vncUrl === 'string' && step.vncUrl.length > 0);
   const reportCards = parseReportCards(reportData?.report);
   const overallScore = reportData?.scores?.overall;
   const engineSummary = getEngineSummary(reportData?.scoreBreakdown);
+  const liveStreamBadge = getLiveStreamBadge(UIUXTestStatus, liveStreamServerStatus, liveStreamClientStatus);
   const latestLiveFrame = [...UIUXTestSteps]
     .reverse()
     .find((step) => typeof step.screenshotUrl === 'string' && step.screenshotUrl.startsWith('data:image/'))
     ?.screenshotUrl;
 
   useEffect(() => {
-    if (!isRunning || !currentRequestId || !hasLiveVncUrl) {
+    if (!isRunning || !currentRequestId) {
       return;
     }
 
@@ -285,22 +343,75 @@ export default function UIUXTestPage({
     }
 
     let disposed = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let retryCount = 0;
 
-    void issueUIUXVncAccess(currentRequestId)
-      .then((response) => {
-        if (disposed) return;
-        setLiveVncProxyUrl(buildLiveVncProxyUrl(response.url));
-        setVncAccessRequestId(currentRequestId);
-      })
-      .catch((error) => {
-        if (disposed) return;
-        console.error('Failed to issue VNC access URL:', error);
-      });
+    const requestVncAccess = () => {
+      retryCount += 1;
+      sendUIUXClientLog(currentRequestId, 'vnc_token_request', { retryCount });
+      void issueUIUXVncAccess(currentRequestId)
+        .then((response) => {
+          if (disposed) return;
+          if (!response.ready || !response.url) {
+            setLiveStreamClientStatus('waiting');
+            sendUIUXClientLog(currentRequestId, 'vnc_token_pending', {
+              retryCount,
+              message: response.message,
+            });
+            if (retryCount >= UIUX_MAX_VNC_ACCESS_RETRIES) {
+              console.warn('VNC access URL retry limit reached:', response.message);
+              sendUIUXClientLog(currentRequestId, 'vnc_token_retry_limit', {
+                retryCount,
+                message: response.message,
+              });
+              return;
+            }
+            retryTimer = setTimeout(requestVncAccess, UIUX_VNC_ACCESS_RETRY_MS);
+            return;
+          }
+          const proxyUrl = buildLiveVncProxyUrl(response.url);
+          sendUIUXClientLog(currentRequestId, 'vnc_token_ready', {
+            retryCount,
+            expiresAt: response.expiresAt,
+            proxyUrl: describeVncUrlForLog(proxyUrl),
+          });
+          setLiveStreamClientStatus('ready');
+          setLiveVncProxyUrl(proxyUrl);
+          setVncAccessRequestId(currentRequestId);
+        })
+        .catch((error) => {
+          if (disposed) return;
+          if (retryCount >= UIUX_MAX_VNC_ACCESS_RETRIES) {
+            console.warn('VNC access URL retry limit reached:', error);
+            sendUIUXClientLog(currentRequestId, 'vnc_token_retry_limit_error', {
+              retryCount,
+              message: error?.message,
+              status: error?.response?.status,
+              body: error?.response?.data,
+            });
+            return;
+          }
+          console.debug('VNC access URL is not ready yet:', error);
+          setLiveStreamClientStatus('waiting');
+          sendUIUXClientLog(currentRequestId, 'vnc_token_error_retrying', {
+            retryCount,
+            message: error?.message,
+            status: error?.response?.status,
+            body: error?.response?.data,
+          });
+          retryTimer = setTimeout(requestVncAccess, UIUX_VNC_ACCESS_RETRY_MS);
+        });
+    };
+
+    requestVncAccess();
 
     return () => {
       disposed = true;
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+      }
     };
-  }, [currentRequestId, hasLiveVncUrl, isRunning, liveVncProxyUrl, vncAccessRequestId]);
+  }, [currentRequestId, isRunning, liveVncProxyUrl, vncAccessRequestId]);
 
   const handleRunUIUXTest = async () => {
     if (isSubmittingRef.current) {
@@ -334,6 +445,9 @@ export default function UIUXTestPage({
     setCurrentRequestId(null);
     setLiveVncProxyUrl(null);
     setVncAccessRequestId(null);
+    setLiveStreamServerStatus(undefined);
+    setLiveStreamClientStatus('waiting');
+    setIsStopping(false);
     isSubmittingRef.current = true;
 
     try {
@@ -370,15 +484,18 @@ export default function UIUXTestPage({
 
           pollErrorCountRef.current = 0;
           setUIUXTestSteps(statusRes.steps || []);
+          setLiveStreamServerStatus(statusRes.liveStream);
 
           if (statusRes.status === 'COMPLETED') {
             stopPolling();
             setUIUXTestStatus('success');
+            setLiveStreamClientStatus('ended');
             setReportData(statusRes);
             showAlert('AI UI/UX 테스트가 완료되었습니다.', 'success');
           } else if (statusRes.status === 'FAILED') {
             stopPolling();
             setUIUXTestStatus('error');
+            setLiveStreamClientStatus('error');
             showAlert('AI UI/UX 테스트 중 오류가 발생했습니다.', 'error');
           } else {
             scheduleNextPoll();
@@ -412,6 +529,7 @@ export default function UIUXTestPage({
       }
     } catch (err: any) {
       setUIUXTestStatus('error');
+      setLiveStreamClientStatus('error');
       let errorMessage = 'AI 서버를 호출하지 못했습니다.';
       if (err.response?.data) {
         errorMessage = typeof err.response.data === 'string' ? err.response.data : err.response.data.message || errorMessage;
@@ -421,6 +539,32 @@ export default function UIUXTestPage({
       showAlert(errorMessage, 'error');
     } finally {
       isSubmittingRef.current = false;
+    }
+  };
+
+  const handleStopUIUXTest = async () => {
+    if (!currentRequestId || isStopping) {
+      return;
+    }
+
+    setIsStopping(true);
+    try {
+      await cancelUIUXTest(currentRequestId);
+      sendUIUXClientLog(currentRequestId, 'test_cancel_requested');
+      stopPolling();
+      setUIUXTestStatus('error');
+      setLiveVncProxyUrl(null);
+      setVncAccessRequestId(null);
+      setLiveStreamClientStatus('ended');
+      showAlert('UI/UX 테스트를 중지했습니다. 결과는 실패 상태로 기록됩니다.', 'success');
+    } catch (err: any) {
+      const errorMessage =
+        typeof err.response?.data === 'string'
+          ? err.response.data
+          : err.response?.data?.message || err.message || '테스트 중지에 실패했습니다.';
+      showAlert(errorMessage, 'error');
+    } finally {
+      setIsStopping(false);
     }
   };
 
@@ -511,16 +655,28 @@ export default function UIUXTestPage({
               : '이번 테스트에 1,000 크레딧이 소모됩니다.'}
           </p>
 
-          <button className="uiux-primary-button" onClick={handleRunUIUXTest} disabled={isRunning}>
-            {isRunning ? (
-              <span className="uiux-button-content">
-                <span>테스트 진행 중</span>
-                <span className="uiux-button-spinner" />
-              </span>
-            ) : (
-              'UI 테스트 시작'
+          <div className="uiux-action-row">
+            <button className="uiux-primary-button" onClick={handleRunUIUXTest} disabled={isRunning || isStopping}>
+              {isRunning ? (
+                <span className="uiux-button-content">
+                  <span>테스트 진행 중</span>
+                  <span className="uiux-button-spinner" />
+                </span>
+              ) : (
+                'UI 테스트 시작'
+              )}
+            </button>
+            {isRunning && (
+              <button
+                className="uiux-stop-button"
+                type="button"
+                onClick={handleStopUIUXTest}
+                disabled={isStopping}
+              >
+                {isStopping ? '중지 중' : '중지'}
+              </button>
             )}
-          </button>
+          </div>
         </aside>
 
         <main className="uiux-card uiux-live-card">
@@ -535,8 +691,29 @@ export default function UIUXTestPage({
           </div>
 
           <div className="uiux-youtube-frame uiux-live-frame">
+            <div className={`uiux-live-stream-badge uiux-live-stream-badge-${liveStreamBadge.tone}`}>
+              <span className="uiux-live-stream-dot" />
+              {liveStreamBadge.label}
+            </div>
             {isRunning && liveVncProxyUrl ? (
-              <iframe key={liveVncProxyUrl} src={liveVncProxyUrl} title="Live Test Stream" allowFullScreen />
+              <iframe
+                key={liveVncProxyUrl}
+                src={liveVncProxyUrl}
+                title="Live Test Stream"
+                allowFullScreen
+                onLoad={() => {
+                  setLiveStreamClientStatus('connected');
+                  sendUIUXClientLog(currentRequestId, 'vnc_iframe_load', {
+                    liveVncProxyUrl: describeVncUrlForLog(liveVncProxyUrl),
+                  });
+                }}
+                onError={() => {
+                  setLiveStreamClientStatus('error');
+                  sendUIUXClientLog(currentRequestId, 'vnc_iframe_error', {
+                    liveVncProxyUrl: describeVncUrlForLog(liveVncProxyUrl),
+                  });
+                }}
+              />
             ) : latestLiveFrame ? (
               <img className="uiux-live-screenshot" src={latestLiveFrame} alt="Live UI exploration frame" />
             ) : isRunning ? (
