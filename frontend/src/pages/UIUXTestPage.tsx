@@ -13,6 +13,8 @@ import {
 import CustomVideoPlayer from '../components/video/CustomVideoPlayer';
 import UIUXScoreRadarChart from '../components/dashboard/UIUXScoreRadarChart';
 import UIUXScoreBarChart from '../components/dashboard/UIUXScoreBarChart';
+import { Badge } from '../components/common';
+import type { BadgeTone } from '../components/common';
 import { useUserStore } from '../store/userStore';
 import { useAlertStore } from '../store/alertStore';
 import { useDomains } from '../hooks/useDomains';
@@ -326,6 +328,9 @@ export default function UIUXTestPage({
   useEffect(() => () => stopPolling(), [stopPolling]);
 
   const isRunning = UIUXTestStatus === 'running';
+  const hasUIUXCoupon = currentUser.UIUXTestCoupons > 0;
+  const hasUIUXCredits = currentUser.balance >= 1000;
+  const chargeTone: BadgeTone = hasUIUXCoupon ? 'info' : hasUIUXCredits ? 'warning' : 'danger';
   const reportCards = parseReportCards(reportData?.report);
   const overallScore = reportData?.scores?.overall;
   const engineSummary = getEngineSummary(reportData?.scoreBreakdown);
@@ -640,22 +645,31 @@ export default function UIUXTestPage({
             <p className="uiux-select-hint">위에서 선택한 인증 도메인 주소가 테스트 대상으로 사용됩니다.</p>
           </div>
 
-          <div className="uiux-balance-panel">
-            <div>
-              <span>테스트 쿠폰</span>
-              <strong>{currentUser.UIUXTestCoupons}개 보유</strong>
+          <div className="uiux-charge-panel" data-tone={chargeTone}>
+            <div className="uiux-charge-heading">
+              <strong>보유 현황</strong>
+              <Badge tone={chargeTone}>
+                {hasUIUXCoupon ? '쿠폰으로 차감' : hasUIUXCredits ? '크레딧으로 차감' : '잔액 부족'}
+              </Badge>
             </div>
-            <div>
-              <span>크레딧 잔액</span>
-              <strong>{currentUser.balance.toLocaleString()}P</strong>
+            <div className="uiux-balance-panel">
+              <div>
+                <span>UI/UX 테스트 쿠폰</span>
+                <strong>{currentUser.UIUXTestCoupons}회</strong>
+              </div>
+              <div>
+                <span>크레딧 잔액</span>
+                <strong data-insufficient={!hasUIUXCredits && !hasUIUXCoupon ? 'true' : undefined}>
+                  {currentUser.balance.toLocaleString()}P
+                </strong>
+              </div>
             </div>
+            <p className="uiux-charge-note">
+              {hasUIUXCoupon
+                ? `이번 테스트에 UI/UX 테스트 쿠폰 1회가 소모됩니다. 잔여 ${Math.max(currentUser.UIUXTestCoupons - 1, 0)}회`
+                : '이번 테스트에 1,000 크레딧이 소모됩니다.'}
+            </p>
           </div>
-
-          <p className="uiux-charge-note">
-            {currentUser.UIUXTestCoupons > 0
-              ? `이번 테스트에 쿠폰 1개가 사용됩니다. 사용 후 ${Math.max(currentUser.UIUXTestCoupons - 1, 0)}개 보유`
-              : '이번 테스트에 1,000 크레딧이 소모됩니다.'}
-          </p>
 
           <div className="uiux-action-row">
             <button className="uiux-primary-button" onClick={handleRunUIUXTest} disabled={isRunning || isStopping}>

@@ -45,9 +45,6 @@ public class UIUXTestService {
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher eventPublisher;
     private final Map<UUID, URI> liveVncBaseUriCache = new ConcurrentHashMap<>();
-    private final HttpClient vncReadinessClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(2))
-            .build();
 
     @Value("${supabase.url:}")
     private String supabaseUrl;
@@ -60,6 +57,12 @@ public class UIUXTestService {
 
     @Value("${vnc.signed-url.ttl-seconds:300}")
     private long vncSignedUrlTtlSeconds;
+
+    @Value("${vnc.readiness.connect-timeout-ms:${VNC_READINESS_CONNECT_TIMEOUT_MS:5000}}")
+    private long vncReadinessConnectTimeoutMs;
+
+    @Value("${vnc.readiness.request-timeout-ms:${VNC_READINESS_REQUEST_TIMEOUT_MS:7000}}")
+    private long vncReadinessRequestTimeoutMs;
 
     private static final int TEST_COST = 1_000;
     private static final String TEST_TYPE_UIUX = "UIUX";
@@ -680,15 +683,19 @@ public class UIUXTestService {
 
     private void ensureLiveVncHttpReady(UUID requestId, URI baseUri) {
         URI healthUri = URI.create(baseUri + "/vnc.html");
+        HttpClient readinessClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofMillis(vncReadinessConnectTimeoutMs))
+                .build();
         HttpRequest request = HttpRequest.newBuilder(healthUri)
-                .timeout(Duration.ofSeconds(3))
+                .timeout(Duration.ofMillis(vncReadinessRequestTimeoutMs))
                 .GET()
                 .build();
 
         long startedAt = System.nanoTime();
-        log.info("VNC_DIAG readiness_request requestId={} baseUri={}", requestId, baseUri);
+        log.info("VNC_DIAG readiness_request requestId={} baseUri={} connectTimeoutMs={} requestTimeoutMs={}",
+                requestId, baseUri, vncReadinessConnectTimeoutMs, vncReadinessRequestTimeoutMs);
         try {
-            HttpResponse<Void> response = vncReadinessClient.send(request, HttpResponse.BodyHandlers.discarding());
+            HttpResponse<Void> response = readinessClient.send(request, HttpResponse.BodyHandlers.discarding());
             int statusCode = response.statusCode();
             long elapsedMs = Duration.ofNanos(System.nanoTime() - startedAt).toMillis();
             if (statusCode >= 200 && statusCode < 400) {
