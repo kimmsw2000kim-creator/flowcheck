@@ -93,14 +93,38 @@ interface CommentPageProps {
         message: string,
         type?: string,
     ) => void;
+
+    /**
+     * 기존 게시판 기능은 유지하면서 커뮤니티 탭 경로를 사용할지 결정합니다.
+     */
+    integrated?: boolean;
 }
 
 export default function CommentPage({
     currentUser,
     showAlert,
+    integrated = false,
 }: CommentPageProps) {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
+
+    const listPath = integrated
+        ? '/community?tab=free'
+        : '/comment';
+
+    const writePath = integrated
+        ? '/community/free/write'
+        : '/comment/write';
+
+    const detailPath = (postId: number) =>
+        integrated
+            ? `${listPath}&postId=${postId}`
+            : `${listPath}?postId=${postId}`;
+
+    const editPath = (postId: number) =>
+        integrated
+            ? `/community/free/${postId}/edit`
+            : `/comment/${postId}/edit`;
 
     const postIdParam =
         searchParams.get('postId');
@@ -283,7 +307,7 @@ export default function CommentPage({
 
                 resetPostDetail();
 
-                navigate('/comment', {
+                navigate(listPath, {
                     replace: true,
                 });
             } finally {
@@ -292,6 +316,7 @@ export default function CommentPage({
         },
         [
             navigate,
+            listPath,
             resetPostDetail,
             showAlert,
         ],
@@ -315,7 +340,7 @@ export default function CommentPage({
         ) {
             resetPostDetail();
 
-            navigate('/comment', {
+            navigate(listPath, {
                 replace: true,
             });
 
@@ -325,6 +350,7 @@ export default function CommentPage({
         void loadPostDetail(postId);
     }, [
         loadPostDetail,
+        listPath,
         navigate,
         postIdParam,
         resetPostDetail,
@@ -336,9 +362,7 @@ export default function CommentPage({
     const openPost = (
         postId: number,
     ) => {
-        navigate(
-            `/comment?postId=${postId}`,
-        );
+        navigate(detailPath(postId));
     };
 
     /*
@@ -347,7 +371,7 @@ export default function CommentPage({
     const handleBackToList = () => {
         resetPostDetail();
 
-        navigate('/comment', {
+        navigate(listPath, {
             replace: true,
         });
     };
@@ -481,11 +505,10 @@ export default function CommentPage({
         }
 
         navigate(
-            `/comment/${selectedPost.id}/edit`,
+            editPath(selectedPost.id),
             {
                 state: {
-                    returnTo:
-                        `/comment?postId=${selectedPost.id}`,
+                    returnTo: detailPath(selectedPost.id),
                 },
             },
         );
@@ -526,7 +549,7 @@ export default function CommentPage({
 
             resetPostDetail();
 
-            navigate('/comment', {
+            navigate(listPath, {
                 replace: true,
             });
 
@@ -818,9 +841,7 @@ export default function CommentPage({
                     <Button
                         type="button"
                         onClick={() =>
-                            navigate(
-                                '/comment/write',
-                            )
+                            navigate(writePath)
                         }
                     >
                         게시글 작성
