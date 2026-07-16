@@ -7,6 +7,7 @@ import { Badge, Button } from './common';
 
 export interface HeaderProps {
   activeTab: string;
+  onOpenAuth: (mode: 'login' | 'signup') => void;
 }
 
 const AUTH_NAV = [
@@ -30,7 +31,7 @@ const THEME_OPTIONS: Array<{ value: Theme; label: string; icon: typeof Sun }> = 
   { value: 'system', label: '시스템', icon: Monitor },
 ];
 
-export default function Header({ activeTab }: HeaderProps) {
+export default function Header({ activeTab, onOpenAuth }: HeaderProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const headerRef = useRef<HTMLElement>(null);
@@ -70,10 +71,17 @@ export default function Header({ activeTab }: HeaderProps) {
     navigate(ROUTES[key] ?? '/dashboard');
   };
 
+  const openAuth = (mode: 'login' | 'signup') => {
+    setMenuOpen(false);
+    setProfileMenuOpen(false);
+    onOpenAuth(mode);
+  };
+
   const handleLogout = async () => {
     setProfileMenuOpen(false);
     await logout();
-    navigate('/login', { replace: true });
+    // 로그아웃한 사용자는 인증 페이지가 아니라 랜딩페이지로 돌아갑니다.
+    navigate('/', { replace: true });
   };
 
   return (
@@ -164,7 +172,7 @@ export default function Header({ activeTab }: HeaderProps) {
                 </div>
               </>
             ) : (
-              <><Button variant="secondary" size="sm" onClick={() => go('login')}>로그인</Button><Button size="sm" onClick={() => go('signup')}>회원가입</Button></>
+              <><Button variant="secondary" size="sm" onClick={() => openAuth('login')}>로그인</Button><Button size="sm" onClick={() => openAuth('signup')}>회원가입</Button></>
             )}
           </div>
         </div>

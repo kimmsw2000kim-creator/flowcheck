@@ -23,6 +23,63 @@
 .auth-status { min-height: 16rem; display: grid; place-items: center; }
 .auth-status .fc-empty-state { width: 100%; }
 
+.auth-modal {
+  position: fixed;
+  inset: 0;
+  width: min(34rem, calc(100% - (var(--layout-page-padding-mobile) * 2)));
+  max-width: none;
+  max-height: calc(100dvh - (var(--space-6) * 2));
+  padding: 0;
+  margin: auto;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--color-text-primary);
+  overflow: visible;
+}
+
+.auth-modal::backdrop {
+  background: color-mix(in srgb, var(--color-black) 48%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.auth-modal__surface {
+  position: relative;
+  max-height: calc(100dvh - (var(--space-6) * 2));
+  overflow-y: auto;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-raised);
+}
+
+.auth-modal .utility-page {
+  max-width: none;
+  padding: 0;
+}
+
+.auth-modal .fc-card {
+  border-radius: var(--radius-lg);
+}
+
+.auth-modal__close {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  z-index: 1;
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-full);
+  background: var(--color-bg-surface);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.auth-modal__close:hover { color: var(--color-text-primary); }
+.auth-modal__close:focus-visible { outline: none; box-shadow: var(--shadow-focus-ring); }
+
 .utility-textarea { min-height: 8rem; padding: var(--space-3); resize: vertical; line-height: var(--line-height-normal); }
 .inquiry-item { display: flex; flex-direction: column; gap: var(--space-3); }
 .inquiry-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); color: var(--color-text-muted); font-size: var(--font-size-sm); }
@@ -54,6 +111,8 @@
 
 @media (max-width: 560px) {
   .utility-page .fc-card { padding: var(--space-5); }
+  .auth-modal { max-height: calc(100dvh - (var(--space-3) * 2)); }
+  .auth-modal__surface { max-height: calc(100dvh - (var(--space-3) * 2)); }
   .auth-tab { padding: 0 var(--space-2); }
   .admin-actions > *, .utility-page form > .fc-button { width: 100%; }
   .inquiry-meta { align-items: flex-start; flex-direction: column; }
