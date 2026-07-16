@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowUp, Loader2 } from 'lucide-react';
+import { ArrowUp, Loader2, Menu } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import styles from '../styles/chatbot.module.css';
@@ -23,6 +23,7 @@ const ChatbotPage: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -86,7 +87,14 @@ const ChatbotPage: React.FC = () => {
 
   return (
     <div className={styles.chatContainer}>
-      <aside className={styles.sidebar}>
+      <button 
+        className={styles.menuToggleBtn} 
+        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+        title="사이드바 열기/닫기"
+      >
+        <Menu size={24} />
+      </button>
+      <aside className={`${styles.sidebar} ${isSidebarOpen ? '' : styles.collapsed}`}>
         <button className={styles.newChatBtn} onClick={() => { setCurrentSessionId(null); setMessages([]); }}>
           + 새 채팅
         </button>
