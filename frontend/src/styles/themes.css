@@ -1,0 +1,74 @@
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --color-bg-canvas: #f0f4f8;
+  --color-bg-surface: var(--color-white);
+  --color-bg-subtle: var(--color-slate-100);
+
+  --color-text-primary: var(--color-slate-900);
+  --color-text-secondary: var(--color-slate-700);
+  --color-text-muted: var(--color-slate-500);
+
+  --color-border-default: var(--color-slate-200);
+  --color-border-accent: rgba(2, 132, 199, 0.25);
+
+  --color-action-primary: var(--color-sky-600);
+  --color-action-primary-hover: var(--color-sky-500);
+  --color-action-primary-strong: var(--color-sky-700);
+  --color-action-primary-subtle: rgba(2, 132, 199, 0.08);
+
+  --color-status-success: var(--color-teal-600);
+  --color-status-success-subtle: rgba(13, 148, 136, 0.08);
+  --color-status-warning: var(--color-amber-600);
+  --color-status-warning-subtle: rgba(217, 119, 6, 0.08);
+  --color-status-error: var(--color-red-600);
+  --color-status-error-subtle: rgba(220, 38, 38, 0.08);
+
+  --shadow-subtle: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-card: rgba(15, 23, 42, 0.05) 0 10px 25px -5px, rgba(15, 23, 42, 0.02) 0 8px 10px -6px;
+  --shadow-raised: 0 18px 36px rgba(15, 23, 42, 0.09);
+  --shadow-focus-ring: 0 0 0 4px rgba(2, 132, 199, 0.1);
+  --shadow-action: 0 8px 18px color-mix(in srgb, var(--color-action-primary) 22%, transparent);
+
+  /* Compatibility aliases for existing components and pages */
+  --bg-primary: var(--color-bg-canvas);
+  --bg-secondary: var(--color-bg-surface);
+  --bg-tertiary: var(--color-bg-subtle);
+  --text-primary: var(--color-text-primary);
+  --text-secondary: var(--color-text-secondary);
+  --text-muted: var(--color-text-muted);
+  --accent: var(--color-action-primary);
+  --accent-hover: var(--color-action-primary-hover);
+  --accent-glow: var(--color-action-primary-subtle);
+  --accent-border: var(--color-border-accent);
+  --primary: var(--color-action-primary);
+  --primary-hover: var(--color-action-primary-hover);
+  --success: var(--color-status-success);
+  --success-bg: var(--color-status-success-subtle);
+  --warning: var(--color-status-warning);
+  --warning-bg: var(--color-status-warning-subtle);
+  --error: var(--color-status-error);
+  --error-bg: var(--color-status-error-subtle);
+  --border: var(--color-border-default);
+  --card-shadow: var(--shadow-card);
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-bg-canvas: var(--color-slate-900);
+  --color-bg-surface: #172033;
+  --color-bg-subtle: var(--color-slate-800);
+
+  --color-text-primary: var(--color-slate-50);
+  --color-text-secondary: var(--color-slate-300);
+  --color-text-muted: var(--color-slate-400);
+
+  --color-border-default: var(--color-slate-700);
+
+  --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.18);
+  --shadow-card: rgba(0, 0, 0, 0.25) 0 10px 25px -5px, rgba(0, 0, 0, 0.15) 0 8px 10px -6px;
+  --shadow-raised: 0 18px 36px rgba(0, 0, 0, 0.28);
+  --shadow-focus-ring: 0 0 0 4px rgba(14, 165, 233, 0.18);
+}

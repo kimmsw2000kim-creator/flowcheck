@@ -1,269 +1,229 @@
-import { useState, type SubmitEvent } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from 'react';
 
 import { createCommunityPost } from '../../api/communityPostApi';
-import MypageTestHistorySection from '../../pages/mypage/MypageTestHistorySection';
 import { useAlertStore } from '../../store/alertStore';
 import type { MypageTestHistoryItem } from '../../types/mypage';
-// 공유된 테스트 게시글 목록입니다.
+import { Button, Card, Field, PageHeader } from '../common';
+import CommunityTestPicker from './CommunityTestPicker';
 import TestSharePostList from './TestSharePostList';
 
 export default function TestHistoryTab() {
-    const showAlert = useAlertStore((state) => state.showAlert);
+  const showAlert = useAlertStore((state) => state.showAlert);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
+  const [selectedTest, setSelectedTest] =
+    useState<MypageTestHistoryItem | null>(null);
+
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+
+    // 테스트가 선택되면 공유 모달을 엽니다.
+    if (selectedTest && dialog && !dialog.open) {
+      dialog.showModal();
+    }
+
+    // 선택이 해제되면 열려 있는 모달을 닫습니다.
+    if (!selectedTest && dialog?.open) {
+      dialog.close();
+    }
+  }, [selectedTest]);
+
+  const close = () => {
+    // 게시글 저장 중에는 모달이 닫히지 않도록 합니다.
+    if (submitting) {
+      return;
+    }
+
+    dialogRef.current?.close();
+    setSelectedTest(null);
+    setTitle('');
+    setContent('');
+  };
+
+  const selectTest = (test: MypageTestHistoryItem) => {
+    setSelectedTest(test);
 
     /*
-     * 사용자가 공유 대상으로 선택한 완료 테스트입니다.
+     * testName에 이미 '테스트'가 포함되어 있으므로
+     * '결과 공유'만 붙입니다.
      */
-    const [selectedTest, setSelectedTest] =
-        useState<MypageTestHistoryItem | null>(null);
+    setTitle(`${test.testName} 결과 공유`);
+    setContent('');
+  };
 
-    const [title, setTitle] = useState('');
-    const [content, setContent] = useState('');
-    const [submitting, setSubmitting] = useState(false);
-    /*
- * 테스트 공유 성공 후 목록을 다시 불러오기 위한 값입니다.
- */
-    const [refreshKey, setRefreshKey] = useState(0);
-    /*
- * 테스트 공유 모달을 닫고 입력값을 초기화합니다.
- */
-    const closeShareModal = () => {
-        if (submitting) {
-            return;
-        }
+  const submit = async (
+    event: FormEvent<HTMLFormElement>
+  ) => {
+    event.preventDefault();
 
-        setSelectedTest(null);
-        setTitle('');
-        setContent('');
-    };
+    if (
+      !selectedTest ||
+      !title.trim() ||
+      !content.trim()
+    ) {
+      return;
+    }
 
-    /*
-     * 테스트 이력의 '결과 공유' 버튼을 누르면 호출됩니다.
-     */
-    const handleSelectTest = (
-        test: MypageTestHistoryItem
-    ) => {
-        setSelectedTest(test);
+    try {
+      setSubmitting(true);
 
-        /*
-         * 테스트 이름으로 기본 제목을 만들어주되
-         * 사용자가 자유롭게 수정할 수 있습니다.
-         */
-        setTitle(`${test.testName} 결과 공유`);
-        setContent('');
-    };
+      await createCommunityPost({
+        category: 'TEST_SHARE',
+        title: title.trim(),
+        content: content.trim(),
+        testRequestId: selectedTest.requestId,
+      });
 
-    /*
-     * 선택한 테스트 결과를 실제 커뮤니티 게시글로 등록합니다.
-     */
-    const handleSubmit = async (
-        event: SubmitEvent<HTMLFormElement>
-    ) => {
-        event.preventDefault();
+      showAlert(
+        '테스트 결과가 커뮤니티에 공유되었습니다.',
+        'success'
+      );
 
-        if (!selectedTest) {
-            showAlert('공유할 테스트를 선택해 주세요.', 'error');
-            return;
-        }
+      // 게시글 목록을 다시 조회하도록 값을 변경합니다.
+      setRefreshKey((value) => value + 1);
 
-        if (!title.trim()) {
-            showAlert('게시글 제목을 입력해 주세요.', 'error');
-            return;
-        }
+      dialogRef.current?.close();
+      setSelectedTest(null);
+      setTitle('');
+      setContent('');
+    } catch (submitError: unknown) {
+      const message =
+        submitError instanceof Error
+          ? submitError.message
+          : '테스트 결과를 공유하지 못했습니다.';
 
-        if (!content.trim()) {
-            showAlert('테스트 결과 소개를 입력해 주세요.', 'error');
-            return;
-        }
+      showAlert(message, 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-        try {
-            setSubmitting(true);
+  return (
+    <div className="community-tab-panel__content">
+      <PageHeader
+        headingLevel={2}
+        title="완료된 테스트 공유"
+        description="내 테스트 이력에서 결과를 선택해 다른 사용자와 공유할 수 있습니다."
+      />
 
-            await createCommunityPost({
-                category: 'TEST_SHARE',
-                title: title.trim(),
-                content: content.trim(),
-                testRequestId: selectedTest.requestId,
-            });
+      {/* 공유할 완료된 테스트를 선택합니다. */}
+      <CommunityTestPicker onSelect={selectTest} />
 
-            showAlert(
-                '테스트 결과가 커뮤니티에 공유되었습니다.',
-                'success'
-            );
+      {/* 다른 사용자가 공유한 테스트 결과 게시글입니다. */}
+      <TestSharePostList refreshKey={refreshKey} />
 
-            /*
-             * 등록 성공 후 선택과 작성 내용을 초기화합니다.
-             */
-            setSelectedTest(null);
-            setTitle('');
-            setContent('');
+      <dialog
+        ref={dialogRef}
+        className="community-dialog"
+        aria-labelledby="test-share-dialog-title"
+        onCancel={(event) => {
+          if (submitting) {
+            event.preventDefault();
+          } else {
+            close();
+          }
+        }}
+        onClick={(event) => {
+          // 모달 바깥 영역을 클릭한 경우에만 닫습니다.
+          if (event.target === event.currentTarget) {
+            close();
+          }
+        }}
+      >
+        <Card
+          as="section"
+          padding="lg"
+          className="community-dialog__content"
+        >
+          <h2 id="test-share-dialog-title">
+            테스트 결과 공유
+          </h2>
 
-            // 실제 등록이 성공한 경우에만 게시글 목록을 다시 조회합니다.
-            setRefreshKey((currentKey) => currentKey + 1);
-        } catch (error: unknown) {
-            const message =
-                error instanceof Error
-                    ? error.message
-                    : '테스트 결과를 공유하지 못했습니다.';
+          {selectedTest && (
+            <>
+              <Card
+                variant="subtle"
+                padding="sm"
+                className="community-dialog__summary"
+              >
+                <strong>{selectedTest.testName}</strong>
+                <p>{selectedTest.targetUrl}</p>
+              </Card>
 
-            showAlert(message, 'error');
-        } finally {
-            setSubmitting(false);
-        }
-    };
-
-    return (
-        <>
-            {/*
-             * 기존 마이페이지 테스트 이력을 재사용하면서
-             * 커뮤니티에서만 공유 버튼을 활성화합니다.
-             */}
-            <MypageTestHistorySection
-                onShare={handleSelectTest}
-            />
-
-            {/* 완료된 테스트를 선택한 경우에만 작성 폼을 표시합니다. */}
-            {selectedTest && (
-                /*
-                 * 테스트 이력이 많아도 현재 위치에서 바로 작성할 수 있도록
-                 * 화면 중앙에 모달 형태로 표시합니다.
-                 */
-                <div
-                    role="presentation"
-                    style={{
-                        position: 'fixed',
-                        inset: 0,
-                        zIndex: 1100,
-                        display: 'grid',
-                        placeItems: 'center',
-                        padding: '1rem',
-                        overflowY: 'auto',
-                        backgroundColor: 'rgba(15, 23, 42, 0.65)',
-                    }}
-                    onMouseDown={closeShareModal}
+              <form
+                onSubmit={submit}
+                aria-busy={submitting || undefined}
+              >
+                <Field
+                  label="공유글 제목"
+                  htmlFor="test-share-title"
+                  required
                 >
-                    <section
-                        role="dialog"
-                        aria-modal="true"
-                        aria-labelledby="test-share-dialog-title"
-                        className="card"
-                        style={{
-                            width: 'min(640px, 100%)',
-                            maxHeight: '90vh',
-                            overflowY: 'auto',
-                            boxShadow: '0 24px 70px rgba(0, 0, 0, 0.3)',
-                        }}
-                        onMouseDown={(event) => {
-                            /*
-                             * 모달 내부를 클릭했을 때 닫히는 것을 방지합니다.
-                             */
-                            event.stopPropagation();
-                        }}
-                    >
-                        <h2 id="test-share-dialog-title">
-                            테스트 결과 공유
-                        </h2>
+                  <input
+                    id="test-share-title"
+                    className="fc-input"
+                    maxLength={100}
+                    value={title}
+                    onChange={(event) =>
+                      setTitle(event.target.value)
+                    }
+                    disabled={submitting}
+                    autoFocus
+                    required
+                  />
+                </Field>
 
-                        <div
-                            style={{
-                                marginBottom: '1.5rem',
-                                padding: '1rem',
-                                border: '1px solid var(--border)',
-                                borderRadius: '0.75rem',
-                                backgroundColor: 'var(--bg-tertiary)',
-                            }}
-                        >
-                            <strong>{selectedTest.testName}</strong>
+                <Field
+                  label="테스트 결과 소개"
+                  htmlFor="test-share-content"
+                  required
+                >
+                  <textarea
+                    id="test-share-content"
+                    className="fc-input"
+                    rows={6}
+                    value={content}
+                    onChange={(event) =>
+                      setContent(event.target.value)
+                    }
+                    disabled={submitting}
+                    required
+                  />
+                </Field>
 
-                            <p
-                                style={{
-                                    marginBottom: 0,
-                                    color: 'var(--text-secondary)',
-                                    wordBreak: 'break-all',
-                                }}
-                            >
-                                {selectedTest.targetUrl}
-                            </p>
-                        </div>
+                <div className="community-actions">
+                  <Button
+                    type="submit"
+                    isLoading={submitting}
+                    loadingText="공유 중..."
+                  >
+                    테스트 결과 공유
+                  </Button>
 
-                        <form onSubmit={handleSubmit}>
-                            <div className="form-group">
-                                <label
-                                    className="form-label"
-                                    htmlFor="test-share-title"
-                                >
-                                    공유글 제목
-                                </label>
-
-                                <input
-                                    id="test-share-title"
-                                    className="form-input"
-                                    type="text"
-                                    maxLength={100}
-                                    value={title}
-                                    onChange={(event) =>
-                                        setTitle(event.target.value)
-                                    }
-                                    placeholder="테스트 결과를 소개하는 제목을 입력해 주세요."
-                                    required
-                                />
-                            </div>
-
-                            <div className="form-group">
-                                <label
-                                    className="form-label"
-                                    htmlFor="test-share-content"
-                                >
-                                    테스트 결과 소개
-                                </label>
-
-                                <textarea
-                                    id="test-share-content"
-                                    className="form-input"
-                                    rows={6}
-                                    value={content}
-                                    onChange={(event) =>
-                                        setContent(event.target.value)
-                                    }
-                                    placeholder="테스트 목적, 주요 결과 또는 공유하고 싶은 정보를 작성해 주세요."
-                                    required
-                                />
-                            </div>
-
-                            <div
-                                style={{
-                                    display: 'flex',
-                                    gap: '0.75rem',
-                                }}
-                            >
-                                <button
-                                    type="submit"
-                                    className="btn btn-primary"
-                                    disabled={submitting}
-                                >
-                                    {submitting
-                                        ? '공유 중...'
-                                        : '테스트 결과 공유'}
-                                </button>
-
-                                <button
-                                    type="button"
-                                    className="btn btn-secondary"
-                                    disabled={submitting}
-                                    onClick={closeShareModal}
-                                >
-                                    취소
-                                </button>
-
-                                {/* 공유 및 취소 버튼 영역을 닫습니다. */}
-                            </div>
-                        </form>
-                    </section>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={submitting}
+                    onClick={close}
+                  >
+                    취소
+                  </Button>
                 </div>
-            )}
-
-            {/* 다른 사용자가 공유한 테스트 결과도 함께 표시합니다. */}
-            <TestSharePostList refreshKey={refreshKey} />
-
-        </>
-    );
+              </form>
+            </>
+          )}
+        </Card>
+      </dialog>
+    </div>
+  );
 }

@@ -8,15 +8,15 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from 'recharts';
-import { UIUXTestScores } from '../../api/UIUXTestApi';
+import type { UIUXTestScores } from '../../api/UIUXTestApi';
 
 interface UIUXScoreRadarChartProps {
   scores: UIUXTestScores;
 }
 
-const brandColor = '#7f56d9';
-const neutralGridColor = '#eef2f6';
-const neutralTextColor = '#344054';
+const brandColor = 'var(--color-action-primary)';
+const neutralGridColor = 'var(--color-border-default)';
+const neutralTextColor = 'var(--color-text-secondary)';
 
 function renderAngleTick({ x, y, textAnchor, index, payload }: any) {
   const adjustedY = index === 0 ? Number(y) - 12 : index === 2 || index === 3 ? Number(y) + 10 : Number(y);
@@ -74,12 +74,13 @@ export default function UIUXScoreRadarChart({ scores }: UIUXScoreRadarChartProps
             <Tooltip
               cursor={{ stroke: brandColor, strokeWidth: 2 }}
               formatter={(value: number) => [`${value}점`, '점수']}
-              labelStyle={{ color: '#101828', fontWeight: 700 }}
+              labelStyle={{ color: 'var(--color-text-primary)', fontWeight: 700 }}
               contentStyle={{
-                border: '1px solid #e4e7ec',
-                borderRadius: 8,
-                boxShadow: '0 12px 28px rgba(16, 24, 40, 0.12)',
-                color: '#101828',
+                border: '1px solid var(--color-border-default)',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'var(--color-bg-surface)',
+                boxShadow: 'var(--shadow-raised)',
+                color: 'var(--color-text-primary)',
               }}
             />
             <Radar
@@ -91,7 +92,7 @@ export default function UIUXScoreRadarChart({ scores }: UIUXScoreRadarChartProps
               strokeLinejoin="round"
               fill={brandColor}
               fillOpacity={0.18}
-              activeDot={{ fill: '#fff', stroke: brandColor, strokeWidth: 2, r: 4 }}
+              activeDot={{ fill: 'var(--color-bg-surface)', stroke: brandColor, strokeWidth: 2, r: 4 }}
             />
           </RadarChart>
         </ResponsiveContainer>

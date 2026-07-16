@@ -1,4 +1,8 @@
 {
+  "engines": {
+    "node": ">=24 <25",
+    "npm": ">=11 <12"
+  },
   "dependencies": {
     "pg": "^8.22.0",
     "react-router-dom": "^7.18.1"

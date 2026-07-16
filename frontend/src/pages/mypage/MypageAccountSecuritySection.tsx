@@ -1,46 +1,33 @@
 import { useNavigate } from 'react-router-dom';
-import styles from '../../styles/mypage.module.css';
+import { Button, Card, PageHeader } from '../../components/common';
 import { useUserStore } from '../../store/userStore';
+import styles from '../../styles/mypage.module.css';
 
-interface MypageAccountSecuritySectionProps {
-    email: string;
-}
+interface MypageAccountSecuritySectionProps { email: string; }
 
 function MypageAccountSecuritySection({ email }: MypageAccountSecuritySectionProps) {
-    const navigate = useNavigate();
-    const logout = useUserStore((state) => state.logout);
+  const navigate = useNavigate();
+  const logout = useUserStore((state) => state.logout);
 
-    const handleLogout = async () => {
-        await logout();
-        navigate('/login', { replace: true });
-    };
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login', { replace: true });
+  };
 
-    return (
-        <section className={styles['mypage-section']}>
-            <h1>계정 · 보안</h1>
-            <p>이메일, 비밀번호, 소셜 로그인 연결 상태를 관리합니다.</p>
-
-            <div className={styles['account-panel']}>
-                <div className={styles['account-row']}>
-                    <div>
-                        <strong>이메일</strong>
-                        <p>{email || '로그인 정보 없음'}</p>
-                    </div>
-                    <button type="button" className="btn btn-secondary">변경</button>
-                </div>
-
-                <div className={`${styles['account-row']} danger`}>
-                    <div>
-                        <strong>로그아웃</strong>
-                        <p>현재 기기에서 로그아웃합니다.</p>
-                    </div>
-                    <button type="button" className="btn btn-secondary" onClick={handleLogout}>
-                        로그아웃
-                    </button>
-                </div>
-            </div>
-        </section>
-    );
+  return (
+    <section className={styles['mypage-section']}>
+      <PageHeader headingLevel={1} eyebrow="ACCOUNT" title="계정 · 보안" description="로그인 계정과 현재 세션을 관리합니다." />
+      <div className={styles['account-panel']}>
+        <Card className={styles['account-row']}>
+          <div><strong>이메일</strong><p>{email || '로그인 정보 없음'}</p></div>
+        </Card>
+        <Card className={styles['account-row']} variant="outlined">
+          <div><strong>로그아웃</strong><p>현재 기기에서 FlowCheck 세션을 종료합니다.</p></div>
+          <Button type="button" variant="danger" onClick={handleLogout}>로그아웃</Button>
+        </Card>
+      </div>
+    </section>
+  );
 }
 
 export default MypageAccountSecuritySection;

@@ -22,6 +22,9 @@ import LandingPage from './pages/LandingPage';
 import CommentPage from "./pages/CommentPage";
 import CommunityHubPage from './pages/community/CommunityHubPage';
 import CommunityPostDetailPage from './pages/community/CommunityPostDetailPage';
+import './styles/CommunityPages.css';
+import './styles/AppShell.css';
+import './styles/UtilityPages.css';
 
 // Types & Utils
 import { useUserStore } from './store/userStore';
@@ -103,8 +106,8 @@ function App() {
       <div className="app-container">
         {alertMsg && <Toast message={alertMsg.message} type={alertMsg.type} />}
         <main className="main-content">
-          <div style={{ textAlign: 'center', padding: '4rem 0', color: 'var(--text-secondary)' }}>
-            Loading...
+          <div className="app-loading-state" role="status" aria-live="polite">
+            앱을 불러오는 중입니다.
           </div>
         </main>
       </div>
@@ -115,9 +118,10 @@ function App() {
     <div className="app-container">
       {alertMsg && <Toast message={alertMsg.message} type={alertMsg.type} />}
 
+      <a className="skip-link" href="#main-content">본문으로 건너뛰기</a>
       <Header activeTab={activeTab} />
 
-      <main className={isLandingPage ? "landing-main" : "main-content"}>
+      <main id="main-content" className={isLandingPage ? "landing-main" : "main-content"}>
         <Routes>
           {isLoggedIn ? (
             <>
@@ -261,7 +265,8 @@ function App() {
         </Routes>
       </main>
 
-      {isLoggedIn && <Footer />}
+      {isLandingPage && <Footer variant="full" />}
+      {isLoggedIn && <Footer variant="compact" />}
       <Chatbot />
     </div>
   );

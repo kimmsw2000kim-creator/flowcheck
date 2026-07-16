@@ -2,6 +2,10 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { initializeTheme } from './store/themeStore';
+import './styles/fonts.css';
+import './styles/tokens.css';
+import './styles/themes.css';
+import './components/common/primitives.css';
 import './index.css';
 import App from './App';
 

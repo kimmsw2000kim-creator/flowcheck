@@ -1,52 +1,24 @@
-import React from 'react';
-import { Zap, Bot, BadgeCheck } from 'lucide-react';
+import { BadgeCheck, Bot, Zap } from 'lucide-react';
+import { Card } from '../common';
+import LandingSectionHeader from './LandingSectionHeader';
 import styles from '../../styles/landing.module.css';
 
-interface FeatureItem {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-}
+const FEATURES = [
+  { icon: Zap, title: 'AI k6 부하 테스트', description: 'URL과 실행 조건을 바탕으로 부하를 생성하고 처리량, 응답 시간, 오류율을 한눈에 정리합니다.' },
+  { icon: Bot, title: 'AI 자율 UI/UX 감사', description: 'AI 에이전트가 브라우저를 직접 탐색하며 사용성 결함과 개선 근거를 영상·점수·보고서로 제공합니다.' },
+  { icon: BadgeCheck, title: '검증 이력과 커뮤니티', description: '완료된 테스트 결과를 이력으로 관리하고 검증한 사이트와 결과를 커뮤니티에 공유할 수 있습니다.' },
+] as const;
 
 export default function FeatureSection() {
-  const features: FeatureItem[] = [
-    {
-      icon: <Zap size={28} />,
-      title: 'AI k6 부하 테스트',
-      description: '타겟 URL과 조건만 입력하세요. Gemini가 최적의 k6 스크립트를 생성해 부하를 발생시키고, 실시간 모니터링과 종합 성능 분석 리포트를 제공합니다.'
-    },
-    {
-      icon: <Bot size={28} />,
-      title: 'AI 자율 탐색 UI/UX 감사',
-      description: '사람처럼 화면을 보고 클릭하는 멀티모달 AI 에이전트가 브라우저를 직접 탐색하며 UI/UX 결함을 찾아내고 개선점을 제안합니다.'
-    },
-    {
-      icon: <BadgeCheck size={28} />,
-      title: 'FlowCheck Verified 커뮤니티',
-      description: '성공적으로 검증을 마친 프로젝트는 FlowCheck 인증 배지를 획득합니다. 안전성이 입증된 당신의 서비스를 커뮤니티에 등록하고 홍보하세요.'
-    }
-  ];
-
   return (
-    <section className={styles['landing-section']}>
-      <div className={styles['landing-section-header']}>
-        <span className={styles['landing-section-subtitle']}>Core Capabilities</span>
-        <h2 className={styles['landing-section-title']}>FlowCheck 핵심 기능</h2>
-      </div>
-
-      <div className={styles['features-grid']}>
-        {features.map((feature, idx) => (
-          <div 
-            key={idx} 
-            className={`${styles['feature-card']} ${styles['animate-fade-in-up']}`} 
-            style={{ animationDelay: `${(idx + 1) * 150}ms` }}
-          >
-            <div className={styles['feature-icon-wrapper']}>
-              {feature.icon}
-            </div>
-            <h3 className={styles['feature-title']}>{feature.title}</h3>
-            <p className={styles['feature-desc']}>{feature.description}</p>
-          </div>
+    <section id="features" className={styles.section}>
+      <LandingSectionHeader eyebrow="Core Capabilities" title="FlowCheck 핵심 기능" description="성능과 사용성을 한 흐름에서 검증하고 결과를 축적합니다." />
+      <div className={styles['feature-grid']}>
+        {FEATURES.map(({ icon: Icon, title, description }) => (
+          <Card as="article" key={title} variant="outlined" padding="lg" className={styles['feature-card']}>
+            <span className={styles['feature-icon']}><Icon size={26} aria-hidden="true" /></span>
+            <h3>{title}</h3><p>{description}</p>
+          </Card>
         ))}
       </div>
     </section>

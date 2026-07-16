@@ -1,5 +1,4 @@
 import axios from 'axios';
-
 import apiClient from './client';
 import type {
     CreatePostRequest,
@@ -15,11 +14,11 @@ import type {
  * 커뮤니티 게시글 목록 조회에 사용하는 조건입니다.
  */
 interface FetchCommunityPostsParams {
-    category: PostCategory;
-    keyword?: string;
-    page?: number;
-    size?: number;
-    sort?: string;
+  category: PostCategory;
+  keyword?: string;
+  page?: number;
+  size?: number;
+  sort?: string;
 }
 
 /*
@@ -51,63 +50,30 @@ function getErrorMessage(
     return fallbackMessage;
 }
 
-/*
- * 카테고리별 커뮤니티 게시글을 조회합니다.
- *
- * 기본값은 첫 페이지, 10개, 최신순입니다.
- */
 export async function fetchCommunityPosts({
-    category,
-    keyword,
-    page = 0,
-    size = 10,
-    sort = 'createdAt,desc',
+  category,
+  keyword,
+  page = 0,
+  size = 10,
+  sort = 'createdAt,desc',
 }: FetchCommunityPostsParams): Promise<PostPage> {
-    try {
-        const response = await apiClient.get<PostPage>(
-            '/api/community/posts',
-            {
-                params: {
-                    category,
-                    keyword: keyword || undefined,
-                    page,
-                    size,
-                    sort,
-                },
-            }
-        );
-
-        return response.data;
-    } catch (error: unknown) {
-        throw new Error(
-            getErrorMessage(
-                error,
-                '커뮤니티 게시글을 불러오지 못했습니다.'
-            )
-        );
-    }
+  try {
+    const response = await apiClient.get<PostPage>('/api/community/posts', {
+      params: { category, keyword: keyword || undefined, page, size, sort },
+    });
+    return response.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error, '커뮤니티 게시글을 불러오지 못했습니다.'));
+  }
 }
 
-/*
- * 게시글 한 건의 상세 내용을 조회합니다.
- */
-export async function fetchCommunityPost(
-    postId: number
-): Promise<Post> {
-    try {
-        const response = await apiClient.get<Post>(
-            `/api/community/posts/${postId}`
-        );
-
-        return response.data;
-    } catch (error: unknown) {
-        throw new Error(
-            getErrorMessage(
-                error,
-                '커뮤니티 게시글을 불러오지 못했습니다.'
-            )
-        );
-    }
+export async function fetchCommunityPost(postId: number): Promise<Post> {
+  try {
+    const response = await apiClient.get<Post>(`/api/community/posts/${postId}`);
+    return response.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error, '커뮤니티 게시글을 불러오지 못했습니다.'));
+  }
 }
 
 /*

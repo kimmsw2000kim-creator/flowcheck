@@ -1,7 +1,8 @@
 import { CreditCard, PlusCircle, Shield } from 'lucide-react';
-import { useUserStore } from '../store/userStore';
-
+import { Badge, Button, Card, EmptyState, PageHeader, Table, TableContainer } from '../components/common';
 import { useDomains } from '../hooks/useDomains';
+import { useUserStore } from '../store/userStore';
+import '../styles/DashboardPage.css';
 
 interface DashboardPageProps {
   setActiveTab: (tab: string) => void;
@@ -11,38 +12,54 @@ interface DashboardPageProps {
 export default function DashboardPage({ setActiveTab, setSelectedUIUXTestDomain }: DashboardPageProps) {
   const currentUser = useUserStore((state) => state.currentUser);
   const { domains } = useDomains();
+  const verifiedDomainCount = domains.filter((domain) => domain.verified).length;
+
+  const runUIUXTest = (domainId: number) => {
+    setSelectedUIUXTestDomain(domainId);
+    setActiveTab('UIUXTest');
+  };
+
   return (
-    <div>
-      <div style={{ textAlign: 'left', marginBottom: '2rem' }}>
-        <h2 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>FlowCheck 대시보드</h2>
-        <p style={{ color: 'var(--text-secondary)' }}>크레딧 모니터링, AI UI 테스트 수행, 그리고 부하 테스트 평가를 한눈에 관리하세요.</p>
-      </div>
+    <div className="dashboard-page">
+      <PageHeader
+        headingLevel={2}
+        title="FlowCheck 대시보드"
+        description="크레딧 모니터링, AI UI 테스트 수행, 그리고 부하 테스트 평가를 한눈에 관리하세요."
+      />
 
-      <div className="dashboard-grid">
-        <div className="card">
-          <div className="card-title"><CreditCard size={18} /> 보유 크레딧 잔액</div>
-          <div className="card-value" style={{ color: 'var(--accent-hover)' }}>
-            {currentUser.balance.toLocaleString()} <span style={{ fontSize: '1rem' }}>크레딧</span>
+      <section className="dashboard-page__stats" aria-label="계정 및 테스트 현황">
+        <Card padding="md" className="dashboard-page__stat-card">
+          <div className="dashboard-page__stat-label"><CreditCard size={18} aria-hidden="true" /> 보유 크레딧 잔액</div>
+          <div className="dashboard-page__stat-value dashboard-page__stat-value--accent">
+            {currentUser.balance.toLocaleString()} <span>크레딧</span>
           </div>
-        </div>
-        <div className="card">
-          <div className="card-title"><PlusCircle size={18} /> 선결제 테스트 쿠폰</div>
-          <div className="card-value" style={{ fontSize: '1.4rem' }}>
-            부하: {currentUser.loadTestCoupons || 0}회 / UI: {currentUser.UIUXTestCoupons || 0}회
+        </Card>
+        <Card padding="md" className="dashboard-page__stat-card">
+          <div className="dashboard-page__stat-label"><PlusCircle size={18} aria-hidden="true" /> 선결제 테스트 쿠폰</div>
+          <div className="dashboard-page__coupon-values">
+            <span>부하 <strong>{currentUser.loadTestCoupons || 0}회</strong></span>
+            <span>UI/UX <strong>{currentUser.UIUXTestCoupons || 0}회</strong></span>
           </div>
-        </div>
-        <div className="card">
-          <div className="card-title"><Shield size={18} /> 등록된 대상 도메인</div>
-          <div className="card-value">
-            {domains.length} <span style={{ fontSize: '1.2rem', color: 'var(--success)' }}>({domains.filter(d => d.verified).length}개 인증됨)</span>
+        </Card>
+        <Card padding="md" className="dashboard-page__stat-card">
+          <div className="dashboard-page__stat-label"><Shield size={18} aria-hidden="true" /> 등록된 대상 도메인</div>
+          <div className="dashboard-page__stat-value">
+            {domains.length} <span>{verifiedDomainCount}개 인증됨</span>
           </div>
-        </div>
-      </div>
+        </Card>
+      </section>
 
-      <div className="card" style={{ marginTop: '2rem', textAlign: 'left' }}>
-        <h3 style={{ marginBottom: '1rem', fontWeight: 600 }}>인증 완료된 활성 대상 웹사이트</h3>
-        <div className="table-wrapper">
-          <table className="custom-table">
+      <Card as="section" padding="md" className="dashboard-page__domains">
+        <div className="dashboard-page__section-heading">
+          <div>
+            <span>Sites</span>
+            <h3>등록된 대상 웹사이트</h3>
+          </div>
+          <Badge tone={verifiedDomainCount ? 'success' : 'neutral'}>{verifiedDomainCount}개 인증</Badge>
+        </div>
+
+        <TableContainer>
+          <Table density="compact">
             <thead>
               <tr>
                 <th>도메인 호스트 URL</th>
@@ -52,35 +69,37 @@ export default function DashboardPage({ setActiveTab, setSelectedUIUXTestDomain 
               </tr>
             </thead>
             <tbody>
-              {domains.map(d => (
-                <tr key={d.id}>
-                  <td style={{ fontFamily: 'var(--mono)' }}>{d.domainUrl}</td>
-                  <td>{d.createdAt}</td>
+              {domains.map((domain) => (
+                <tr key={domain.id}>
+                  <td className="dashboard-page__domain-url">{domain.domainUrl}</td>
+                  <td>{domain.createdAt}</td>
                   <td>
-                    <span className={`badge ${d.verified ? 'badge-success' : 'badge-pending'}`}>
-                      {d.verified ? '인증됨' : '대기 중'}
-                    </span>
+                    <Badge tone={domain.verified ? 'success' : 'warning'}>
+                      {domain.verified ? '인증됨' : '대기 중'}
+                    </Badge>
                   </td>
                   <td>
-                    <button
-                      className="btn btn-secondary"
-                      style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
-                      onClick={() => { setActiveTab('UIUXTest'); setSelectedUIUXTestDomain(d.id); }}
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => runUIUXTest(domain.id)}
                     >
                       UI/UX 테스트 실행
-                    </button>
+                    </Button>
                   </td>
                 </tr>
               ))}
               {domains.length === 0 && (
                 <tr>
-                  <td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>등록된 도메인이 없습니다.</td>
+                  <td colSpan={4}>
+                    <EmptyState title="등록된 도메인이 없습니다." description="도메인을 등록하면 테스트 상태를 여기서 확인할 수 있습니다." />
+                  </td>
                 </tr>
               )}
             </tbody>
-          </table>
-        </div>
-      </div>
+          </Table>
+        </TableContainer>
+      </Card>
     </div>
   );
 }
