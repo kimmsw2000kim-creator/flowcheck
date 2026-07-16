@@ -48,13 +48,47 @@ import {
     showWarningAlert,
 } from '../utils/alert';
 
+const normalizeEmail = (
+    email?: string | null,
+) => email?.trim().toLowerCase() ?? '';
+
+const normalizeRole = (
+    role?: string | null,
+) => role?.trim().toUpperCase() ?? '';
+
+const hasAdminRole = (
+    role?: string | null,
+) => {
+    const normalizedRole = normalizeRole(role);
+
+    return (
+        normalizedRole === 'ADMIN' ||
+        normalizedRole === 'ROLE_ADMIN'
+    );
+};
+
+const getCommentCount = (
+    post: ForumPost,
+) => Number(post.commentCount ?? 0);
+
+const getErrorMessage = (
+    error: unknown,
+    fallbackMessage: string,
+) => {
+    return error instanceof Error
+        ? error.message
+        : fallbackMessage;
+};
+
 interface CommentPageProps {
     currentUser: {
         id: string;
         email: string;
+        role: string;
         balance: number;
         coupons: number;
     };
+
     showAlert: (
         message: string,
         type?: string,
@@ -68,29 +102,24 @@ export default function CommentPage({
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
 
-    /*
-     * 상세 게시글 ID를 React 상태에만 저장하지 않고
-     * URL에도 저장합니다.
-     *
-     * 예:
-     * 목록: /comment
-     * 상세: /comment?postId=15
-     *
-     * 이렇게 해야 브라우저 뒤로가기 버튼을 눌렀을 때
-     * 이전 커뮤니티나 대시보드가 아니라 /comment 목록으로 돌아옵니다.
-     */
-    const postIdParam = searchParams.get('postId');
+    const postIdParam =
+        searchParams.get('postId');
 
-    const [posts, setPosts] = useState<ForumPost[]>([]);
+    const [posts, setPosts] =
+        useState<ForumPost[]>([]);
+
     const [selectedPost, setSelectedPost] =
         useState<ForumPost | null>(null);
+
     const [comments, setComments] =
         useState<ForumComment[]>([]);
 
     const [commentValue, setCommentValue] =
         useState('');
+
     const [replyValue, setReplyValue] =
         useState('');
+
     const [replyParentId, setReplyParentId] =
         useState<number | null>(null);
 
@@ -99,22 +128,66 @@ export default function CommentPage({
 
     const [page, setPage] =
         useState(1);
+
     const [totalPages, setTotalPages] =
         useState(1);
 
+    const [totalElements, setTotalElements] =
+        useState(0);
+
     const [searchInput, setSearchInput] =
         useState('');
+
     const [keyword, setKeyword] =
         useState('');
 
     const [loading, setLoading] =
         useState(true);
+
     const [detailLoading, setDetailLoading] =
         useState(false);
+
     const [error, setError] =
         useState('');
 
-    /**
+    /*
+     * 로그인 사용자 권한
+     */
+    const loginUserEmail =
+        normalizeEmail(currentUser.email);
+
+    const isAdmin =
+        hasAdminRole(currentUser.role);
+
+    /*
+     * 선택된 게시글 작성자
+     */
+    const selectedPostWriterEmail =
+        selectedPost
+            ? normalizeEmail(
+                getForumWriter(selectedPost),
+            )
+            : '';
+
+    /*
+     * 작성자 여부
+     */
+    const isPostOwner = Boolean(
+        selectedPost &&
+        loginUserEmail &&
+        selectedPostWriterEmail &&
+        loginUserEmail === selectedPostWriterEmail,
+    );
+
+    /*
+     * 삭제 권한
+     *
+     * 작성자 또는 관리자
+     */
+    const canDeletePost =
+        isPostOwner || isAdmin;
+
+    /*
      * 게시글 목록 불러오기
      */
     const loadPosts = useCallback(async () => {
@@ -131,16 +204,24 @@ export default function CommentPage({
             if (Array.isArray(data)) {
                 setPosts(data);
                 setTotalPages(1);
+                setTotalElements(data.length);
                 return;
             }
 
-            setPosts(data.content || []);
-            setTotalPages(data.totalPages || 1);
+            setPosts(data.content ?? []);
+
+            setTotalPages(
+                Math.max(data.totalPages ?? 1, 1),
+            );
+
+            setTotalElements(
+                data.totalElements ?? data.content?.length ?? 0,
+            );
         } catch (loadError) {
-            const message =
-                loadError instanceof Error
-                    ? loadError.message
-                    : '게시글 목록을 불러오지 못했습니다.';
+            const message = getErrorMessage(
+                loadError,
+                '게시글 목록을 불러오지 못했습니다.',
+            );
 
             setError(message);
             showAlert(message, 'error');
@@ -153,20 +234,21 @@ export default function CommentPage({
         showAlert,
     ]);
 
-    /**
-     * 상세 화면에서 사용하던 상태 초기화
+    /*
+     * 상세 상태 초기화
      */
-    const resetPostDetail = useCallback(() => {
-        setSelectedPost(null);
-        setComments([]);
-        setLiked(false);
+    const resetPostDetail =
+        useCallback(() => {
+            setSelectedPost(null);
+            setComments([]);
+            setLiked(false);
 
-        setCommentValue('');
-        setReplyValue('');
-        setReplyParentId(null);
-    }, []);
+            setCommentValue('');
+            setReplyValue('');
+            setReplyParentId(null);
+        }, []);
 
-    /**
+    /*
      * 게시글 상세 불러오기
      */
     const loadPostDetail = useCallback(
@@ -175,8 +257,8 @@ export default function CommentPage({
                 setDetailLoading(true);
 
                 const [
-                    post,
-                    postComments,
+                    nextPost,
+                    nextComments,
                     likeStatus,
                 ] = await Promise.all([
                     getPost(postId),
@@ -184,18 +266,18 @@ export default function CommentPage({
                     getLikeStatus(postId),
                 ]);
 
-                setSelectedPost(post);
-                setComments(postComments);
+                setSelectedPost(nextPost);
+                setComments(nextComments);
                 setLiked(likeStatus.liked);
 
                 setCommentValue('');
                 setReplyValue('');
                 setReplyParentId(null);
             } catch (openError) {
-                const message =
-                    openError instanceof Error
-                        ? openError.message
-                        : '게시글 상세 정보를 불러오지 못했습니다.';
+                const message = getErrorMessage(
+                    openError,
+                    '게시글 상세 정보를 불러오지 못했습니다.',
+                );
 
                 showAlert(message, 'error');
 
@@ -219,14 +301,6 @@ export default function CommentPage({
         void loadPosts();
     }, [loadPosts]);
 
-    /*
-     * URL의 postId가 바뀔 때 상세 게시글을 불러옵니다.
-     *
-     * 브라우저 뒤로가기:
-     * /comment?postId=15 -> /comment
-     *
-     * postId가 사라지면 상세 상태를 비우고 목록을 보여줍니다.
-     */
     useEffect(() => {
         if (!postIdParam) {
             resetPostDetail();
@@ -256,11 +330,8 @@ export default function CommentPage({
         resetPostDetail,
     ]);
 
-    /**
-     * 목록에서 게시글 열기
-     *
-     * URL을 변경해서 브라우저 방문 기록에
-     * 게시글 상세 화면을 남깁니다.
+    /*
+     * 게시글 열기
      */
     const openPost = (
         postId: number,
@@ -270,10 +341,8 @@ export default function CommentPage({
         );
     };
 
-    /**
-     * 화면 안의 "게시판 목록으로" 버튼
-     *
-     * replace를 사용해 상세 주소를 목록 주소로 교체합니다.
+    /*
+     * 목록으로 이동
      */
     const handleBackToList = () => {
         resetPostDetail();
@@ -283,58 +352,73 @@ export default function CommentPage({
         });
     };
 
-    /**
-     * 게시글 상세 내용 새로고침
+    /*
+     * 상세 게시글 새로고침
      */
     const refreshDetail = async (
         postId: number,
     ) => {
         const [
-            post,
-            postComments,
+            nextPost,
+            nextComments,
         ] = await Promise.all([
             getPost(postId),
             getComments(postId),
         ]);
 
-        setSelectedPost(post);
-        setComments(postComments);
+        setSelectedPost(nextPost);
+        setComments(nextComments);
 
         await loadPosts();
     };
 
-    /**
-     * 현재 로그인한 사용자가 작성자인지 확인
+    /*
+     * 수정 권한 검사
+     *
+     * 수정은 작성자만 가능합니다.
      */
-    const checkOwner = async () => {
-        if (!selectedPost) {
-            return false;
-        }
+    const checkEditPermission =
+        async () => {
+            if (!selectedPost) {
+                return false;
+            }
 
-        const currentUserEmail =
-            currentUser.email
-                .trim()
-                .toLowerCase();
+            if (!isPostOwner) {
+                await showWarningAlert(
+                    '권한이 없습니다.',
+                    '본인이 작성한 게시글만 수정할 수 있습니다.',
+                );
 
-        const writerEmail =
-            getForumWriter(selectedPost)
-                .trim()
-                .toLowerCase();
+                return false;
+            }
 
-        const allowed =
-            currentUserEmail === writerEmail;
+            return true;
+        };
 
-        if (!allowed) {
-            await showWarningAlert(
-                '권한이 없습니다.',
-                '본인이 작성한 게시글만 변경할 수 있습니다.',
-            );
-        }
+    /*
+     * 삭제 권한 검사
+     *
+     * 작성자 또는 관리자가 삭제할 수 있습니다.
+     */
+    const checkDeletePermission =
+        async () => {
+            if (!selectedPost) {
+                return false;
+            }
 
-        return allowed;
-    };
+            if (!canDeletePost) {
+                await showWarningAlert(
+                    '권한이 없습니다.',
+                    '작성자 또는 관리자만 게시글을 삭제할 수 있습니다.',
+                );
 
-    /**
+                return false;
+            }
+
+            return true;
+        };
+
+    /*
      * 좋아요 처리
      */
     const toggleLike = async () => {
@@ -371,17 +455,18 @@ export default function CommentPage({
                     : 'info',
             );
         } catch (likeError) {
-            const message =
-                likeError instanceof Error
-                    ? likeError.message
-                    : '좋아요 처리에 실패했습니다.';
-
-            showAlert(message, 'error');
+            showAlert(
+                getErrorMessage(
+                    likeError,
+                    '좋아요 처리에 실패했습니다.',
+                ),
+                'error',
+            );
         }
     };
 
-    /**
-     * 게시글 수정 페이지로 이동
+    /*
+     * 게시글 수정
      */
     const editPost = async () => {
         if (!selectedPost) {
@@ -389,7 +474,7 @@ export default function CommentPage({
         }
 
         const allowed =
-            await checkOwner();
+            await checkEditPermission();
 
         if (!allowed) {
             return;
@@ -406,7 +491,7 @@ export default function CommentPage({
         );
     };
 
-    /**
+    /*
      * 게시글 삭제
      */
     const removePost = async () => {
@@ -415,7 +500,7 @@ export default function CommentPage({
         }
 
         const allowed =
-            await checkOwner();
+            await checkDeletePermission();
 
         if (!allowed) {
             return;
@@ -449,22 +534,22 @@ export default function CommentPage({
 
             await showSuccessAlert(
                 '삭제 완료',
-                '게시글이 삭제되었습니다.',
+                isAdmin && !isPostOwner
+                    ? '관리자 권한으로 게시글을 삭제했습니다.'
+                    : '게시글이 삭제되었습니다.',
             );
         } catch (deleteError) {
-            const message =
-                deleteError instanceof Error
-                    ? deleteError.message
-                    : '게시글 삭제에 실패했습니다.';
-
             await showErrorAlert(
                 '삭제 실패',
-                message,
+                getErrorMessage(
+                    deleteError,
+                    '게시글 삭제에 실패했습니다.',
+                ),
             );
         }
     };
 
-    /**
+    /*
      * 댓글 등록
      */
     const submitComment = async (
@@ -472,9 +557,12 @@ export default function CommentPage({
     ) => {
         event.preventDefault();
 
+        const content =
+            commentValue.trim();
+
         if (
             !selectedPost ||
-            !commentValue.trim()
+            !content
         ) {
             return;
         }
@@ -483,8 +571,7 @@ export default function CommentPage({
             await createComment(
                 selectedPost.id,
                 {
-                    content:
-                        commentValue.trim(),
+                    content,
                     parentId: null,
                 },
             );
@@ -499,15 +586,18 @@ export default function CommentPage({
                 '댓글 등록 완료',
                 '댓글이 정상적으로 등록되었습니다.',
             );
-        } catch {
+        } catch (commentError) {
             await showErrorAlert(
                 '댓글 등록 실패',
-                '댓글 작성 중 오류가 발생했습니다.',
+                getErrorMessage(
+                    commentError,
+                    '댓글 작성 중 오류가 발생했습니다.',
+                ),
             );
         }
     };
 
-    /**
+    /*
      * 답글 등록
      */
     const submitReply = async (
@@ -516,9 +606,12 @@ export default function CommentPage({
     ) => {
         event.preventDefault();
 
+        const content =
+            replyValue.trim();
+
         if (
             !selectedPost ||
-            !replyValue.trim()
+            !content
         ) {
             return;
         }
@@ -527,8 +620,7 @@ export default function CommentPage({
             await createComment(
                 selectedPost.id,
                 {
-                    content:
-                        replyValue.trim(),
+                    content,
                     parentId,
                 },
             );
@@ -544,15 +636,18 @@ export default function CommentPage({
                 '답글 등록 완료',
                 '답글이 정상적으로 등록되었습니다.',
             );
-        } catch {
+        } catch (replyError) {
             await showErrorAlert(
                 '답글 등록 실패',
-                '답글 작성 중 오류가 발생했습니다.',
+                getErrorMessage(
+                    replyError,
+                    '답글 작성 중 오류가 발생했습니다.',
+                ),
             );
         }
     };
 
-    /**
+    /*
      * 댓글 또는 답글 삭제
      */
     const removeComment = async (
@@ -563,10 +658,13 @@ export default function CommentPage({
             return;
         }
 
+        const commentType =
+            isReply ? '답글' : '댓글';
+
         const confirmed =
             await showConfirmAlert({
-                title: `${isReply ? '답글' : '댓글'
-                    }을 삭제하시겠습니까?`,
+                title:
+                    `${commentType}을 삭제하시겠습니까?`,
                 text:
                     '삭제한 내용은 복구할 수 없습니다.',
                 confirmText: '삭제',
@@ -587,24 +685,21 @@ export default function CommentPage({
 
             await showSuccessAlert(
                 '삭제 완료',
-                `${isReply ? '답글' : '댓글'
-                }이 삭제되었습니다.`,
+                `${commentType}이 삭제되었습니다.`,
             );
         } catch (deleteError) {
-            const message =
-                deleteError instanceof Error
-                    ? deleteError.message
-                    : '삭제 중 오류가 발생했습니다.';
-
             await showErrorAlert(
                 '삭제 실패',
-                message,
+                getErrorMessage(
+                    deleteError,
+                    `${commentType} 삭제 중 오류가 발생했습니다.`,
+                ),
             );
         }
     };
 
-    /**
-     * 페이지 번호 계산
+    /*
+     * 페이지 번호
      */
     const pageGroupStart =
         Math.floor((page - 1) / 10) * 10 + 1;
@@ -624,10 +719,11 @@ export default function CommentPage({
                 pageGroupStart + index,
         );
 
-    /**
-     * 게시글 상세 로딩 화면
-     */
-    if (postIdParam && detailLoading && !selectedPost) {
+    if (
+        postIdParam &&
+        detailLoading &&
+        !selectedPost
+    ) {
         return (
             <div className="community-page">
                 <EmptyState
@@ -639,7 +735,7 @@ export default function CommentPage({
         );
     }
 
-    /**
+    /*
      * 게시글 상세 화면
      */
     if (selectedPost) {
@@ -659,11 +755,15 @@ export default function CommentPage({
                     onLike={() =>
                         void toggleLike()
                     }
-                    onEdit={() =>
-                        void editPost()
+                    onEdit={
+                        isPostOwner
+                            ? () => void editPost()
+                            : undefined
                     }
-                    onDelete={() =>
-                        void removePost()
+                    onDelete={
+                        canDeletePost
+                            ? () => void removePost()
+                            : undefined
                     }
                 />
 
@@ -705,7 +805,7 @@ export default function CommentPage({
         );
     }
 
-    /**
+    /*
      * 게시글 목록 화면
      */
     return (
@@ -824,18 +924,23 @@ export default function CommentPage({
                                     <th scope="col">
                                         번호
                                     </th>
+
                                     <th scope="col">
                                         제목
                                     </th>
+
                                     <th scope="col">
                                         작성자
                                     </th>
+
                                     <th scope="col">
                                         날짜
                                     </th>
+
                                     <th scope="col">
                                         좋아요
                                     </th>
+
                                     <th scope="col">
                                         댓글
                                     </th>
@@ -843,11 +948,19 @@ export default function CommentPage({
                             </thead>
 
                             <tbody>
-                                {posts.map(
-                                    (post) => (
+                                {posts.map((post, index) => {
+                                    const displayNumber =
+                                        totalElements -
+                                        (page - 1) * 10 -
+                                        index;
+
+                                    const commentCount =
+                                        getCommentCount(post);
+
+                                    return (
                                         <tr key={post.id}>
                                             <td>
-                                                {post.id}
+                                                {displayNumber}
                                             </td>
 
                                             <td>
@@ -855,41 +968,40 @@ export default function CommentPage({
                                                     type="button"
                                                     className="community-table-link"
                                                     onClick={() =>
-                                                        openPost(
-                                                            post.id,
-                                                        )
+                                                        openPost(post.id)
                                                     }
                                                 >
-                                                    {post.title}
+                                                    <span>{post.title}</span>
+
+                                                    {commentCount > 0 && (
+                                                        <span
+                                                            className="community-title-comment-count"
+                                                            aria-label={`댓글 ${commentCount}개`}
+                                                        >
+                                                            [{commentCount}]
+                                                        </span>
+                                                    )}
                                                 </button>
                                             </td>
 
                                             <td>
-                                                {getForumWriter(
-                                                    post,
-                                                )}
+                                                {getForumWriter(post)}
                                             </td>
 
                                             <td>
-                                                {post.createdAt?.slice(
-                                                    0,
-                                                    10,
-                                                )}
+                                                {post.createdAt?.slice(0, 10)}
                                             </td>
 
                                             <td>
-                                                {getForumLikeCount(
-                                                    post,
-                                                )}
+                                                {getForumLikeCount(post)}
                                             </td>
 
                                             <td>
-                                                {post.commentCount ??
-                                                    0}
+                                                {commentCount}
                                             </td>
                                         </tr>
-                                    ),
-                                )}
+                                    );
+                                })}
                             </tbody>
                         </Table>
                     </TableContainer>

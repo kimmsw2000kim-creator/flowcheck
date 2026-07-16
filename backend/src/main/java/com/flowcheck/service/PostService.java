@@ -31,6 +31,7 @@ public class PostService {
 
     /**
      * 게시글 목록 조회
+     *
      * 게시글 ID가 큰 순서대로 정렬합니다.
      */
     public Page<PostListResponse> getPosts(
@@ -40,12 +41,15 @@ public class PostService {
         Pageable sortedPageable = PageRequest.of(
                 pageable.getPageNumber(),
                 pageable.getPageSize(),
-                Sort.by(Sort.Direction.DESC, "id"));
+                Sort.by(
+                        Sort.Direction.DESC,
+                        "id"));
 
         Page<Post> posts;
 
         if (keyword == null || keyword.isBlank()) {
-            posts = postRepository.findAll(sortedPageable);
+            posts = postRepository.findAll(
+                    sortedPageable);
         } else {
             String trimmedKeyword = keyword.trim();
 
@@ -56,13 +60,16 @@ public class PostService {
                             sortedPageable);
         }
 
-        return posts.map(this::toPostListResponse);
+        return posts.map(
+                this::toPostListResponse);
     }
 
     /**
      * 게시글 상세 조회
      */
-    public PostListResponse getPost(Long postId) {
+    public PostListResponse getPost(
+            Long postId) {
+
         Post post = findPostById(postId);
 
         return toPostListResponse(post);
@@ -79,9 +86,11 @@ public class PostService {
 
         validatePostRequest(request);
 
-        String normalizedEmail = normalizeEmail(email);
+        String normalizedEmail = normalizeRequiredEmail(email);
 
-        if (userId == null || userId.isBlank()) {
+        if (userId == null
+                || userId.isBlank()) {
+
             throw new ResponseStatusException(
                     HttpStatus.UNAUTHORIZED,
                     "사용자 ID를 확인할 수 없습니다.");
@@ -89,20 +98,33 @@ public class PostService {
 
         Post post = new Post();
 
-        post.setTitle(request.getTitle().trim());
-        post.setContent(request.getContent().trim());
-        post.setEmail(normalizedEmail);
-        post.setWriterEmail(normalizedEmail);
-        post.setUserId(userId.trim());
+        post.setTitle(
+                request.getTitle().trim());
+
+        post.setContent(
+                request.getContent().trim());
+
+        post.setEmail(
+                normalizedEmail);
+
+        post.setWriterEmail(
+                normalizedEmail);
+
+        post.setUserId(
+                userId.trim());
+
         post.setLikeCount(0);
 
         Post savedPost = postRepository.save(post);
 
-        return toPostListResponse(savedPost);
+        return toPostListResponse(
+                savedPost);
     }
 
     /**
      * 게시글 수정
+     *
+     * 게시글 작성자만 수정할 수 있습니다.
      */
     @Transactional
     public PostListResponse updatePost(
@@ -119,42 +141,63 @@ public class PostService {
                 post.getWriterEmail(),
                 "본인이 작성한 게시글만 수정할 수 있습니다.");
 
-        post.setTitle(request.getTitle().trim());
-        post.setContent(request.getContent().trim());
+        post.setTitle(
+                request.getTitle().trim());
 
+        post.setContent(
+                request.getContent().trim());
+
+        /*
+         * JPA 변경 감지로도 저장되지만,
+         * 현재 코드 흐름을 명확하게 하기 위해 save를 유지합니다.
+         */
         Post updatedPost = postRepository.save(post);
 
-        return toPostListResponse(updatedPost);
+        return toPostListResponse(
+                updatedPost);
     }
 
     /**
      * 게시글 삭제
+     *
+     * 작성자 또는 관리자가 삭제할 수 있습니다.
      */
     @Transactional
     public void deletePost(
             Long postId,
-            String loginEmail) {
+            String loginEmail,
+            boolean isAdmin) {
 
         Post post = findPostById(postId);
 
-        validateOwner(
+        validateDeletePermission(
                 loginEmail,
                 post.getWriterEmail(),
-                "본인이 작성한 게시글만 삭제할 수 있습니다.");
+                isAdmin);
 
-        commentRepository.deleteByPostId(postId);
-        postLikeRepository.deleteByPostId(postId);
+        /*
+         * 게시글을 참조하는 댓글과 좋아요를 먼저 삭제합니다.
+         */
+        commentRepository.deleteByPostId(
+                postId);
+
+        postLikeRepository.deleteByPostId(
+                postId);
 
         postRepository.delete(post);
     }
 
     /**
-     * Post Entity를 PostListResponse로 변환합니다.
+     * Post 엔티티를 응답 DTO로 변환합니다.
      */
-    private PostListResponse toPostListResponse(Post post) {
+    private PostListResponse toPostListResponse(
+            Post post) {
 
-        long likeCount = postLikeRepository.countByPostId(post.getId());
-        long commentCount = commentRepository.countByPostId(post.getId());
+        long likeCount = postLikeRepository.countByPostId(
+                post.getId());
+
+        long commentCount = commentRepository.countByPostId(
+                post.getId());
 
         return new PostListResponse(
                 post.getId(),
@@ -169,7 +212,8 @@ public class PostService {
     /**
      * 게시글 조회
      */
-    private Post findPostById(Long postId) {
+    private Post findPostById(
+            Long postId) {
 
         if (postId == null) {
             throw new ResponseStatusException(
@@ -177,7 +221,8 @@ public class PostService {
                     "게시글 ID가 필요합니다.");
         }
 
-        return postRepository.findById(postId)
+        return postRepository
+                .findById(postId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
                         "게시글을 찾을 수 없습니다."));
@@ -186,7 +231,8 @@ public class PostService {
     /**
      * 게시글 요청값 검사
      */
-    private void validatePostRequest(PostRequest request) {
+    private void validatePostRequest(
+            PostRequest request) {
 
         if (request == null) {
             throw new ResponseStatusException(
@@ -212,19 +258,18 @@ public class PostService {
     }
 
     /**
-     * 작성자 본인 확인
+     * 게시글 수정 권한 검사
+     *
+     * 작성자 본인만 허용합니다.
      */
     private void validateOwner(
             String loginEmail,
             String writerEmail,
             String errorMessage) {
 
-        String normalizedLoginEmail = normalizeEmail(loginEmail);
-
-        if (writerEmail == null
-                || writerEmail.isBlank()
-                || !normalizedLoginEmail.equals(normalizeEmail(writerEmail))) {
-
+        if (!isSameEmail(
+                loginEmail,
+                writerEmail)) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
                     errorMessage);
@@ -232,14 +277,80 @@ public class PostService {
     }
 
     /**
-     * 이메일 정규화
+     * 게시글 삭제 권한 검사
+     *
+     * 관리자는 작성자와 관계없이 삭제할 수 있습니다.
+     * 일반 사용자는 자신이 작성한 게시글만 삭제할 수 있습니다.
      */
-    private String normalizeEmail(String email) {
+    private void validateDeletePermission(
+            String loginEmail,
+            String writerEmail,
+            boolean isAdmin) {
 
-        if (email == null || email.isBlank()) {
+        if (isAdmin) {
+            return;
+        }
+
+        if (!isSameEmail(
+                loginEmail,
+                writerEmail)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "작성자 또는 관리자만 게시글을 삭제할 수 있습니다.");
+        }
+    }
+
+    /**
+     * 두 이메일이 같은지 검사합니다.
+     */
+    private boolean isSameEmail(
+            String loginEmail,
+            String writerEmail) {
+
+        String normalizedLoginEmail = normalizeRequiredEmail(
+                loginEmail);
+
+        String normalizedWriterEmail = normalizeOptionalEmail(
+                writerEmail);
+
+        return !normalizedWriterEmail.isBlank()
+                && normalizedLoginEmail.equals(
+                        normalizedWriterEmail);
+    }
+
+    /**
+     * 로그인 사용자 이메일 정규화
+     *
+     * 로그인 이메일은 반드시 존재해야 합니다.
+     */
+    private String normalizeRequiredEmail(
+            String email) {
+
+        if (email == null
+                || email.isBlank()) {
+
             throw new ResponseStatusException(
                     HttpStatus.UNAUTHORIZED,
                     "로그인 사용자 이메일을 확인할 수 없습니다.");
+        }
+
+        return email
+                .trim()
+                .toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * 게시글 작성자 이메일 정규화
+     *
+     * 기존 데이터에 작성자 이메일이 없을 수도 있으므로
+     * 빈 문자열을 반환합니다.
+     */
+    private String normalizeOptionalEmail(
+            String email) {
+
+        if (email == null
+                || email.isBlank()) {
+            return "";
         }
 
         return email

@@ -19,7 +19,9 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/posts")
@@ -38,14 +40,18 @@ public class PostController {
                         @RequestParam(required = false) String keyword,
                         Pageable pageable) {
 
-                return postService.getPosts(keyword, pageable);
+                return postService.getPosts(
+                                keyword,
+                                pageable);
         }
 
         /*
          * 게시글 상세 조회
          */
         @GetMapping("/{postId}")
-        public PostListResponse getPost(@PathVariable Long postId) {
+        public PostListResponse getPost(
+                        @PathVariable Long postId) {
+
                 return postService.getPost(postId);
         }
 
@@ -69,6 +75,8 @@ public class PostController {
 
         /*
          * 게시글 수정
+         *
+         * 현재는 작성자만 수정할 수 있도록 유지합니다.
          */
         @PutMapping("/{postId}")
         public PostListResponse updatePost(
@@ -86,6 +94,8 @@ public class PostController {
 
         /*
          * 게시글 삭제
+         *
+         * 작성자 또는 관리자만 삭제할 수 있습니다.
          */
         @DeleteMapping("/{postId}")
         @ResponseStatus(HttpStatus.NO_CONTENT)
@@ -94,8 +104,12 @@ public class PostController {
                         @AuthenticationPrincipal Jwt jwt) {
 
                 String email = getRequiredEmail(jwt);
+                boolean admin = isAdmin(jwt);
 
-                postService.deletePost(postId, email);
+                postService.deletePost(
+                                postId,
+                                email,
+                                admin);
         }
 
         /*
@@ -108,7 +122,9 @@ public class PostController {
 
                 String email = getRequiredEmail(jwt);
 
-                return postLikeService.toggleLike(postId, email);
+                return postLikeService.toggleLike(
+                                postId,
+                                email);
         }
 
         /*
@@ -121,7 +137,9 @@ public class PostController {
 
                 String email = getRequiredEmail(jwt);
 
-                return postLikeService.getLikeStatus(postId, email);
+                return postLikeService.getLikeStatus(
+                                postId,
+                                email);
         }
 
         /*
@@ -154,6 +172,8 @@ public class PostController {
 
         /*
          * 댓글 또는 답글 삭제
+         *
+         * 현재는 댓글 작성자만 삭제할 수 있도록 유지합니다.
          */
         @DeleteMapping("/comments/{commentId}")
         @ResponseStatus(HttpStatus.NO_CONTENT)
@@ -163,7 +183,9 @@ public class PostController {
 
                 String email = getRequiredEmail(jwt);
 
-                commentService.deleteComment(commentId, email);
+                commentService.deleteComment(
+                                commentId,
+                                email);
         }
 
         /*
@@ -184,7 +206,7 @@ public class PostController {
                                         "JWT에서 이메일 정보를 확인할 수 없습니다.");
                 }
 
-                return email.trim().toLowerCase();
+                return normalizeEmail(email);
         }
 
         /*
@@ -201,5 +223,77 @@ public class PostController {
                 }
 
                 return jwt.getSubject().trim();
+        }
+
+        /*
+         * 관리자 권한 확인
+         *
+         * Supabase app_metadata 예시:
+         *
+         * {
+         * "role": "ADMIN"
+         * }
+         *
+         * 또는:
+         *
+         * {
+         * "roles": ["ADMIN"]
+         * }
+         */
+        private boolean isAdmin(Jwt jwt) {
+                if (jwt == null) {
+                        return false;
+                }
+
+                /*
+                 * 별도의 신뢰 가능한 custom claim을 사용하는 경우
+                 */
+                if (hasAdminRole(jwt.getClaim("user_role"))) {
+                        return true;
+                }
+
+                /*
+                 * Supabase app_metadata의 역할 확인
+                 */
+                Map<String, Object> appMetadata = jwt.getClaim("app_metadata");
+
+                if (appMetadata == null) {
+                        return false;
+                }
+
+                return hasAdminRole(appMetadata.get("role"))
+                                || hasAdminRole(appMetadata.get("roles"));
+        }
+
+        /*
+         * 단일 역할 또는 역할 목록에서 관리자 권한 확인
+         */
+        private boolean hasAdminRole(Object roleValue) {
+                if (roleValue == null) {
+                        return false;
+                }
+
+                if (roleValue instanceof Collection<?> roles) {
+                        return roles.stream()
+                                        .anyMatch(this::hasAdminRole);
+                }
+
+                String role = roleValue
+                                .toString()
+                                .trim()
+                                .toUpperCase();
+
+                return "ADMIN".equals(role)
+                                || "ROLE_ADMIN".equals(role);
+        }
+
+        private String normalizeEmail(String email) {
+                if (email == null) {
+                        return "";
+                }
+
+                return email
+                                .trim()
+                                .toLowerCase();
         }
 }
