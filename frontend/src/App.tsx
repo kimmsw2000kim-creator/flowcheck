@@ -86,6 +86,7 @@ function App() {
   const isLandingPage = !isLoggedIn && location.pathname === '/';
 
   const [selectedUIUXTestDomain, setSelectedUIUXTestDomain] = useState<number>(1);
+  const [selectedLoadTestDomain, setSelectedLoadTestDomain] = useState<number>(0);
 
   const handleSubmitReport = (type: string, id: number) => {
     const report: Report = {
@@ -137,6 +138,7 @@ function App() {
                   <DashboardPage
                     setActiveTab={setActiveTab}
                     setSelectedUIUXTestDomain={setSelectedUIUXTestDomain}
+                    setSelectedLoadTestDomain={setSelectedLoadTestDomain}
                   />
                 }
               />
@@ -162,7 +164,12 @@ function App() {
 
               <Route
                 path="/load"
-                element={<LoadPage />}
+                element={
+                  <LoadPage
+                    selectedLoadTestDomain={selectedLoadTestDomain}
+                    setSelectedLoadTestDomain={setSelectedLoadTestDomain}
+                  />
+                }
               />
 
               <Route

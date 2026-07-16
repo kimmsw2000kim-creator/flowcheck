@@ -7,7 +7,7 @@
 
 .dashboard-page__stats {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-4);
 }
 
@@ -73,7 +73,7 @@
   margin-bottom: var(--space-4);
 }
 
-.dashboard-page__section-heading > div > span {
+.dashboard-page__section-heading>div>span {
   display: block;
   margin-bottom: var(--space-1);
   color: var(--color-text-muted);
@@ -91,6 +91,18 @@
 .dashboard-page__domain-url {
   font-family: var(--font-family-mono);
   overflow-wrap: anywhere;
+}
+
+.dashboard-page__test-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+.dashboard-page__test-column {
+  width: 1%;
+  white-space: nowrap;
 }
 
 .dashboard-page__domains .fc-empty-state {
