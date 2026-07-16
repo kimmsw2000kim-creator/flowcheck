@@ -5,6 +5,11 @@ import { LoadTestResultView } from '../components/load';
 import { useLoadTest } from '../hooks/useLoadTest';
 import '../styles/LoadPage.css';
 
+interface LoadPageProps {
+  selectedLoadTestDomain: number;
+  setSelectedLoadTestDomain: (id: number) => void;
+}
+
 const phaseLabels: Record<string, string> = {
   QUEUED: '대기 중',
   DISPATCHED_TO_FASTAPI: 'FastAPI 전달 중',
@@ -26,7 +31,7 @@ const statusPresentation: Record<string, { label: string; tone: BadgeTone }> = {
   error: { label: 'Failed', tone: 'danger' },
 };
 
-export default function LoadPage() {
+export default function LoadPage({ selectedLoadTestDomain, setSelectedLoadTestDomain }: LoadPageProps) {
   const {
     currentUser,
     domains,
@@ -44,7 +49,7 @@ export default function LoadPage() {
     loadMessage,
     loadResult,
     runLoadTest,
-  } = useLoadTest();
+  } = useLoadTest(selectedLoadTestDomain, setSelectedLoadTestDomain);
 
   const hasCoupon = currentUser.loadTestCoupons > 0;
   const hasCredits = currentUser.balance >= 10000;

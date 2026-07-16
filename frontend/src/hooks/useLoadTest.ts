@@ -31,12 +31,14 @@ class RetriableSseError extends Error {
   }
 }
 
-export function useLoadTest() {
+export function useLoadTest(
+  selectedLoadDomain: number,
+  setSelectedLoadDomain: (id: number) => void,
+) {
   const currentUser = useUserStore((state) => state.currentUser);
   const showAlert = useAlertStore((state) => state.showAlert);
   const { domains } = useDomains();
 
-  const [selectedLoadDomain, setSelectedLoadDomain] = useState<number>(0);
   const [vusers, setVusers] = useState<number>(100);
   const [duration, setDuration] = useState<number>(30);
   const [loadPrompt, setLoadPrompt] = useState<string>('');
