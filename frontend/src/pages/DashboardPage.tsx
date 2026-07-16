@@ -19,6 +19,7 @@ export default function DashboardPage({
   const currentUser = useUserStore((state) => state.currentUser);
   const { domains } = useDomains();
   const verifiedDomainCount = domains.filter((domain) => domain.verified).length;
+  const unverifiedDomainCount = domains.length - verifiedDomainCount;
 
   const runUIUXTest = (domainId: number) => {
     setSelectedUIUXTestDomain(domainId);
@@ -56,11 +57,14 @@ export default function DashboardPage({
 
       <Card as="section" padding="md" className="dashboard-page__domains">
         <div className="dashboard-page__section-heading">
-          <div>
+          <div className="dashboard-page__section-heading-copy">
             <span>Sites</span>
             <h3>웹사이트 등록 현황</h3>
           </div>
-          <Badge tone={verifiedDomainCount ? 'success' : 'neutral'}>{verifiedDomainCount}개 인증</Badge>
+          <div className="dashboard-page__domain-counts">
+            <Badge tone={verifiedDomainCount ? 'success' : 'neutral'}>{verifiedDomainCount}개 인증</Badge>
+            <Badge tone={unverifiedDomainCount ? 'warning' : 'neutral'}>{unverifiedDomainCount}개 미인증</Badge>
+          </div>
         </div>
 
         <TableContainer>
@@ -84,7 +88,7 @@ export default function DashboardPage({
                     </Badge>
                   </td>
                   <td className="dashboard-page__test-column">
-                    {domain.verified && (
+                    {domain.verified ? (
                       <div className="dashboard-page__test-actions">
                         <Button
                           size="sm"
@@ -101,6 +105,8 @@ export default function DashboardPage({
                           부하 테스트 시작
                         </Button>
                       </div>
+                    ) : (
+                      <span className="dashboard-page__test-placeholder" aria-hidden="true" />
                     )}
                   </td>
                 </tr>
