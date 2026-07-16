@@ -7,6 +7,7 @@ import { Badge, Button, Card, EmptyState } from '../common';
 
 interface CommunityTestPickerProps {
   onSelect: (test: MypageTestHistoryItem) => void;
+  refreshKey: number;
 }
 
 // 테스트 이력을 한 페이지에 5개씩 표시합니다.
@@ -27,6 +28,7 @@ const statusTone = (status: string) => status === 'COMPLETED' ? 'success' : stat
 
 export default function CommunityTestPicker({
   onSelect,
+  refreshKey,
 }: CommunityTestPickerProps) {
   const navigate = useNavigate();
 
@@ -52,6 +54,11 @@ export default function CommunityTestPicker({
 
   useEffect(() => {
     let cancelled = false;
+
+    // 공유 직후에도 최신 연결 게시글 정보를 다시 불러옵니다.
+    setLoading(true);
+    setError('');
+
     fetchMypageTestHistory()
       .then((data) => {
         if (!cancelled) {
@@ -63,7 +70,7 @@ export default function CommunityTestPicker({
       }).catch((loadError: unknown) => { if (!cancelled) setError(loadError instanceof Error ? loadError.message : '테스트 이력을 불러오지 못했습니다.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, []);
+  }, [refreshKey]);
 
   if (loading) return <EmptyState title="테스트 이력을 불러오는 중입니다." description="잠시만 기다려 주세요." aria-live="polite" />;
   if (error) return <EmptyState title={error} description="로그인 상태를 확인하고 다시 시도해 주세요." />;
@@ -74,6 +81,8 @@ export default function CommunityTestPicker({
       {/* 전체 목록이 아니라 현재 페이지의 테스트만 표시합니다. */}
       {visibleTests.map((test) => {
         const completed = test.status === 'COMPLETED';
+        const linkedPostId = test.linkedPostId ?? null;
+        const shared = linkedPostId !== null;
         const isUIUX =
           test.testType === 'UI' ||
           test.testType === 'UIUX';
@@ -100,7 +109,11 @@ export default function CommunityTestPicker({
               <div className="community-test-picker__heading">
                 <strong>{test.testName}</strong>
                 <Badge tone={statusTone(test.status)}>
-                  {completed ? '완료' : test.status}
+                  {shared
+                    ? '공유 완료'
+                    : completed
+                      ? '완료'
+                      : test.status}
                 </Badge>
               </div>
               <p>{test.targetUrl}</p>
@@ -135,7 +148,23 @@ export default function CommunityTestPicker({
                 </Button>
               </div>
             </div>
-            <Button variant="secondary" size="sm" disabled={!completed} onClick={() => onSelect(test)}>결과 공유</Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={!completed && !shared}
+              onClick={() => {
+                // 이미 공유했다면 중복 요청 대신 기존 게시글로 이동합니다.
+                if (shared) {
+                  navigate(`/community/${linkedPostId}`);
+                  return;
+                }
+
+                onSelect(test);
+              }}
+            >
+              {shared ? '공유한 글 보기' : '결과 공유'}
+            </Button>
           </Card>
         );
       })}

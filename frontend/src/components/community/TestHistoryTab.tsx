@@ -117,7 +117,10 @@ export default function TestHistoryTab() {
       />
 
       {/* 공유할 완료된 테스트를 선택합니다. */}
-      <CommunityTestPicker onSelect={selectTest} />
+      <CommunityTestPicker
+        onSelect={selectTest}
+        refreshKey={refreshKey}
+      />
 
       {/* 다른 사용자가 공유한 테스트 결과 게시글입니다. */}
       <TestSharePostList refreshKey={refreshKey} />

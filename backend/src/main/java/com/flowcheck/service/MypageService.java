@@ -104,9 +104,14 @@ public class MypageService {
                                         performanceScore,
                                         null,
                                         test.getPromptInput(),
+                                        test.getCreatedAt(),
+                                        test.getUpdatedAt(),
+
+                                        // 이미 공유된 테스트인지 프런트에서 구분할 수 있게 게시글 ID를 전달합니다.
                                         test.getCommunityPost() == null
                                                 ? null
-                                                : test.getCommunityPost().getPostId()                });
+                                                : test.getCommunityPost().getPostId()));
+                });
 
                 List<TestRequest> uiRequests = testRequestRepository.findByUserAndTestTypeOrderByCreatedAtAsc(user, "UIUX");
                 uiRequests.forEach(test -> {
@@ -127,7 +132,12 @@ public class MypageService {
                                         report != null ? report.getScoreBestPractices() : null,
                                         test.getPromptInput(),
                                         test.getCreatedAt(),
-                                        test.getUpdatedAt()));
+                                        test.getUpdatedAt(),
+
+                                        // LOAD 테스트와 동일하게 공유된 게시글 ID를 전달합니다.
+                                        test.getCommunityPost() == null
+                                                ? null
+                                                : test.getCommunityPost().getPostId()));
                 });
 
                 histories.sort(Comparator.comparing(

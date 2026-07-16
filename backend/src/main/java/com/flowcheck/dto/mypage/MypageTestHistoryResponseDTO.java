@@ -19,7 +19,9 @@ public record MypageTestHistoryResponseDTO(
         Integer scoreBestPractices,
         String description,
         OffsetDateTime createdAt,
-        OffsetDateTime updatedAt
+        OffsetDateTime updatedAt,
+
+        // 이미 공유된 테스트라면 연결된 커뮤니티 게시글 ID를 반환합니다.
         Long linkedPostId
 ) {
 }
