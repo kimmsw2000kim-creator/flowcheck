@@ -238,8 +238,8 @@ export function useLoadTest() {
       return;
     }
 
-    if (currentUser.coupons <= 0 && currentUser.balance < 10000) {
-      showAlert('쿠폰 또는 크레딧 잔액이 부족합니다.', 'error');
+    if (currentUser.loadTestCoupons <= 0 && currentUser.balance < 10000) {
+      showAlert('부하 테스트 쿠폰 또는 크레딧 잔액이 부족합니다.', 'error');
       return;
     }
 
