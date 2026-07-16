@@ -47,14 +47,17 @@ container_definition = {
 }
 
 if ENABLE_AWSLOGS:
+    log_options = {
+        "awslogs-group": AWSLOGS_GROUP,
+        "awslogs-region": AWS_REGION,
+        "awslogs-stream-prefix": "ecs",
+    }
+    if os.getenv("ECS_UIUX_AWSLOGS_CREATE_GROUP", "false").lower() == "true":
+        log_options["awslogs-create-group"] = "true"
+
     container_definition["logConfiguration"] = {
         "logDriver": "awslogs",
-        "options": {
-            "awslogs-group": AWSLOGS_GROUP,
-            "awslogs-region": AWS_REGION,
-            "awslogs-stream-prefix": "ecs",
-            "awslogs-create-group": "false",
-        },
+        "options": log_options,
     }
 
 try:
