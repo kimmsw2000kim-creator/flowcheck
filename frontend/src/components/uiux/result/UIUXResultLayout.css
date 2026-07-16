@@ -50,6 +50,11 @@
   align-items: start;
 }
 
+.uiux-results--detail .uiux-report-grid {
+  align-items: start;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
+}
+
 .uiux-overall-card,
 .uiux-engine-card,
 .uiux-chart-card,
@@ -312,6 +317,21 @@
   overflow: hidden;
 }
 
+.uiux-results--detail .uiux-report-video-card,
+.uiux-results--detail .uiux-defect-card {
+  height: 390px;
+}
+
+.uiux-results--detail .uiux-youtube-frame {
+  flex: 1 1 auto;
+  aspect-ratio: auto;
+}
+
+.uiux-results--detail .uiux-youtube-frame .custom-video-container {
+  height: 100%;
+  aspect-ratio: auto;
+}
+
 .uiux-defect-list {
   display: flex;
   flex: 1 1 auto;
@@ -492,6 +512,11 @@
   .uiux-defect-card {
     height: 420px;
   }
+
+  .uiux-results--detail .uiux-report-video-card,
+  .uiux-results--detail .uiux-defect-card {
+    height: 360px;
+  }
 }
 
 @media (max-width: 640px) {
@@ -530,5 +555,10 @@
 
   .uiux-defect-card {
     height: 360px;
+  }
+
+  .uiux-results--detail .uiux-report-video-card,
+  .uiux-results--detail .uiux-defect-card {
+    height: 340px;
   }
 }

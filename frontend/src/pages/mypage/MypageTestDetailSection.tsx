@@ -1,8 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 
 import apiClient from '../../api/client';
 import { fetchMypageUIUXTestDetail } from '../../api/mypageApi';
@@ -10,28 +7,9 @@ import type { UIUXTestStatusResponse } from '../../api/UIUXTestApi';
 import CustomVideoPlayer, { type CustomVideoPlayerRef } from '../../components/video/CustomVideoPlayer';
 import UIUXScoreRadarChart from '../../components/dashboard/UIUXScoreRadarChart';
 import UIUXScoreBarChart from '../../components/dashboard/UIUXScoreBarChart';
-import EmptyState from '../../components/common/EmptyState';
-
-interface LoadChartDataPoint {
-    time: string;
-    tps: number;
-    avgResponse: number;
-}
-
-interface LoadTestDetail {
-    maxTps: number;
-    avgResponse: number;
-    errorRate: number;
-    performanceScore: number;
-    performanceGrade: string;
-    scoreLabel: string;
-    scoreBreakdown: {
-        reliabilityScore: number;
-        latencyScore: number;
-    };
-    bottleneckComment: string;
-    points: LoadChartDataPoint[];
-}
+import { EmptyState, PageHeader } from '../../components/common';
+import { LoadTestResultView } from '../../components/load';
+import type { LoadTestResult } from '../../types/loadTest';
 
 const formatStepNumber = (step: number) => String(step).padStart(2, '0');
 
@@ -167,7 +145,7 @@ function MypageTestDetailSection() {
     const { testType, requestId } = useParams<{ testType: string; requestId: string }>();
     const [loading, setLoading] = useState(true);
     const [errorMessage, setErrorMessage] = useState('');
-    const [loadDetail, setLoadDetail] = useState<LoadTestDetail | null>(null);
+    const [loadDetail, setLoadDetail] = useState<LoadTestResult | null>(null);
     const [uiuxDetail, setUiuxDetail] = useState<UIUXTestStatusResponse | null>(null);
     const [activeDefectId, setActiveDefectId] = useState<number | null>(null);
     const customVideoRef = useRef<CustomVideoPlayerRef>(null);
@@ -234,29 +212,14 @@ function MypageTestDetailSection() {
         }
 
         return (
-            <div className="uiux-results uiux-results--detail">
-                <div className="uiux-card uiux-report-card">
-                    <div className="uiux-report-toggle">
-                        <span>부하 테스트 상세 결과</span>
-                    </div>
-                    <div className={`report-markdown load-report-markdown grade-${loadDetail.performanceGrade?.toLowerCase() ?? 'unknown'}`}>
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{loadDetail.bottleneckComment}</ReactMarkdown>
-                    </div>
-                    <div style={{ height: '320px', width: '100%', marginTop: '1.5rem' }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={loadDetail.points}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-default)" />
-                                <XAxis dataKey="time" stroke="var(--color-text-muted)" />
-                                <YAxis stroke="var(--color-action-primary)" />
-                                <Tooltip />
-                                <Legend />
-                                <Line type="monotone" dataKey="tps" name="TPS" stroke="var(--color-action-primary)" />
-                                <Line type="monotone" dataKey="avgResponse" name="평균 응답시간(ms)" stroke="var(--color-status-success)" />
-                            </LineChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
-            </div>
+            <section className="mypage-load-detail">
+                <PageHeader
+                    headingLevel={2}
+                    title="부하 테스트 상세 결과"
+                    description="저장된 부하 테스트의 성능 지표와 AI 분석 보고서입니다."
+                />
+                <LoadTestResultView result={loadDetail} />
+            </section>
         );
     }
 
