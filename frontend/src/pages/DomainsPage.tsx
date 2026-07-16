@@ -25,6 +25,7 @@ export default function DomainsPage() {
   } = useDomains();
 
   const verifiedCount = domains.filter((domain) => domain.verified).length;
+  const unverifiedCount = domains.length - verifiedCount;
 
   return (
     <div className="domains-page">
@@ -32,7 +33,6 @@ export default function DomainsPage() {
         headingLevel={2}
         title="도메인 소유권 검증 및 관리"
         description="테스트할 웹사이트를 등록하고 소유권 검증 상태를 관리합니다."
-        actions={<Badge tone={verifiedCount ? 'success' : 'neutral'}>{verifiedCount}개 인증</Badge>}
       />
 
       <Card as="section" padding="md">
@@ -57,11 +57,14 @@ export default function DomainsPage() {
 
       <Card as="section" padding="md">
         <div className="domains-page__section-heading domains-page__section-heading--row">
-          <div>
+          <div className="domains-page__section-heading-copy">
             <span>Verification</span>
             <h3>소유권 검증 및 연동 목록</h3>
           </div>
-          <Badge tone="neutral">총 {domains.length}개</Badge>
+          <div className="domains-page__domain-counts" aria-label="도메인 인증 현황">
+            <Badge tone={verifiedCount ? 'success' : 'neutral'}>{verifiedCount}개 인증</Badge>
+            <Badge tone={unverifiedCount ? 'warning' : 'neutral'}>{unverifiedCount}개 미인증</Badge>
+          </div>
         </div>
 
         <TableContainer>
