@@ -1,10 +1,17 @@
-import React from 'react';
 import { CheckCircle, Trash2 } from 'lucide-react';
-import Button from '../components/common/Button';
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  PageHeader,
+  StatusBadge,
+  Table,
+  TableContainer,
+} from '../components/common';
 import TextField from '../components/common/TextField';
-import StatusBadge from '../components/common/StatusBadge';
-
 import { useDomains } from '../hooks/useDomains';
+import '../styles/DomainsPage.css';
 
 export default function DomainsPage() {
   const {
@@ -16,29 +23,49 @@ export default function DomainsPage() {
     handleDeleteDomain,
     verificationLoading,
   } = useDomains();
+
+  const verifiedCount = domains.filter((domain) => domain.verified).length;
+
   return (
-    <div style={{ textAlign: 'left' }}>
-      <h2 style={{ fontSize: '1.75rem', marginBottom: '1.5rem' }}>도메인 소유권 검증 및 관리</h2>
-      
-      <div className="card" style={{ marginBottom: '2rem' }}>
-        <h3 style={{ marginBottom: '1rem' }}>새로운 사이트 등록</h3>
-        <form onSubmit={handleAddDomain} style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <TextField 
-            type="url" 
-            placeholder="https://mybusiness.com" 
-            value={newDomainUrl} 
-            onChange={(e) => setNewDomainUrl(e.target.value)} 
-            required 
-            containerStyle={{ flex: 1, marginBottom: 0 }}
+    <div className="domains-page">
+      <PageHeader
+        headingLevel={2}
+        title="도메인 소유권 검증 및 관리"
+        description="테스트할 웹사이트를 등록하고 소유권 검증 상태를 관리합니다."
+        actions={<Badge tone={verifiedCount ? 'success' : 'neutral'}>{verifiedCount}개 인증</Badge>}
+      />
+
+      <Card as="section" padding="md">
+        <div className="domains-page__section-heading">
+          <span>Registration</span>
+          <h3>새로운 사이트 등록</h3>
+        </div>
+        <form className="domains-page__form" onSubmit={handleAddDomain}>
+          <TextField
+            type="url"
+            label="도메인 URL"
+            description="https://를 포함한 웹사이트 주소를 입력하세요."
+            placeholder="https://mybusiness.com"
+            value={newDomainUrl}
+            onChange={(event) => setNewDomainUrl(event.target.value)}
+            containerClassName="domains-page__url-field"
+            required
           />
           <Button type="submit" variant="primary">도메인 추가</Button>
         </form>
-      </div>
- 
-      <div className="card">
-        <h3 style={{ marginBottom: '1rem' }}>소유권 검증 및 연동 목록</h3>
-        <div className="table-wrapper">
-          <table className="custom-table">
+      </Card>
+
+      <Card as="section" padding="md">
+        <div className="domains-page__section-heading domains-page__section-heading--row">
+          <div>
+            <span>Verification</span>
+            <h3>소유권 검증 및 연동 목록</h3>
+          </div>
+          <Badge tone="neutral">총 {domains.length}개</Badge>
+        </div>
+
+        <TableContainer>
+          <Table density="compact">
             <thead>
               <tr>
                 <th>호스트 URL</th>
@@ -47,77 +74,75 @@ export default function DomainsPage() {
               </tr>
             </thead>
             <tbody>
-              {domains.map(d => (
-                <tr key={d.id}>
+              {domains.map((domain) => (
+                <tr key={domain.id}>
                   <td>
-                    <div style={{ fontWeight: 600 }}>{d.domainUrl}</div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>등록일: {d.createdAt}</div>
+                    <strong className="domains-page__domain-url">{domain.domainUrl}</strong>
+                    <small className="domains-page__registered-at">등록일: {domain.createdAt}</small>
                   </td>
                   <td>
-                    {d.verified ? (
-                      <span style={{ color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                        <CheckCircle size={16} /> 검증 완료 및 연동 활성화
-                      </span>
+                    {domain.verified ? (
+                      <div className="domains-page__verified-message">
+                        <CheckCircle size={16} aria-hidden="true" /> 검증 완료 및 연동 활성화
+                      </div>
                     ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                        <div style={{ fontSize: '0.85rem' }}>
-                          웹사이트 &lt;head&gt; 영역에 아래 메타 태그 추가:<br/>
-                          <code style={{ fontSize: '0.8rem' }}>&lt;meta name="overload-verification" content="{d.verificationToken}"&gt;</code>
-                        </div>
-                        <div style={{ fontSize: '0.85rem' }}>
-                          또는 아래 경로에 텍스트 파일 업로드:<br/>
-                          <code style={{ fontSize: '0.8rem' }}>{d.domainUrl}/.well-known/overload-verification.txt</code> 파일 내용: <code>{d.verificationToken}</code>
-                        </div>
+                      <div className="domains-page__instructions">
+                        <p>
+                          웹사이트 <code>&lt;head&gt;</code> 영역에 메타 태그 추가
+                          <code className="domains-page__code-block">
+                            &lt;meta name=&quot;overload-verification&quot; content=&quot;{domain.verificationToken}&quot;&gt;
+                          </code>
+                        </p>
+                        <p>
+                          또는 텍스트 파일 업로드
+                          <code className="domains-page__code-block">
+                            {domain.domainUrl}/.well-known/overload-verification.txt
+                          </code>
+                          파일 내용: <code>{domain.verificationToken}</code>
+                        </p>
                       </div>
                     )}
                   </td>
                   <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      {d.verified ? (
+                    <div className="domains-page__actions">
+                      {domain.verified ? (
                         <StatusBadge status="SUCCESS" label="인증 완료" />
                       ) : (
-                        <Button 
-                          variant="primary" 
-                          style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
-                          onClick={() => handleVerifyDomain(d.id)}
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => handleVerifyDomain(domain.id)}
                           isLoading={verificationLoading}
                           loadingText="검증 중..."
                         >
                           지금 검증하기
                         </Button>
                       )}
-                      <button 
-                        className="btn" 
-                        style={{ 
-                          padding: '0.4rem', 
-                          fontSize: '0.85rem', 
-                          backgroundColor: 'rgba(239, 68, 68, 0.1)', 
-                          color: '#ef4444',
-                          border: '1px solid rgba(239, 68, 68, 0.2)',
-                          borderRadius: '0.375rem',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}
-                        onClick={() => handleDeleteDomain(d.id)}
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        className="domains-page__delete-button"
+                        onClick={() => handleDeleteDomain(domain.id)}
+                        aria-label={`${domain.domainUrl} 삭제`}
                         title="도메인 삭제"
                       >
-                        <Trash2 size={16} />
-                      </button>
+                        <Trash2 size={16} aria-hidden="true" />
+                      </Button>
                     </div>
                   </td>
                 </tr>
               ))}
               {domains.length === 0 && (
                 <tr>
-                  <td colSpan={3} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>아직 등록된 도메인이 없습니다.</td>
+                  <td colSpan={3}>
+                    <EmptyState title="아직 등록된 도메인이 없습니다." description="위 입력란에서 첫 번째 테스트 도메인을 등록하세요." />
+                  </td>
                 </tr>
               )}
             </tbody>
-          </table>
-        </div>
-      </div>
+          </Table>
+        </TableContainer>
+      </Card>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { initializeTheme } from './store/themeStore';
 import './styles/fonts.css';
 import './styles/tokens.css';
 import './styles/themes.css';
+import './components/common/primitives.css';
 import './index.css';
 import App from './App';
 

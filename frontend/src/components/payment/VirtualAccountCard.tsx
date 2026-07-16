@@ -1,4 +1,5 @@
 import type { VirtualAccountDetails } from '../../types/payment';
+import { Badge, Card } from '../common';
 
 interface VirtualAccountCardProps {
   account: VirtualAccountDetails;
@@ -6,33 +7,22 @@ interface VirtualAccountCardProps {
 
 export default function VirtualAccountCard({ account }: VirtualAccountCardProps) {
   return (
-    <div className="card" style={{
-      marginBottom: '2rem',
-      background: 'var(--bg-secondary)',
-      padding: '1.5rem',
-      borderRadius: '1rem',
-      border: '2px dashed var(--success)',
-      boxShadow: 'var(--card-shadow)',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-        <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--success)' }} />
-        <h4 style={{ color: 'var(--success)', margin: 0, fontWeight: 700, fontSize: '1.1rem' }}>가상계좌 입금 대기 안내</h4>
+    <Card as="section" variant="outlined" padding="md" className="payment-virtual-account">
+      <div className="payment-virtual-account__heading">
+        <div>
+          <span>Virtual Account</span>
+          <h3>가상계좌 입금 안내</h3>
+        </div>
+        <Badge tone="warning">입금 대기</Badge>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.9rem', marginBottom: '1rem' }}>
-        <div style={{ color: 'var(--text-secondary)' }}>입금 은행:</div>
-        <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{account.bank}</div>
-        <div style={{ color: 'var(--text-secondary)' }}>계좌 번호:</div>
-        <div style={{ fontWeight: 700, color: 'var(--text-primary)', textDecoration: 'underline' }}>{account.accountNumber}</div>
-        <div style={{ color: 'var(--text-secondary)' }}>예금주 명:</div>
-        <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{account.customerName}</div>
-        <div style={{ color: 'var(--text-secondary)' }}>입금 금액:</div>
-        <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{account.amount.toLocaleString()} 원</div>
-        <div style={{ color: 'var(--text-secondary)' }}>입금 기한:</div>
-        <div style={{ fontWeight: 700, color: 'var(--error)' }}>{account.dueDate} 까지</div>
-      </div>
-      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>
-        ⚠️ 상기 발급 계좌로 결제 기한 내에 이체해 주시면 백엔드 자동 입금 확인 웹훅을 통해 실시간으로 잔액이 충전됩니다.
-      </p>
-    </div>
+      <dl className="payment-virtual-account__details">
+        <dt>입금 은행</dt><dd>{account.bank}</dd>
+        <dt>계좌 번호</dt><dd className="payment-virtual-account__number">{account.accountNumber}</dd>
+        <dt>예금주명</dt><dd>{account.customerName}</dd>
+        <dt>입금 금액</dt><dd>{account.amount.toLocaleString()}원</dd>
+        <dt>입금 기한</dt><dd className="payment-virtual-account__due-date">{account.dueDate}까지</dd>
+      </dl>
+      <p>발급된 계좌로 결제 기한 내에 이체하면 입금 확인 후 잔액이 자동으로 충전됩니다.</p>
+    </Card>
   );
 }

@@ -18,7 +18,7 @@ import type {
 const PAYMENT_METHOD_SELECTOR = '#payment-method';
 const AGREEMENT_SELECTOR = '#agreement';
 
-const creditProducts: CreditProduct[] = [
+export const CREDIT_PRODUCTS: readonly CreditProduct[] = [
   {
     id: 'CREDIT_10K',
     title: '스타터 코인팩',
@@ -26,7 +26,7 @@ const creditProducts: CreditProduct[] = [
     price: 10000,
     description: '기본 기능 체험을 위한 기본 충전',
     badge: '스타터',
-    badgeColor: '#64748b',
+    badgeTone: 'neutral',
   },
   {
     id: 'CREDIT_50K',
@@ -35,7 +35,7 @@ const creditProducts: CreditProduct[] = [
     price: 45000,
     description: '10% 보너스 크레딧 추가 적립 패키지',
     badge: '인기 상품',
-    badgeColor: '#0d9488',
+    badgeTone: 'success',
   },
   {
     id: 'CREDIT_100K',
@@ -44,7 +44,7 @@ const creditProducts: CreditProduct[] = [
     price: 70000,
     description: '최대 30% 파격 할인가 적용 베스트 팩',
     badge: '최대 할인',
-    badgeColor: '#d97706',
+    badgeTone: 'warning',
   },
 ];
 
@@ -350,7 +350,7 @@ export function usePayment() {
 
   return {
     currentUser,
-    products: creditProducts,
+    products: CREDIT_PRODUCTS,
     selectedProduct,
     paymentOrder,
     isProcessing: confirmationLoading || initiationLoading,

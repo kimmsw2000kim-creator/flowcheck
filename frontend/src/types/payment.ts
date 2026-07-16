@@ -14,7 +14,7 @@ export interface CreditProduct {
   price: number;
   description: string;
   badge: string;
-  badgeColor: string;
+  badgeTone: 'neutral' | 'success' | 'warning';
 }
 
 export type CouponType = 'LOAD_TEST' | 'UIUX_TEST';

@@ -1,325 +1,158 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import type { Session } from "@supabase/supabase-js";
-import { login, signup } from "../api/authApi";
-import { supabase } from "../lib/supabaseClient";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { FormEvent, KeyboardEvent } from 'react';
+import type { Session } from '@supabase/supabase-js';
+import { login, signup } from '../api/authApi';
+import { supabase } from '../lib/supabaseClient';
+import { Button, Card, PageHeader, TextField } from '../components/common';
+import { useAlertStore } from '../store/alertStore';
+import { useUserStore } from '../store/userStore';
 
-import { useAlertStore } from "../store/alertStore";
-import { useUserStore } from "../store/userStore";
-
-interface AuthPageProps {
+export interface AuthPageProps {
   setActiveTab: (tab: string) => void;
-  initialMode?: "login" | "signup";
+  initialMode?: 'login' | 'signup';
 }
 
-export default function AuthPage({
-  setActiveTab,
-  initialMode = "login",
-}: AuthPageProps) {
+type AuthMode = 'login' | 'signup';
+const modes: AuthMode[] = ['login', 'signup'];
+
+export default function AuthPage({ setActiveTab, initialMode = 'login' }: AuthPageProps) {
   const showAlert = useAlertStore((state) => state.showAlert);
   const loginSuccess = useUserStore((state) => state.loginSuccess);
-  const [mode, setMode] = useState<"login" | "signup">(initialMode);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [mode, setMode] = useState<AuthMode>(initialMode);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [passwordConfirm, setPasswordConfirm] = useState('');
+  const [nickname, setNickname] = useState('');
+  const [loadingAction, setLoadingAction] = useState<'form' | 'google' | null>(null);
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const googleSessionHandledRef = useRef(false);
 
-  // 추가: 비밀번호 확인 state
-  const [passwordConfirm, setPasswordConfirm] = useState("");
+  const passwordConfirmTouched = passwordConfirm.length > 0;
+  const passwordMatched = password === passwordConfirm;
+  const passwordError = mode === 'signup' && passwordConfirmTouched && !passwordMatched ? '비밀번호가 일치하지 않습니다.' : undefined;
 
-  const [nickname, setNickname] = useState("");
-  const [loading, setLoading] = useState(false);
+  const changeMode = (nextMode: AuthMode) => {
+    setMode(nextMode);
+    if (nextMode === 'login') setPasswordConfirm('');
+  };
 
-  // 추가: 비밀번호 일치 여부
-  const isPasswordConfirmTouched = passwordConfirm.length > 0;
-  const isPasswordMatched = password === passwordConfirm;
-  const isPasswordMismatch =
-    mode === "signup" && isPasswordConfirmTouched && !isPasswordMatched;
+  const handleTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    let nextIndex = index;
+    if (event.key === 'ArrowRight') nextIndex = (index + 1) % modes.length;
+    if (event.key === 'ArrowLeft') nextIndex = (index - 1 + modes.length) % modes.length;
+    if (event.key === 'Home') nextIndex = 0;
+    if (event.key === 'End') nextIndex = modes.length - 1;
+    changeMode(modes[nextIndex]);
+    tabRefs.current[nextIndex]?.focus();
+  };
 
   const googleLogin = async () => {
     try {
-      setLoading(true);
-
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: window.location.origin,
-        },
-      });
-
+      setLoadingAction('google');
+      const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } });
       if (error) throw error;
-    } catch (err: any) {
-      showAlert(err.message || "구글 로그인에 실패했습니다.", "error");
-      setLoading(false);
+    } catch (error) {
+      showAlert(error instanceof Error ? error.message : 'Google 로그인에 실패했습니다.', 'error');
+      setLoadingAction(null);
     }
   };
 
-  const googleSessionHandledRef = useRef(false);
-
-  const completeGoogleLogin = useCallback(
-    (session: Session) => {
-      if (googleSessionHandledRef.current) return;
-
-      const user = session.user;
-
-      if (!user.email) {
-        showAlert("Google 계정에서 이메일 정보를 가져오지 못했습니다.", "error");
-        return;
-      }
-
-      googleSessionHandledRef.current = true;
-
-      localStorage.setItem("accessToken", session.access_token);
-      localStorage.setItem("refreshToken", session.refresh_token);
-      localStorage.setItem("email", user.email);
-      localStorage.setItem("userId", user.id);
-
-      loginSuccess(user.email, session.access_token, user.id);
-      showAlert("Google 계정으로 로그인되었습니다!", "success");
-      setActiveTab("dashboard");
-
-      // OAuth redirect 후 URL에 남은 code/hash 제거
-      window.history.replaceState({}, document.title, window.location.origin);
-    },
-    [loginSuccess, setActiveTab, showAlert]
-  );
-
-  useEffect(() => {
-    const checkGoogleSession = async () => {
-      const { data, error } = await supabase.auth.getSession();
-
-      if (error) {
-        console.error(error);
-        return;
-      }
-
-      if (data.session) {
-        completeGoogleLogin(data.session);
-      }
-    };
-
-    checkGoogleSession();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session) {
-        completeGoogleLogin(session);
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [completeGoogleLogin]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // 추가: 회원가입 시 비밀번호 확인 검사
-    if (mode === "signup" && password !== passwordConfirm) {
-      showAlert("비밀번호가 일치하지 않습니다.", "error");
+  const completeGoogleLogin = useCallback((session: Session) => {
+    if (googleSessionHandledRef.current) return;
+    const user = session.user;
+    if (!user.email) {
+      showAlert('Google 계정에서 이메일 정보를 가져오지 못했습니다.', 'error');
       return;
     }
+    googleSessionHandledRef.current = true;
+    localStorage.setItem('accessToken', session.access_token);
+    localStorage.setItem('refreshToken', session.refresh_token);
+    localStorage.setItem('email', user.email);
+    localStorage.setItem('userId', user.id);
+    loginSuccess(user.email, session.access_token, user.id);
+    showAlert('Google 계정으로 로그인되었습니다.', 'success');
+    setActiveTab('dashboard');
+    window.history.replaceState({}, document.title, window.location.origin);
+  }, [loginSuccess, setActiveTab, showAlert]);
 
-    setLoading(true);
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (error) console.error(error);
+      if (data.session) completeGoogleLogin(data.session);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) completeGoogleLogin(session);
+    });
+    return () => subscription.unsubscribe();
+  }, [completeGoogleLogin]);
 
-    if (mode === "login") {
-      try {
-        const data = await login({ email, password });
-
-        if (data.session && data.user) {
-          loginSuccess(
-            data.user.email,
-            data.session.access_token,
-            data.user.id
-          );
-          showAlert("로그인에 성공했습니다!", "success");
-          setActiveTab("dashboard");
-        }
-      } catch (error) {
-        showAlert(error.message || "로그인에 실패했습니다.", "error");
-      } finally {
-        setLoading(false);
-      }
-    } else {
-      try {
-        const data = await signup({ email, password, nickname });
-
-        if (data.session === null) {
-          showAlert(
-            data.message || "회원가입 요청이 완료되었습니다. 이메일 인증 후 로그인해 주세요.",
-            "success"
-          );
-        } else {
-          showAlert("회원가입이 완료되었습니다!", "success");
-        }
-
-        setMode("login");
-        setPassword("");
-        setPasswordConfirm("");
-      } catch (error) {
-        showAlert(error.message || "회원가입에 실패했습니다.", "error");
-      } finally {
-        setLoading(false);
-      }
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (mode === 'signup' && !passwordMatched) {
+      showAlert('비밀번호가 일치하지 않습니다.', 'error');
+      return;
     }
+    setLoadingAction('form');
+    try {
+      if (mode === 'login') {
+        const data = await login({ email, password });
+        if (data.session && data.user) {
+          loginSuccess(data.user.email, data.session.access_token, data.user.id);
+          showAlert('로그인에 성공했습니다.', 'success');
+          setActiveTab('dashboard');
+        }
+      } else {
+        const data = await signup({ email, password, nickname });
+        showAlert(data.session === null ? data.message || '회원가입 요청이 완료되었습니다. 이메일 인증 후 로그인해 주세요.' : '회원가입이 완료되었습니다.', 'success');
+        changeMode('login');
+        setPassword('');
+        setPasswordConfirm('');
+      }
+    } catch (error) {
+      showAlert(error instanceof Error ? error.message : `${mode === 'login' ? '로그인' : '회원가입'}에 실패했습니다.`, 'error');
+    } finally { setLoadingAction(null); }
   };
 
   return (
-    <div
-      style={{ maxWidth: "450px", margin: "4rem auto", padding: "2rem" }}
-      className="card"
-    >
-      {/* Tab Switcher Headers */}
-      <div
-        style={{
-          display: "flex",
-          borderBottom: "1px solid var(--border)",
-          marginBottom: "1.5rem",
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => {
-            setMode("login");
-            setPasswordConfirm("");
-          }}
-          style={{
-            flex: 1,
-            padding: "0.85rem",
-            background: "none",
-            border: "none",
-            borderBottom: mode === "login" ? "2px solid var(--accent)" : "none",
-            color: mode === "login" ? "var(--text-primary)" : "var(--text-muted)",
-            fontWeight: mode === "login" ? 700 : 500,
-            cursor: "pointer",
-            fontFamily: "inherit",
-            fontSize: "1rem",
-          }}
-        >
-          로그인
-        </button>
-
-        <button
-          type="button"
-          onClick={() => {
-            setMode("signup");
-          }}
-          style={{
-            flex: 1,
-            padding: "0.85rem",
-            background: "none",
-            border: "none",
-            borderBottom: mode === "signup" ? "2px solid var(--accent)" : "none",
-            color: mode === "signup" ? "var(--text-primary)" : "var(--text-muted)",
-            fontWeight: mode === "signup" ? 700 : 500,
-            cursor: "pointer",
-            fontFamily: "inherit",
-            fontSize: "1rem",
-          }}
-        >
-          회원가입
-        </button>
-      </div>
-
-      <form onSubmit={handleSubmit}>
-        <div className="form-group">
-          <label className="form-label">이메일 주소</label>
-          <input
-            className="form-input"
-            type="email"
-            placeholder="example@flowcheck.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
+    <section className="utility-page utility-page--narrow">
+      <Card padding="lg">
+        <PageHeader
+          headingLevel={1}
+          eyebrow="FLOWCHECK ACCOUNT"
+          title={mode === 'login' ? '로그인' : '회원가입'}
+          description={mode === 'login' ? 'FlowCheck 업무 화면으로 돌아갑니다.' : '테스트를 시작할 계정을 만듭니다.'}
+        />
+        <div className="auth-tabs" role="tablist" aria-label="인증 방식">
+          {modes.map((tabMode, index) => (
+            <button
+              key={tabMode}
+              ref={(element) => { tabRefs.current[index] = element; }}
+              type="button"
+              role="tab"
+              id={`auth-tab-${tabMode}`}
+              aria-selected={mode === tabMode}
+              aria-controls={`auth-panel-${tabMode}`}
+              tabIndex={mode === tabMode ? 0 : -1}
+              className="auth-tab"
+              onClick={() => changeMode(tabMode)}
+              onKeyDown={(event) => handleTabKeyDown(event, index)}
+            >
+              {tabMode === 'login' ? '로그인' : '회원가입'}
+            </button>
+          ))}
         </div>
-
-        <div className="form-group">
-          <label className="form-label">비밀번호</label>
-          <input
-            className="form-input"
-            type="password"
-            placeholder="비밀번호를 입력하세요"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-        </div>
-
-        {/* 추가: 회원가입일 때만 비밀번호 확인 입력칸 표시 */}
-        {mode === "signup" && (
-          <div className="form-group">
-            <label className="form-label">비밀번호 확인</label>
-            <input
-              className="form-input"
-              type="password"
-              placeholder="비밀번호를 다시 입력하세요"
-              value={passwordConfirm}
-              onChange={(e) => setPasswordConfirm(e.target.value)}
-              required
-              style={{
-                borderColor: isPasswordMismatch ? "#ef4444" : undefined,
-              }}
-            />
-
-            {isPasswordConfirmTouched && (
-              <p
-                style={{
-                  marginTop: "0.5rem",
-                  fontSize: "0.875rem",
-                  color: isPasswordMatched ? "#22c55e" : "#ef4444",
-                }}
-              >
-                {isPasswordMatched
-                  ? "비밀번호가 일치합니다."
-                  : "비밀번호가 일치하지 않습니다."}
-              </p>
-            )}
-          </div>
-        )}
-
-        {mode === "signup" && (
-          <div className="form-group" style={{ marginBottom: "1.5rem" }}>
-            <label className="form-label">닉네임</label>
-            <input
-              className="form-input"
-              type="text"
-              placeholder="사용하실 닉네임"
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
-              required
-            />
-          </div>
-        )}
-
-        <button
-          className="btn btn-primary"
-          style={{ width: "100%", padding: "0.85rem", marginTop: "1rem" }}
-          type="submit"
-          disabled={loading || isPasswordMismatch}
-        >
-          {loading ? "처리 중..." : mode === "login" ? "로그인" : "회원가입 완료"}
-        </button>
-      </form>
-
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "0.75rem",
-          marginTop: "1.5rem",
-          borderTop: "1px solid var(--border)",
-          paddingTop: "1.5rem",
-        }}
-      >
-        <button
-          className="btn btn-secondary"
-          type="button"
-          onClick={googleLogin}
-          style={{ width: "100%", padding: "0.85rem" }}
-        >
-          Google 계정 연동 로그인
-        </button>
-      </div>
-    </div>
+        <form id={`auth-panel-${mode}`} role="tabpanel" aria-labelledby={`auth-tab-${mode}`} onSubmit={handleSubmit}>
+          <TextField label="이메일 주소" type="email" autoComplete="email" placeholder="example@flowcheck.com" value={email} onChange={(event) => setEmail(event.target.value)} required disabled={loadingAction !== null} />
+          <TextField label="비밀번호" type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} placeholder="비밀번호를 입력하세요" value={password} onChange={(event) => setPassword(event.target.value)} required disabled={loadingAction !== null} />
+          {mode === 'signup' && <TextField label="비밀번호 확인" type="password" autoComplete="new-password" placeholder="비밀번호를 다시 입력하세요" value={passwordConfirm} onChange={(event) => setPasswordConfirm(event.target.value)} error={passwordError} description={passwordConfirmTouched && passwordMatched ? '비밀번호가 일치합니다.' : undefined} required disabled={loadingAction !== null} />}
+          {mode === 'signup' && <TextField label="닉네임" type="text" autoComplete="nickname" placeholder="사용하실 닉네임" value={nickname} onChange={(event) => setNickname(event.target.value)} required disabled={loadingAction !== null} />}
+          <Button type="submit" fullWidth isLoading={loadingAction === 'form'} loadingText="처리 중..." disabled={loadingAction !== null || Boolean(passwordError)}>{mode === 'login' ? '로그인' : '회원가입 완료'}</Button>
+        </form>
+        <div className="auth-divider" aria-hidden="true">또는</div>
+        <Button type="button" variant="secondary" fullWidth onClick={googleLogin} isLoading={loadingAction === 'google'} loadingText="Google 연결 중..." disabled={loadingAction !== null}>Google 계정으로 로그인</Button>
+      </Card>
+    </section>
   );
 }

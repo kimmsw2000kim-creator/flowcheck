@@ -1,4 +1,5 @@
 import { RefreshCw } from 'lucide-react';
+import { Card, PageHeader } from '../components/common';
 import CouponPackageSection from '../components/payment/CouponPackageSection';
 import CreditPackageSelector from '../components/payment/CreditPackageSelector';
 import LedgerHistoryTable from '../components/payment/LedgerHistoryTable';
@@ -6,6 +7,8 @@ import PaymentBalanceHeader from '../components/payment/PaymentBalanceHeader';
 import TossPaymentPanel from '../components/payment/TossPaymentPanel';
 import VirtualAccountCard from '../components/payment/VirtualAccountCard';
 import { usePayment } from '../hooks/usePayment';
+import '../styles/PaymentPage.css';
+
 export default function PaymentPage() {
   const {
     currentUser,
@@ -22,24 +25,20 @@ export default function PaymentPage() {
   } = usePayment();
 
   return (
-    <div style={{ textAlign: 'left', maxWidth: '1200px', margin: '0 auto', padding: '1rem 0' }}>
+    <div className="payment-page">
+      <PageHeader
+        headingLevel={2}
+        title="크레딧 및 결제"
+        description="크레딧 충전, 테스트 쿠폰 구매와 최근 거래 내역을 관리합니다."
+      />
+
       <PaymentBalanceHeader currentUser={currentUser} />
 
       {isProcessing && (
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          padding: '1rem',
-          marginBottom: '1.5rem',
-          backgroundColor: 'var(--bg-secondary)',
-          borderRadius: '0.5rem',
-          color: 'var(--accent-hover)',
-          border: '1px solid var(--border)',
-        }}>
-          <RefreshCw className="animate-spin" size={16} />
-          <span>결제 처리를 진행 중입니다. 잠시만 기다려 주세요...</span>
-        </div>
+        <Card padding="sm" variant="subtle" className="payment-page__processing" role="status" aria-live="polite">
+          <RefreshCw className="payment-page__spinner" size={18} aria-hidden="true" />
+          <span>결제 처리를 진행 중입니다. 잠시만 기다려 주세요.</span>
+        </Card>
       )}
 
       <CreditPackageSelector
@@ -48,8 +47,8 @@ export default function PaymentPage() {
         onSelectProduct={selectProduct}
       />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.25fr 1fr', gap: '2.5rem' }}>
-        <div>
+      <div className="payment-page__columns">
+        <div className="payment-page__purchase-column">
           {selectedProduct && paymentOrder && (
             <TossPaymentPanel
               product={selectedProduct}
@@ -60,7 +59,6 @@ export default function PaymentPage() {
           )}
 
           {virtualAccount && <VirtualAccountCard account={virtualAccount} />}
-
           <CouponPackageSection onBuyCoupons={buyCoupons} />
         </div>
 

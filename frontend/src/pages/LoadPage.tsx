@@ -1,10 +1,9 @@
 import { RefreshCw } from 'lucide-react';
-import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Legend } from 'recharts';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import Button from '../components/common/Button';
-import EmptyState from '../components/common/EmptyState';
+import { Badge, Button, Card, EmptyState, Field, PageHeader, Select } from '../components/common';
+import type { BadgeTone } from '../components/common';
+import { LoadTestResultView } from '../components/load';
 import { useLoadTest } from '../hooks/useLoadTest';
+import '../styles/LoadPage.css';
 
 const phaseLabels: Record<string, string> = {
   QUEUED: '대기 중',
@@ -18,6 +17,13 @@ const phaseLabels: Record<string, string> = {
   SAVING_REPORT: '리포트 저장 중',
   COMPLETED: '완료',
   FAILED: '실패',
+};
+
+const statusPresentation: Record<string, { label: string; tone: BadgeTone }> = {
+  idle: { label: 'Ready', tone: 'neutral' },
+  running: { label: 'Running', tone: 'info' },
+  success: { label: 'Completed', tone: 'success' },
+  error: { label: 'Failed', tone: 'danger' },
 };
 
 export default function LoadPage() {
@@ -36,179 +42,178 @@ export default function LoadPage() {
     loadPhase,
     loadProgress,
     loadMessage,
-    loadMetrics,
-    loadChartData,
+    loadResult,
     runLoadTest,
   } = useLoadTest();
 
+  const hasCoupon = currentUser.loadTestCoupons > 0;
+  const hasCredits = currentUser.balance >= 10000;
+  const chargeTone: BadgeTone = hasCoupon ? 'info' : hasCredits ? 'warning' : 'danger';
+  const currentStatus = statusPresentation[loadStatus] || statusPresentation.idle;
+
   return (
-    <div style={{ textAlign: 'left' }}>
-      <h2 style={{ fontSize: '1.75rem', marginBottom: '1.5rem' }}>k6 지능형 부하 테스트 엔진</h2>
+    <div className="load-page">
+      <PageHeader
+        headingLevel={2}
+        title="k6 지능형 부하 테스트 엔진"
+        description="검증된 도메인에 실제 트래픽을 시뮬레이션하고 AI 성능 분석 결과를 확인합니다."
+        actions={<Badge tone={currentStatus.tone}>{currentStatus.label}</Badge>}
+      />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2.5fr', gap: '2rem' }}>
-        <div>
-          <div className="card">
-            <h3 style={{ marginBottom: '1.25rem' }}>부하 테스트 구성</h3>
-
-            <div className="form-group">
-              <label className="form-label">대상 웹사이트</label>
-              <select
-                className="form-input"
-                value={selectedLoadDomain}
-                onChange={(e) => setSelectedLoadDomain(parseInt(e.target.value))}
-              >
-                <option value="">-- 주소 선택하기 --</option>
-                {domains.filter(d => d.verified).map(d => (
-                  <option key={d.id} value={d.id}>{d.domainUrl}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">가상 동시 사용자 (VUsers): {vusers}명</label>
-              <input
-                type="range"
-                min="10"
-                max="2000"
-                step="10"
-                value={vusers}
-                onChange={(e) => setVusers(parseInt(e.target.value))}
-                style={{ accentColor: 'var(--accent)' }}
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">테스트 실행 시간: {duration}초</label>
-              <input
-                type="range"
-                min="10"
-                max="120"
-                step="10"
-                value={duration}
-                onChange={(e) => setDuration(parseInt(e.target.value))}
-                style={{ accentColor: 'var(--accent)' }}
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">시나리오 요구사항 (프롬프트 입력)</label>
-              <textarea
-                className="form-input"
-                rows={3}
-                value={loadPrompt.toString()}
-                placeholder="테스트 시나리오에 대한 설명을 입력하세요..."
-                onChange={(e) => setLoadPrompt(e.target.value)}
-              ></textarea>
-            </div>
-
-            <div style={{
-              background: 'var(--bg-tertiary)',
-              border: `1.5px solid ${currentUser.loadTestCoupons > 0 ? 'var(--accent)' : currentUser.balance >= 10000 ? '#f59e0b' : '#ef4444'}`,
-              borderRadius: '0.75rem',
-              padding: '1rem 1.25rem',
-              marginBottom: '1.25rem',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)' }}>🎟️ 보유 현황</span>
-                <span style={{
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                  padding: '0.2rem 0.6rem',
-                  borderRadius: '999px',
-                  background: currentUser.loadTestCoupons > 0 ? 'rgba(99,102,241,0.15)' : currentUser.balance >= 10000 ? 'rgba(245,158,11,0.15)' : 'rgba(239,68,68,0.15)',
-                  color: currentUser.loadTestCoupons > 0 ? 'var(--accent)' : currentUser.balance >= 10000 ? '#f59e0b' : '#ef4444',
-                }}>
-                  {currentUser.loadTestCoupons > 0 ? '쿠폰으로 차감' : currentUser.balance >= 10000 ? '크레딧으로 차감' : '잔액 부족'}
-                </span>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '0.75rem' }}>
-                <div style={{ background: 'var(--bg-secondary)', borderRadius: '0.5rem', padding: '0.6rem 0.8rem' }}>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>부하 테스트 쿠폰</div>
-                  <div style={{ fontWeight: 800, fontSize: '1.1rem', color: currentUser.loadTestCoupons > 0 ? 'var(--accent)' : 'var(--text-muted)' }}>
-                    {currentUser.loadTestCoupons}회
-                  </div>
-                </div>
-                <div style={{ background: 'var(--bg-secondary)', borderRadius: '0.5rem', padding: '0.6rem 0.8rem' }}>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>크레딧 잔액</div>
-                  <div style={{ fontWeight: 800, fontSize: '1.1rem', color: currentUser.balance >= 10000 ? 'var(--text-primary)' : '#ef4444' }}>
-                    {currentUser.balance.toLocaleString()}P
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', borderTop: '1px solid var(--border)', paddingTop: '0.6rem' }}>
-                {currentUser.loadTestCoupons > 0
-                  ? <>이번 테스트에 <strong style={{ color: 'var(--accent)' }}>부하 테스트 쿠폰 1회</strong>가 소모됩니다. (잔여 {currentUser.loadTestCoupons - 1}회)</>
-                  : <>이번 테스트에 <strong style={{ color: '#f59e0b' }}>10,000 크레딧</strong>이 소모됩니다.</>
-                }
-              </div>
-            </div>
-
-            <Button
-              variant="primary"
-              style={{ width: '100%', marginTop: '1rem' }}
-              onClick={runLoadTest}
-              isLoading={loadStatus === 'running'}
-              loadingText="부하 테스트 실행 중..."
-            >
-              <span>테스트 시나리오 생성 및 실행</span>
-            </Button>
+      <div className="load-page__workbench">
+        <Card as="section" padding="md" className="load-page__configuration">
+          <div className="load-page__section-heading">
+            <span>Configuration</span>
+            <h3>부하 테스트 구성</h3>
           </div>
-        </div>
 
-        <div>
-          <div className="card" style={{ minHeight: '400px', display: 'flex', flexDirection: 'column' }}>
-            <h3 style={{ marginBottom: '1.25rem' }}>테스트 분석 지표 및 실시간 차트</h3>
+          <Select
+            id="load-domain"
+            label="대상 웹사이트"
+            description="소유권 검증이 완료된 도메인만 선택할 수 있습니다."
+            value={selectedLoadDomain || ''}
+            onChange={(event) => setSelectedLoadDomain(Number(event.target.value))}
+            disabled={loadStatus === 'running'}
+            required
+          >
+            <option value="">주소 선택하기</option>
+            {domains.filter((domain) => domain.verified).map((domain) => (
+              <option key={domain.id} value={domain.id}>{domain.domainUrl}</option>
+            ))}
+          </Select>
 
-            {loadStatus === 'idle' && (
-              <EmptyState
-                title="부하 테스트 대기 중"
-                description="Gemini AI가 k6 테스트 스크립트를 동적으로 설계하고 헤드리스로 구동합니다."
-              />
-            )}
+          <Field
+            className="load-page__field"
+            label={<span className="load-page__range-label">가상 동시 사용자 <output>{vusers}명</output></span>}
+            htmlFor="load-vusers"
+          >
+            <input
+              id="load-vusers"
+              className="load-page__range"
+              type="range"
+              min="10"
+              max="2000"
+              step="10"
+              value={vusers}
+              onChange={(event) => setVusers(Number(event.target.value))}
+              disabled={loadStatus === 'running'}
+            />
+          </Field>
 
-            {loadStatus === 'running' && (
-              <div style={{ textAlign: 'center', paddingTop: '5rem' }}>
-                <RefreshCw className="animate-spin" size={40} style={{ margin: '0 auto 1.5rem', color: 'var(--accent)' }} />
-                <p style={{ marginBottom: '1rem' }}>{loadMessage || 'Gemini AI가 k6 테스트 스크립트를 자동 작성하고 트래픽 시뮬레이션을 생성하는 중입니다...'}</p>
-                <div style={{ maxWidth: '480px', margin: '0 auto', textAlign: 'left' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+          <Field
+            className="load-page__field"
+            label={<span className="load-page__range-label">테스트 실행 시간 <output>{duration}초</output></span>}
+            htmlFor="load-duration"
+          >
+            <input
+              id="load-duration"
+              className="load-page__range"
+              type="range"
+              min="10"
+              max="120"
+              step="10"
+              value={duration}
+              onChange={(event) => setDuration(Number(event.target.value))}
+              disabled={loadStatus === 'running'}
+            />
+          </Field>
+
+          <Field
+            className="load-page__field"
+            label="시나리오 요구사항"
+            htmlFor="load-prompt"
+            description="AI가 참고할 사용자 흐름이나 주요 API를 입력하세요."
+          >
+            <textarea
+              id="load-prompt"
+              className="load-page__textarea"
+              rows={4}
+              value={loadPrompt}
+              placeholder="테스트 시나리오에 대한 설명을 입력하세요..."
+              onChange={(event) => setLoadPrompt(event.target.value)}
+              disabled={loadStatus === 'running'}
+            />
+          </Field>
+
+          <div className="load-page__charge-panel" data-tone={chargeTone}>
+            <div className="load-page__charge-heading">
+              <strong>보유 현황</strong>
+              <Badge tone={chargeTone}>
+                {hasCoupon ? '쿠폰으로 차감' : hasCredits ? '크레딧으로 차감' : '잔액 부족'}
+              </Badge>
+            </div>
+            <div className="load-page__balance-grid">
+              <div>
+                <span>부하 테스트 쿠폰</span>
+                <strong>{currentUser.loadTestCoupons}회</strong>
+              </div>
+              <div>
+                <span>크레딧 잔액</span>
+                <strong data-insufficient={!hasCredits && !hasCoupon ? 'true' : undefined}>
+                  {currentUser.balance.toLocaleString()}P
+                </strong>
+              </div>
+            </div>
+            <p>
+              {hasCoupon
+                ? `이번 테스트에 부하 테스트 쿠폰 1회가 소모됩니다. 잔여 ${currentUser.loadTestCoupons - 1}회`
+                : '이번 테스트에 10,000 크레딧이 소모됩니다.'}
+            </p>
+          </div>
+
+          <Button
+            variant="primary"
+            size="lg"
+            fullWidth
+            onClick={runLoadTest}
+            isLoading={loadStatus === 'running'}
+            loadingText="부하 테스트 실행 중..."
+          >
+            테스트 시나리오 생성 및 실행
+          </Button>
+        </Card>
+
+        <section className="load-page__results" aria-label="부하 테스트 분석 결과">
+          {loadStatus === 'success' && loadResult ? (
+            <LoadTestResultView result={loadResult} />
+          ) : (
+            <Card padding="md" className="load-page__state-card">
+              <div className="load-page__section-heading load-page__section-heading--row">
+                <div>
+                  <span>Live Analysis</span>
+                  <h3>테스트 분석 지표 및 실시간 차트</h3>
+                </div>
+                <Badge tone={currentStatus.tone}>{currentStatus.label}</Badge>
+              </div>
+
+              {loadStatus === 'idle' && (
+                <EmptyState
+                  title="부하 테스트 대기 중"
+                  description="Gemini AI가 k6 테스트 스크립트를 동적으로 설계하고 헤드리스로 구동합니다."
+                />
+              )}
+
+              {loadStatus === 'running' && (
+                <div className="load-page__running-state" role="status" aria-live="polite">
+                  <RefreshCw className="load-page__spinner" size={40} aria-hidden="true" />
+                  <strong>{loadMessage || '트래픽 시뮬레이션을 생성하는 중입니다...'}</strong>
+                  <div className="load-page__progress-copy">
                     <span>{phaseLabels[loadPhase] || loadPhase || '작업 준비 중'}</span>
                     <span>{loadProgress}%</span>
                   </div>
-                  <div style={{ height: '8px', borderRadius: '999px', backgroundColor: 'var(--bg-tertiary)', overflow: 'hidden', border: '1px solid var(--border)' }}>
-                    <div style={{ width: `${loadProgress}%`, height: '100%', background: 'linear-gradient(90deg, var(--accent), var(--success))', transition: 'width 0.3s ease' }} />
-                  </div>
+                  <progress className="load-page__progress" value={loadProgress} max="100" aria-label="부하 테스트 진행률" />
                 </div>
-              </div>
-            )}
+              )}
 
-            {loadStatus === 'success' && loadMetrics && (
-              <div>
-                <div className={`report-markdown load-report-markdown grade-${loadMetrics.performanceGrade?.toLowerCase() ?? 'unknown'}`}>
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{loadMetrics.bottleneckComment}</ReactMarkdown>
-                </div>
-
-                {/* Line Chart */}
-                <div style={{ height: '300px', width: '100%', marginTop: '2rem' }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={loadChartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis dataKey="time" stroke="var(--text-muted)" />
-                      <YAxis yAxisId="left" stroke="var(--accent)" />
-                      <YAxis yAxisId="right" orientation="right" stroke="var(--success)" />
-                      <Tooltip contentStyle={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border)' }} />
-                      <Legend />
-                      <Line yAxisId="left" type="monotone" dataKey="avgResponse" name="평균 응답 시간 (ms)" stroke="var(--accent)" activeDot={{ r: 8 }} />
-                      <Line yAxisId="right" type="monotone" dataKey="tps" name="초당 처리량 (TPS)" stroke="var(--success)" />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+              {loadStatus === 'error' && (
+                <EmptyState
+                  title="부하 테스트를 완료하지 못했습니다."
+                  description={loadMessage || '설정과 네트워크 상태를 확인한 후 다시 실행해 주세요.'}
+                />
+              )}
+            </Card>
+          )}
+        </section>
       </div>
     </div>
   );
