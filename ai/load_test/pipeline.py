@@ -8,11 +8,14 @@ from .progress_publisher import publish_progress
 from .report_generator import generate_analysis_report, build_markdown_report
 from .result_processor import build_chart_points, calculate_performance_assessment
 from .script_generator import generate_k6_script
+from .target_validator import validate_target_server
 
 logger = logging.getLogger(__name__)
 
 
 async def run_load_test_pipeline(client: Any, request: Any) -> TestResultsResponse:
+    await validate_target_server(request.targetUrl)
+
     request_id = getattr(request, "requestId", None)
 
     await publish_progress(

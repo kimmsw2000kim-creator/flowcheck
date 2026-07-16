@@ -4,3 +4,7 @@ class LoadTestGenerationError(RuntimeError):
 
 class LoadTestExecutionError(RuntimeError):
     """Raised when the cloud load test cannot be executed."""
+
+
+class TargetUnavailableError(LoadTestExecutionError):
+    """Raised when the target cannot be safely reached before a load test."""

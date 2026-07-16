@@ -3,6 +3,8 @@ package com.flowcheck.controller;
 import com.flowcheck.domain.PostCategory;
 import com.flowcheck.dto.community.CommunityPostRequest;
 import com.flowcheck.dto.community.CommunityPostResponse;
+import com.flowcheck.dto.community.CommunityPostUpdateRequest;
+import com.flowcheck.dto.community.CommunitySharedTestResultResponse;
 import com.flowcheck.service.CommunityPostService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -74,6 +76,26 @@ public class CommunityPostController {
     }
 
     /*
+     * 테스트 공유 게시글에 연결된 실제 테스트 결과를 조회합니다.
+     *
+     * requestId를 외부에서 직접 받지 않고 게시글 번호를 이용해
+     * 서버가 연결된 테스트 요청을 찾습니다.
+     */
+    @Operation(summary = "커뮤니티 공유 테스트 결과 조회")
+    @GetMapping("/{postId}/test-result")
+    public ResponseEntity<CommunitySharedTestResultResponse>
+    getSharedTestResult(
+            @PathVariable Long postId
+    ) {
+        CommunitySharedTestResultResponse response =
+                communityPostService.findSharedTestResult(
+                        postId
+                );
+
+        return ResponseEntity.ok(response);
+    }
+
+    /*
      * 로그인한 사용자의 게시글을 생성합니다.
      *
      * userId와 email은 요청 본문에서 받지 않고
@@ -96,6 +118,55 @@ public class CommunityPostController {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(response);
+    }
+
+    /*
+     * 로그인한 사용자가 본인의 게시글을 수정합니다.
+     *
+     * 실제 작성자 확인은 Service에서 JWT 사용자 ID를 기준으로 처리합니다.
+     */
+    @Operation(summary = "커뮤니티 게시글 수정")
+    @PutMapping("/{postId}")
+    public ResponseEntity<CommunityPostResponse> updatePost(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable Long postId,
+            @Valid @RequestBody CommunityPostUpdateRequest request
+    ) {
+        UUID userId = extractUserId(jwt);
+
+        CommunityPostResponse response =
+                communityPostService.update(
+                        userId,
+                        postId,
+                        request
+                );
+
+        return ResponseEntity.ok(response);
+    }
+
+    /*
+     * 로그인한 사용자가 본인의 게시글을 삭제합니다.
+     *
+     * 다른 사용자의 게시글을 삭제하려고 하면
+     * Service에서 403 Forbidden을 반환합니다.
+     */
+    @Operation(summary = "커뮤니티 게시글 삭제")
+    @DeleteMapping("/{postId}")
+    public ResponseEntity<Void> deletePost(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable Long postId
+    ) {
+        UUID userId = extractUserId(jwt);
+
+        communityPostService.delete(
+                userId,
+                postId
+        );
+
+        /*
+         * 삭제 성공 시 응답 본문 없이 204 상태를 반환합니다.
+         */
+        return ResponseEntity.noContent().build();
     }
 
     /*

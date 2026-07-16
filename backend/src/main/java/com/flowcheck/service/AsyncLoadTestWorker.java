@@ -1,5 +1,7 @@
 package com.flowcheck.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowcheck.domain.LoadTestReport;
 import com.flowcheck.domain.TestRequest;
 import com.flowcheck.dto.LoadTest.LoadTestRequest;
@@ -18,6 +20,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -31,6 +34,7 @@ public class AsyncLoadTestWorker {
     private final LoadTestReportRepository loadTestReportRepository;
     private final LoadTestStreamService loadTestStreamService;
     private final RestClient restClient;
+    private final ObjectMapper objectMapper;
 
     @Value("${fastapi.url}")
     private String fastApiUrl;
@@ -65,7 +69,22 @@ public class AsyncLoadTestWorker {
                     .body(request)
                     .retrieve()
                     .onStatus(status -> status.is4xxClientError() || status.is5xxServerError(), (req, res) -> {
-                        throw new RuntimeException("FastAPI Error: " + res.getStatusCode());
+                        String responseBody;
+                        try {
+                            responseBody = new String(res.getBody().readAllBytes(), StandardCharsets.UTF_8);
+                        } catch (Exception bodyReadException) {
+                            log.warn("Failed to read FastAPI error response body", bodyReadException);
+                            responseBody = "";
+                        }
+
+                        String errorMessage = buildFastApiErrorMessage(
+                                res.getStatusCode().value(),
+                                responseBody);
+                        log.warn(
+                                "FastAPI load test request failed: status={}, message={}",
+                                res.getStatusCode(),
+                                errorMessage);
+                        throw new RuntimeException(errorMessage);
                     })
                     .body(LoadTestResponse.TestResults.class);
 
@@ -139,5 +158,40 @@ public class AsyncLoadTestWorker {
                             100,
                             e.getMessage() != null ? e.getMessage() : "부하 테스트 처리 중 오류가 발생했습니다."));
         }
+    }
+
+    private String buildFastApiErrorMessage(int statusCode, String responseBody) {
+        if (statusCode == 424) {
+            String detail = extractFastApiDetail(responseBody);
+            if (detail != null) {
+                return "대상 서버 확인 실패: " + detail;
+            }
+            return "대상 서버에 연결할 수 없거나 현재 정상 응답하지 않습니다.";
+        }
+
+        if (statusCode >= 400 && statusCode < 500) {
+            return "부하 테스트 요청을 처리할 수 없습니다. 입력값을 확인해 주세요."
+                    + " (상태 코드: " + statusCode + ")";
+        }
+
+        return "부하 테스트 처리 서버에서 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."
+                + " (상태 코드: " + statusCode + ")";
+    }
+
+    private String extractFastApiDetail(String responseBody) {
+        if (responseBody == null || responseBody.isBlank()) {
+            return null;
+        }
+
+        try {
+            JsonNode detailNode = objectMapper.readTree(responseBody).path("detail");
+            if (detailNode.isTextual() && !detailNode.asText().isBlank()) {
+                return detailNode.asText();
+            }
+        } catch (Exception parseException) {
+            log.warn("Failed to parse FastAPI error response body", parseException);
+        }
+
+        return null;
     }
 }
