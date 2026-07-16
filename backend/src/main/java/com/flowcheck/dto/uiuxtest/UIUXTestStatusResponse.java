@@ -22,6 +22,7 @@ public class UIUXTestStatusResponse {
     private String evaluationVersion;
     private Map<String, Object> deviceInfo;
     private String videoUrl;
+    private LiveStreamDto liveStream;
     private List<DefectDto> defects;
 
     @Getter
@@ -36,6 +37,19 @@ public class UIUXTestStatusResponse {
         private Integer performance;
         private Integer bestPractices;
         private Integer overall;
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class LiveStreamDto {
+        private String status;
+        private Boolean enabled;
+        private String message;
+        private String vncHost;
+        private Integer vncPort;
     }
 
     @Getter

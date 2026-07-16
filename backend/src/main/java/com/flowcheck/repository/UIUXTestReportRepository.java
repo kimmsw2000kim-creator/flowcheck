@@ -12,6 +12,8 @@ import java.util.UUID;
 public interface UIUXTestReportRepository extends JpaRepository<UIUXTestReport, UUID> {
     Optional<UIUXTestReport> findByTestRequestId(UUID requestId);
 
+    Optional<UIUXTestReport> findFirstByTestRequestIdOrderByCreatedAtDescIdDesc(UUID requestId);
+
     @Query(value = """
             SELECT
                 uiux_report_id AS id,
@@ -29,6 +31,8 @@ public interface UIUXTestReportRepository extends JpaRepository<UIUXTestReport, 
                 evaluation_version AS evaluationVersion
             FROM public.uiux_test_reports
             WHERE request_id = :requestId
+            ORDER BY created_at DESC, uiux_report_id DESC
+            LIMIT 1
             """, nativeQuery = true)
     Optional<StatusProjection> findStatusProjectionByTestRequestId(@Param("requestId") UUID requestId);
 
@@ -42,6 +46,8 @@ public interface UIUXTestReportRepository extends JpaRepository<UIUXTestReport, 
                 score_best_practices AS scoreBestPractices
             FROM public.uiux_test_reports
             WHERE request_id = :requestId
+            ORDER BY created_at DESC, uiux_report_id DESC
+            LIMIT 1
             """, nativeQuery = true)
     Optional<ScoresProjection> findScoresProjectionByTestRequestId(@Param("requestId") UUID requestId);
 

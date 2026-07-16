@@ -15,6 +15,9 @@ import org.springframework.web.client.RestClient;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
@@ -24,6 +27,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
@@ -40,6 +44,10 @@ public class UIUXTestService {
     private final CouponUsageLogRepository couponUsageLogRepository;
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher eventPublisher;
+    private final Map<UUID, URI> liveVncBaseUriCache = new ConcurrentHashMap<>();
+    private final HttpClient vncReadinessClient = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(2))
+            .build();
 
     @Value("${supabase.url:}")
     private String supabaseUrl;
@@ -181,6 +189,7 @@ public class UIUXTestService {
         Map<String, Object> scoreBreakdown = null;
         String evaluationVersion = null;
         List<UIUXTestStatusResponse.DefectDto> defectDtos = new java.util.ArrayList<>();
+        UIUXTestStatusResponse.LiveStreamDto liveStream = buildLiveStreamStatus(testRequest.getTestStatus(), stepsList);
         
         var reportOpt = UIUXTestReportRepository.findStatusProjectionByTestRequestId(requestId);
         if (reportOpt.isPresent()) {
@@ -188,6 +197,7 @@ public class UIUXTestService {
             reportMarkdown = report.getUiuxTestReview() != null ? report.getUiuxTestReview() : "";
             try {
                 stepsList = objectMapper.readValue(report.getRawLogs(), new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
+                liveStream = buildLiveStreamStatus(testRequest.getTestStatus(), stepsList);
             } catch (Exception e) {
                 log.warn("테스트 상태 조회를 위한 rawLogs 파싱 실패", e);
             }
@@ -255,8 +265,60 @@ public class UIUXTestService {
                 .evaluationVersion(evaluationVersion)
                 .videoUrl(videoUrl)
                 .deviceInfo(deviceInfo)
+                .liveStream(liveStream)
                 .defects(defectDtos)
                 .build();
+    }
+
+    private UIUXTestStatusResponse.LiveStreamDto buildLiveStreamStatus(String testStatus, List<Map<String, Object>> stepsList) {
+        URI baseUri = findLatestVncBaseUri(stepsList);
+        if (baseUri != null) {
+            boolean active = "PENDING".equals(testStatus) || "RUNNING".equals(testStatus);
+            return UIUXTestStatusResponse.LiveStreamDto.builder()
+                    .status(active ? "READY" : "ENDED")
+                    .enabled(active)
+                    .message(active ? "VNC stream URL is ready." : "VNC stream finished.")
+                    .vncHost(baseUri.getHost())
+                    .vncPort(baseUri.getPort())
+                    .build();
+        }
+
+        if ("FAILED".equals(testStatus)) {
+            return UIUXTestStatusResponse.LiveStreamDto.builder()
+                    .status("FAILED")
+                    .enabled(false)
+                    .message("VNC stream did not become available before the test failed.")
+                    .build();
+        }
+
+        if ("COMPLETED".equals(testStatus)) {
+            return UIUXTestStatusResponse.LiveStreamDto.builder()
+                    .status("ENDED")
+                    .enabled(false)
+                    .message("Live stream ended after test completion.")
+                    .build();
+        }
+
+        return UIUXTestStatusResponse.LiveStreamDto.builder()
+                .status("WAITING")
+                .enabled(false)
+                .message("Waiting for browser container to publish VNC stream URL.")
+                .build();
+    }
+
+    private URI findLatestVncBaseUri(List<Map<String, Object>> stepsList) {
+        for (int i = stepsList.size() - 1; i >= 0; i--) {
+            Object rawVncUrl = stepsList.get(i).get("vncUrl");
+            if (rawVncUrl instanceof String vncUrl && !vncUrl.isBlank()) {
+                try {
+                    return validateVncBaseUri(vncUrl);
+                } catch (Exception e) {
+                    log.warn("VNC_DIAG status_vnc_url_invalid rawUrl={}", vncUrl, e);
+                    return null;
+                }
+            }
+        }
+        return null;
     }
 
 
@@ -269,7 +331,7 @@ public class UIUXTestService {
             throw new IllegalArgumentException("해당 요청은 UI/UX 테스트 요청이 아닙니다.");
         }
 
-        var reportOpt = UIUXTestReportRepository.findByTestRequestId(requestId);
+        var reportOpt = UIUXTestReportRepository.findFirstByTestRequestIdOrderByCreatedAtDescIdDesc(requestId);
         UIUXTestReport report = reportOpt.orElseGet(() -> UIUXTestReport.builder()
                 .testRequest(testRequest)
                 .scoreUsability(0)
@@ -386,7 +448,7 @@ public class UIUXTestService {
             return;
         }
 
-        UIUXTestReport report = UIUXTestReportRepository.findByTestRequestId(requestId).orElseGet(() ->
+        UIUXTestReport report = UIUXTestReportRepository.findFirstByTestRequestIdOrderByCreatedAtDescIdDesc(requestId).orElseGet(() ->
                 UIUXTestReportRepository.save(UIUXTestReport.builder()
                         .testRequest(testRequest)
                         .scoreUsability(0)
@@ -448,7 +510,7 @@ public class UIUXTestService {
         testRequest.changePhase("FAILED");
         testRequestRepository.save(testRequest);
 
-        var reportOpt = UIUXTestReportRepository.findByTestRequestId(requestId);
+        var reportOpt = UIUXTestReportRepository.findFirstByTestRequestIdOrderByCreatedAtDescIdDesc(requestId);
         UIUXTestReport report;
         if (reportOpt.isPresent()) {
             report = reportOpt.get();
@@ -486,6 +548,22 @@ public class UIUXTestService {
         log.info("UI/UX 테스트 요청 {}을 FAILED로 표시했습니다. 사유: {}", requestId, reason);
     }
 
+    @Transactional
+    public void cancelTestForUser(UUID userId, UUID requestId) {
+        TestRequest testRequest = testRequestRepository.findByIdAndUser_UserIdAndTestType(requestId, userId, TEST_TYPE_UIUX)
+                .orElseThrow(() -> new IllegalArgumentException("UI/UX 테스트 요청을 찾을 수 없습니다."));
+
+        if ("COMPLETED".equals(testRequest.getTestStatus())) {
+            throw new IllegalStateException("이미 완료된 UI/UX 테스트는 중지할 수 없습니다.");
+        }
+
+        if ("FAILED".equals(testRequest.getTestStatus())) {
+            return;
+        }
+
+        markAsFailed(requestId, "사용자가 테스트를 중지했습니다.");
+    }
+
     private String stepKey(Map<String, Object> step) {
         return String.valueOf(step.get("step")) + ":" + normalizeStepAction(step.get("action"));
     }
@@ -516,6 +594,12 @@ public class UIUXTestService {
 
     @Transactional(readOnly = true)
     public URI getLiveVncBaseUri(UUID requestId) {
+        URI cachedUri = liveVncBaseUriCache.get(requestId);
+        if (cachedUri != null) {
+            log.info("VNC_DIAG base_uri_cache_hit requestId={} baseUri={}", requestId, cachedUri);
+            return cachedUri;
+        }
+
         TestRequest testRequest = testRequestRepository.findById(requestId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 테스트 요청입니다."));
 
@@ -536,7 +620,10 @@ public class UIUXTestService {
         for (int i = logs.size() - 1; i >= 0; i--) {
             Object rawVncUrl = logs.get(i).get("vncUrl");
             if (rawVncUrl instanceof String vncUrl && !vncUrl.isBlank()) {
-                return validateVncBaseUri(vncUrl);
+                URI baseUri = validateVncBaseUri(vncUrl);
+                liveVncBaseUriCache.put(requestId, baseUri);
+                log.info("VNC_DIAG base_uri_ready requestId={} baseUri={}", requestId, baseUri);
+                return baseUri;
             }
         }
 
@@ -548,7 +635,8 @@ public class UIUXTestService {
         testRequestRepository.findByIdAndUser_UserIdAndTestType(requestId, userId, TEST_TYPE_UIUX)
                 .orElseThrow(() -> new IllegalArgumentException("UI/UX VNC 접근 권한이 없습니다."));
 
-        getLiveVncBaseUri(requestId);
+        URI baseUri = getLiveVncBaseUri(requestId);
+        ensureLiveVncHttpReady(requestId, baseUri);
         return Instant.now().plusSeconds(vncSignedUrlTtlSeconds).getEpochSecond();
     }
 
@@ -588,6 +676,35 @@ public class UIUXTestService {
 
     private String vncTokenPayload(UUID requestId, long expiresAt) {
         return requestId + ":" + expiresAt;
+    }
+
+    private void ensureLiveVncHttpReady(UUID requestId, URI baseUri) {
+        URI healthUri = URI.create(baseUri + "/vnc.html");
+        HttpRequest request = HttpRequest.newBuilder(healthUri)
+                .timeout(Duration.ofSeconds(3))
+                .GET()
+                .build();
+
+        long startedAt = System.nanoTime();
+        log.info("VNC_DIAG readiness_request requestId={} baseUri={}", requestId, baseUri);
+        try {
+            HttpResponse<Void> response = vncReadinessClient.send(request, HttpResponse.BodyHandlers.discarding());
+            int statusCode = response.statusCode();
+            long elapsedMs = Duration.ofNanos(System.nanoTime() - startedAt).toMillis();
+            if (statusCode >= 200 && statusCode < 400) {
+                log.info("VNC_DIAG readiness_ready requestId={} status={} elapsedMs={}", requestId, statusCode, elapsedMs);
+                return;
+            }
+            log.info("VNC_DIAG readiness_not_ready requestId={} status={} elapsedMs={}", requestId, statusCode, elapsedMs);
+            throw new IllegalStateException("VNC stream is not ready. status=" + statusCode);
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Exception e) {
+            long elapsedMs = Duration.ofNanos(System.nanoTime() - startedAt).toMillis();
+            log.info("VNC_DIAG readiness_error requestId={} baseUri={} elapsedMs={} error={}",
+                    requestId, baseUri, elapsedMs, e.toString());
+            throw new IllegalStateException("VNC stream is not ready.", e);
+        }
     }
 
     private URI validateVncBaseUri(String rawVncUrl) {
