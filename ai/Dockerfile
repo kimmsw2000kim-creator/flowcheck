@@ -10,9 +10,7 @@ ENV PLAYWRIGHT_HEADLESS=false
 COPY requirements.txt package.json ./
 
 RUN apt-get update \
-    && apt-get install -y ca-certificates curl xvfb libgbm-dev x11vnc novnc websockify \
-    && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
-    && apt-get install -y nodejs \
+    && apt-get install -y ca-certificates curl bash gnupg nodejs npm xvfb libgbm-dev x11vnc novnc websockify \
     && rm -rf /var/lib/apt/lists/* \
     && pip install --no-cache-dir -r requirements.txt \
     && npm install --omit=dev \

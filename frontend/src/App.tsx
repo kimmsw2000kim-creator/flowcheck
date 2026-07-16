@@ -23,6 +23,7 @@ import CommentPage from "./pages/CommentPage";
 import CommunityHubPage from './pages/community/CommunityHubPage';
 import CommunityPostDetailPage from './pages/community/CommunityPostDetailPage';
 import './styles/CommunityPages.css';
+import './components/uiux/UIUXTestModule.css';
 import './styles/AppShell.css';
 import './styles/UtilityPages.css';
 

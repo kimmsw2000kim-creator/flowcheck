@@ -31,6 +31,7 @@ public class UIUXVncProxyController {
     @GetMapping("/api/uiux-tests/{requestId}/vnc/**")
     public ResponseEntity<byte[]> proxyVncAsset(@PathVariable UUID requestId, HttpServletRequest servletRequest) {
         try {
+            validateEntryRequest(requestId, servletRequest);
             URI baseUri = uiuxTestService.getLiveVncBaseUri(requestId);
             String targetPath = extractTargetPath(servletRequest.getRequestURI(), requestId);
             String query = servletRequest.getQueryString();
@@ -52,6 +53,21 @@ public class UIUXVncProxyController {
             return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
                     .body(("VNC stream is not ready: " + e.getMessage()).getBytes());
         }
+    }
+
+    private void validateEntryRequest(UUID requestId, HttpServletRequest servletRequest) {
+        String requestUri = servletRequest.getRequestURI();
+        if (!requestUri.endsWith("/vnc.html") && !requestUri.endsWith("/vnc/") && !requestUri.endsWith("/vnc")) {
+            return;
+        }
+
+        String rawExpiresAt = servletRequest.getParameter("expires");
+        String token = servletRequest.getParameter("token");
+        if (rawExpiresAt == null || rawExpiresAt.isBlank()) {
+            throw new IllegalArgumentException("VNC token expiry is required.");
+        }
+
+        uiuxTestService.validateVncAccessToken(requestId, Long.parseLong(rawExpiresAt), token);
     }
 
     private String extractTargetPath(String requestUri, UUID requestId) {
