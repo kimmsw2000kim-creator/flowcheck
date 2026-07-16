@@ -1,4 +1,4 @@
-import { CheckCircle, Trash2 } from 'lucide-react';
+import { CheckCircle, Copy, Trash2 } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -11,9 +11,36 @@ import {
 } from '../components/common';
 import TextField from '../components/common/TextField';
 import { useDomains } from '../hooks/useDomains';
+import { useAlertStore } from '../store/alertStore';
 import '../styles/DomainsPage.css';
 
+interface CopyableCodeProps {
+  value: string;
+  label: string;
+  onCopy: (value: string) => void;
+}
+
+function CopyableCode({ value, label, onCopy }: CopyableCodeProps) {
+  return (
+    <span className="domains-page__code-row">
+      <code className="domains-page__code-block">{value}</code>
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        className="domains-page__copy-button"
+        onClick={() => onCopy(value)}
+        aria-label={`${label} 복사`}
+        title="복사"
+      >
+        <Copy size={16} aria-hidden="true" />
+      </Button>
+    </span>
+  );
+}
+
 export default function DomainsPage() {
+  const showAlert = useAlertStore((state) => state.showAlert);
   const {
     domains,
     newDomainUrl,
@@ -26,6 +53,15 @@ export default function DomainsPage() {
 
   const verifiedCount = domains.filter((domain) => domain.verified).length;
   const unverifiedCount = domains.length - verifiedCount;
+
+  const handleCopy = async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      showAlert('클립보드에 복사했습니다.', 'success');
+    } catch {
+      showAlert('클립보드에 복사하지 못했습니다.', 'error');
+    }
+  };
 
   return (
     <div className="domains-page">
@@ -73,7 +109,7 @@ export default function DomainsPage() {
               <tr>
                 <th>호스트 URL</th>
                 <th>검증용 메타 태그 / 텍스트 파일 내용</th>
-                <th>검증 상태 및 실행</th>
+                <th style={{ textAlign: 'right', paddingRight: '1.5rem' }}>검증 상태 및 실행</th>
               </tr>
             </thead>
             <tbody>
@@ -92,16 +128,28 @@ export default function DomainsPage() {
                       <div className="domains-page__instructions">
                         <p>
                           웹사이트 <code>&lt;head&gt;</code> 영역에 메타 태그 추가
-                          <code className="domains-page__code-block">
-                            &lt;meta name=&quot;overload-verification&quot; content=&quot;{domain.verificationToken}&quot;&gt;
-                          </code>
+                          <CopyableCode
+                            value={`<meta name="overload-verification" content="${domain.verificationToken}">`}
+                            label="검증용 메타 태그"
+                            onCopy={handleCopy}
+                          />
                         </p>
                         <p>
-                          또는 텍스트 파일 업로드
-                          <code className="domains-page__code-block">
-                            {domain.domainUrl}/.well-known/overload-verification.txt
-                          </code>
-                          파일 내용: <code>{domain.verificationToken}</code>
+                          또는
+                          <CopyableCode
+                            value={`${domain.domainUrl}/.well-known/overload-verification.txt`}
+                            label="검증용 텍스트 파일 URL"
+                            onCopy={handleCopy}
+                          />
+                          에 텍스트 파일 업로드
+                        </p>
+                        <p>
+                          파일 내용:
+                          <CopyableCode
+                            value={domain.verificationToken}
+                            label="검증용 텍스트 파일 내용"
+                            onCopy={handleCopy}
+                          />
                         </p>
                       </div>
                     )}
