@@ -246,9 +246,10 @@ def _optional_task_env() -> List[dict]:
     return [{"name": name, "value": value} for name in names if (value := os.getenv(name))]
 
 
-def _wait_for_task_public_ip(ecs_client, ec2_client, cluster: str, task_arn: str, request_id: str) -> str:
+def _wait_for_task_vnc_host(ecs_client, ec2_client, cluster: str, task_arn: str, request_id: str) -> str:
     max_attempts = int(os.getenv("ECS_UIUX_VNC_URL_MAX_ATTEMPTS", "90"))
     delay_seconds = float(os.getenv("ECS_UIUX_VNC_URL_POLL_SECONDS", "1"))
+    prefer_private_ip = os.getenv("ECS_UIUX_VNC_USE_PRIVATE_IP", "true").lower() == "true"
     last_status = None
 
     for attempt in range(1, max_attempts + 1):
@@ -264,18 +265,28 @@ def _wait_for_task_public_ip(ecs_client, ec2_client, cluster: str, task_arn: str
         if last_status == "STOPPED":
             raise RuntimeError(f"Fargate task stopped before VNC URL was assigned. {_describe_task_failure(ecs_client, cluster, task_arn)}")
 
+        private_ip = None
         public_ip = None
         eni_id = _extract_eni_id(task_desc)
         if eni_id:
             eni_info = ec2_client.describe_network_interfaces(NetworkInterfaceIds=[eni_id])
-            public_ip = eni_info["NetworkInterfaces"][0].get("Association", {}).get("PublicIp")
+            network_interface = eni_info["NetworkInterfaces"][0]
+            private_ip = network_interface.get("PrivateIpAddress")
+            public_ip = network_interface.get("Association", {}).get("PublicIp")
 
-        if public_ip:
-            return public_ip
+        selected_ip = private_ip if prefer_private_ip and private_ip else public_ip
+        print(
+            f"[FARGATE] VNC network address requestId={request_id}, eni={eni_id}, "
+            f"privateIp={private_ip}, publicIp={public_ip}, selectedIp={selected_ip}, preferPrivate={prefer_private_ip}",
+            flush=True,
+        )
+
+        if selected_ip:
+            return selected_ip
 
         time.sleep(delay_seconds)
 
-    raise RuntimeError(f"Timed out waiting for Fargate VNC public IP. lastStatus={last_status}")
+    raise RuntimeError(f"Timed out waiting for Fargate VNC network address. lastStatus={last_status}")
 
 
 def run_fargate_task(request_id: str, target_url: str) -> None:
@@ -346,13 +357,13 @@ def run_fargate_task(request_id: str, target_url: str) -> None:
             0,
             target_url,
             "PROVISIONING_VNC",
-            reason="Cloud browser task was submitted. Waiting for public VNC network address.",
+            reason="Cloud browser task was submitted. Waiting for VNC network address.",
         )
 
-        print("[FARGATE] Waiting for task public IP...", flush=True)
-        public_ip = _wait_for_task_public_ip(ecs_client, ec2_client, cluster, task_arn, request_id)
+        print("[FARGATE] Waiting for task VNC network address...", flush=True)
+        vnc_host = _wait_for_task_vnc_host(ecs_client, ec2_client, cluster, task_arn, request_id)
 
-        vnc_url = f"http://{public_ip}:6080/vnc.html?autoconnect=true&resize=scale"
+        vnc_url = f"http://{vnc_host}:6080/vnc.html?autoconnect=true&resize=scale"
         print(f"[FARGATE] VNC URL ready: {vnc_url}", flush=True)
         report_step(
             request_id,

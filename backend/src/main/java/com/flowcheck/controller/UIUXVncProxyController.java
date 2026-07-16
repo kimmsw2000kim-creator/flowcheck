@@ -4,6 +4,7 @@ import com.flowcheck.service.UIUXTestService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -25,10 +26,15 @@ import java.util.UUID;
 public class UIUXVncProxyController {
 
     private final UIUXTestService uiuxTestService;
-    private final HttpClient httpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(3))
-            .followRedirects(HttpClient.Redirect.NORMAL)
-            .build();
+
+    @Value("${vnc.proxy.connect-timeout-ms:${VNC_PROXY_CONNECT_TIMEOUT_MS:5000}}")
+    private long vncProxyConnectTimeoutMs;
+
+    @Value("${vnc.proxy.request-timeout-ms:${VNC_PROXY_REQUEST_TIMEOUT_MS:10000}}")
+    private long vncProxyRequestTimeoutMs;
+
+    @Value("${vnc.proxy.retry-count:${VNC_PROXY_RETRY_COUNT:3}}")
+    private int vncProxyRetryCount;
 
     @GetMapping("/api/uiux-tests/{requestId}/vnc/**")
     public ResponseEntity<byte[]> proxyVncAsset(@PathVariable UUID requestId, HttpServletRequest servletRequest) {
@@ -45,7 +51,7 @@ public class UIUXVncProxyController {
                     requestId, targetPath, targetUri.getHost(), targetUri.getPort());
 
             HttpRequest proxyRequest = HttpRequest.newBuilder(targetUri)
-                    .timeout(Duration.ofSeconds(6))
+                    .timeout(Duration.ofMillis(vncProxyRequestTimeoutMs))
                     .GET()
                     .header("Accept", servletRequest.getHeader("Accept") != null ? servletRequest.getHeader("Accept") : "*/*")
                     .build();
@@ -100,19 +106,27 @@ public class UIUXVncProxyController {
 
     private HttpResponse<byte[]> sendWithShortRetry(HttpRequest proxyRequest, UUID requestId, String targetPath) throws Exception {
         Exception lastError = null;
-        for (int attempt = 1; attempt <= 3; attempt++) {
+        int maxAttempts = Math.max(1, vncProxyRetryCount);
+        HttpClient httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofMillis(vncProxyConnectTimeoutMs))
+                .followRedirects(HttpClient.Redirect.NORMAL)
+                .build();
+
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
                 HttpResponse<byte[]> response = httpClient.send(proxyRequest, HttpResponse.BodyHandlers.ofByteArray());
-                if (response.statusCode() < 500 || attempt == 3) {
+                if (response.statusCode() < 500 || attempt == maxAttempts) {
                     return response;
                 }
-                log.warn("VNC_DIAG asset_retry requestId={} path={} attempt={} status={}",
-                        requestId, targetPath, attempt, response.statusCode());
+                log.warn("VNC_DIAG asset_retry requestId={} path={} attempt={} maxAttempts={} status={} connectTimeoutMs={} requestTimeoutMs={}",
+                        requestId, targetPath, attempt, maxAttempts, response.statusCode(),
+                        vncProxyConnectTimeoutMs, vncProxyRequestTimeoutMs);
             } catch (Exception e) {
                 lastError = e;
-                log.warn("VNC_DIAG asset_retry_error requestId={} path={} attempt={} error={}",
-                        requestId, targetPath, attempt, e.toString());
-                if (attempt == 3) {
+                log.warn("VNC_DIAG asset_retry_error requestId={} path={} attempt={} maxAttempts={} connectTimeoutMs={} requestTimeoutMs={} error={}",
+                        requestId, targetPath, attempt, maxAttempts, vncProxyConnectTimeoutMs,
+                        vncProxyRequestTimeoutMs, e.toString());
+                if (attempt == maxAttempts) {
                     throw e;
                 }
             }
