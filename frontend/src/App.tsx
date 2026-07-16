@@ -28,11 +28,9 @@ import PostEditPage from './pages/PostEditPage';
 import CommentPage from './pages/CommentPage';
 import SupportPage from './pages/SupportPage';
 import Mypage from './pages/Mypage';
-import AuthPage from './pages/AuthPage';
-import AuthCallback from './pages/AuthCallback';
-import LandingPage from './pages/LandingPage';
-import CommentPage from "./pages/CommentPage";
-import CommunityHubPage from './pages/community/CommunityHubPage';
+import AdminPage from './pages/admin/AdminPage';
+
+// Styles
 import './styles/CommunityPages.css';
 import './styles/AppShell.css';
 import './styles/UtilityPages.css';
@@ -84,6 +82,7 @@ function App() {
   const currentUser = useUserStore(
     (state) => state.currentUser,
   );
+
   const authStatus = useUserStore(
     (state) => state.authStatus,
   );
@@ -91,6 +90,7 @@ function App() {
   const alertMsg = useAlertStore(
     (state) => state.alertMsg,
   );
+
   const showAlert = useAlertStore(
     (state) => state.showAlert,
   );
@@ -174,7 +174,11 @@ function App() {
         )}
 
         <main className="main-content">
-          <div className="app-loading-state" role="status" aria-live="polite">
+          <div
+            className="app-loading-state"
+            role="status"
+            aria-live="polite"
+          >
             앱을 불러오는 중입니다.
           </div>
         </main>
@@ -191,10 +195,23 @@ function App() {
         />
       )}
 
-      <a className="skip-link" href="#main-content">본문으로 건너뛰기</a>
+      <a
+        className="skip-link"
+        href="#main-content"
+      >
+        본문으로 건너뛰기
+      </a>
+
       <Header activeTab={activeTab} />
 
-      <main id="main-content" className={isLandingPage ? "landing-main" : "main-content"}>
+      <main
+        id="main-content"
+        className={
+          isLandingPage
+            ? 'landing-main'
+            : 'main-content'
+        }
+      >
         <Routes>
           {authenticatedUser ? (
             <>
@@ -260,10 +277,7 @@ function App() {
                 element={
                   <UIUXTestPage
                     selectedUIUXTestDomain={selectedUIUXTestDomain}
-                    setSelectedUIUXTestDomain={
-                      setSelectedUIUXTestDomain
-                    }
-                    onAddLedger={handleAddLedger}
+                    setSelectedUIUXTestDomain={setSelectedUIUXTestDomain}
                   />
                 }
               />
@@ -394,7 +408,10 @@ function App() {
               <Route
                 path="*"
                 element={
-                  <Navigate to="/" replace />
+                  <Navigate
+                    to="/"
+                    replace
+                  />
                 }
               />
             </>
@@ -402,8 +419,14 @@ function App() {
         </Routes>
       </main>
 
-      {isLandingPage && <Footer variant="full" />}
-      {isLoggedIn && <Footer variant="compact" />}
+      {isLandingPage && (
+        <Footer variant="full" />
+      )}
+
+      {isLoggedIn && (
+        <Footer variant="compact" />
+      )}
+
       <Chatbot />
     </div>
   );
