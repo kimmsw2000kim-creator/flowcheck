@@ -5,3 +5,7 @@ export type { ForumPostDetailProps } from './ForumPostDetail';
 export { getForumLikeCount, getForumWriter } from './forumUtils';
 export { default as PostEditorForm } from './PostEditorForm';
 export type { PostEditorFormProps } from './PostEditorForm';
+export {
+    default as CommentPagination,
+    COMMENTS_PER_PAGE,
+} from './CommentPagination';
