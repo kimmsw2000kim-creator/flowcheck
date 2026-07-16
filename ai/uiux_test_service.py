@@ -310,7 +310,7 @@ def run_fargate_task(request_id: str, target_url: str) -> None:
         waiter = ecs_client.get_waiter("tasks_running")
         print("[FARGATE] Waiting for task RUNNING...", flush=True)
         try:
-            waiter.wait(cluster=cluster, tasks=[task_arn], WaiterConfig={"Delay": 3, "MaxAttempts": 40})
+            waiter.wait(cluster=cluster, tasks=[task_arn], WaiterConfig={"Delay": 1, "MaxAttempts": 120})
         except WaiterError as exc:
             task_failure = _describe_task_failure(ecs_client, cluster, task_arn)
             raise RuntimeError(f"{exc}. {task_failure}") from exc
