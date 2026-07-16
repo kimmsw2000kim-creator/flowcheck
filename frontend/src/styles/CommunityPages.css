@@ -10,6 +10,23 @@
   max-width: 900px;
 }
 
+.community-comments__header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.community-comments__title {
+  margin: 0;
+}
+
+.community-comments__header .fc-badge,
+.community-comments__count {
+  flex: 0 0 auto;
+}
+
 .community-search {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;

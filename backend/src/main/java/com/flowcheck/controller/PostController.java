@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -22,6 +23,8 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/posts")
@@ -61,7 +64,7 @@ public class PostController {
         @PostMapping
         @ResponseStatus(HttpStatus.CREATED)
         public PostListResponse createPost(
-                        @RequestBody PostRequest request,
+                        @Valid @RequestBody PostRequest request,
                         @AuthenticationPrincipal Jwt jwt) {
 
                 String email = getRequiredEmail(jwt);
@@ -81,7 +84,7 @@ public class PostController {
         @PutMapping("/{postId}")
         public PostListResponse updatePost(
                         @PathVariable Long postId,
-                        @RequestBody PostRequest request,
+                        @Valid @RequestBody PostRequest request,
                         @AuthenticationPrincipal Jwt jwt) {
 
                 String email = getRequiredEmail(jwt);
@@ -153,13 +156,24 @@ public class PostController {
         }
 
         /*
+         * 부모 댓글을 20개씩 조회하고 각 부모의 답글을 함께 반환합니다.
+         */
+        @GetMapping("/{postId}/comments/page")
+        public Page<CommentResponse> getCommentPage(
+                        @PathVariable Long postId,
+                        @PageableDefault(size = 20) Pageable pageable) {
+
+                return commentService.getCommentPage(postId, pageable);
+        }
+
+        /*
          * 댓글 또는 답글 작성
          */
         @PostMapping("/{postId}/comments")
         @ResponseStatus(HttpStatus.CREATED)
         public CommentResponse createComment(
                         @PathVariable Long postId,
-                        @RequestBody CommentRequest request,
+                        @Valid @RequestBody CommentRequest request,
                         @AuthenticationPrincipal Jwt jwt) {
 
                 String email = getRequiredEmail(jwt);
