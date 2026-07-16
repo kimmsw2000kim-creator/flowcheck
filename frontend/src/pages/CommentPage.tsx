@@ -1,6 +1,7 @@
 import {
     useCallback,
     useEffect,
+    useRef,
     useState,
     type FormEvent,
 } from 'react';
@@ -13,7 +14,7 @@ import {
     createComment,
     deleteComment,
     deletePost,
-    getComments,
+    getCommentPage,
     getLikeStatus,
     getPost,
     getPosts,
@@ -30,14 +31,19 @@ import {
 } from '../components/common';
 
 import {
+    CommentPagination,
+    COMMENTS_PER_PAGE,
     ForumCommentThread,
     ForumPostDetail,
     getForumLikeCount,
     getForumWriter,
 } from '../components/community';
 
+import { COMMUNITY_LIMITS } from '../constants/communityLimits';
+
 import type {
     ForumComment,
+    ForumCommentPage,
     ForumPost,
 } from '../types/community';
 
@@ -78,6 +84,39 @@ const getErrorMessage = (
     return error instanceof Error
         ? error.message
         : fallbackMessage;
+};
+
+/**
+ * 댓글 또는 답글 등록 직전 입력값을 검사합니다.
+ */
+const validateCommentContent = async (
+    content: string,
+    type: '댓글' | '답글',
+) => {
+    const limit =
+        type === '댓글'
+            ? COMMUNITY_LIMITS.COMMENT
+            : COMMUNITY_LIMITS.REPLY;
+
+    if (!content) {
+        await showWarningAlert(
+            `${type}을 입력해 주세요.`,
+            `${type} 내용은 비워둘 수 없습니다.`,
+        );
+
+        return false;
+    }
+
+    if (content.length > limit) {
+        await showWarningAlert(
+            `${type} 글자 수 초과`,
+            `${type}은 최대 ${limit}자까지 입력할 수 있습니다.`,
+        );
+
+        return false;
+    }
+
+    return true;
 };
 
 interface CommentPageProps {
@@ -138,6 +177,27 @@ export default function CommentPage({
     const [comments, setComments] =
         useState<ForumComment[]>([]);
 
+    /**
+     * 게시글 목록 페이징
+     */
+    const [page, setPage] =
+        useState(1);
+
+    const [totalPages, setTotalPages] =
+        useState(1);
+
+    const [totalElements, setTotalElements] =
+        useState(0);
+
+    /**
+     * 댓글 페이징
+     */
+    const [commentPage, setCommentPage] =
+        useState(1);
+
+    const [totalCommentPages, setTotalCommentPages] =
+        useState(1);
+
     const [commentValue, setCommentValue] =
         useState('');
 
@@ -149,15 +209,6 @@ export default function CommentPage({
 
     const [liked, setLiked] =
         useState(false);
-
-    const [page, setPage] =
-        useState(1);
-
-    const [totalPages, setTotalPages] =
-        useState(1);
-
-    const [totalElements, setTotalElements] =
-        useState(0);
 
     const [searchInput, setSearchInput] =
         useState('');
@@ -174,8 +225,26 @@ export default function CommentPage({
     const [error, setError] =
         useState('');
 
-    /*
-     * 로그인 사용자 권한
+    /**
+     * 입력 제한 경고 중복 방지
+     */
+    const commentLimitWarnedRef =
+        useRef(false);
+
+    const replyLimitWarnedRef =
+        useRef(false);
+
+    /**
+     * 서버가 반환한 댓글 페이지 정보를 화면 상태에 반영합니다.
+     */
+    const applyCommentPage = useCallback((commentData: ForumCommentPage) => {
+        setComments(commentData.content ?? []);
+        setTotalCommentPages(Math.max(commentData.totalPages ?? 1, 1));
+        setCommentPage((commentData.number ?? 0) + 1);
+    }, []);
+
+    /**
+     * 로그인 사용자 정보
      */
     const loginUserEmail =
         normalizeEmail(currentUser.email);
@@ -183,7 +252,7 @@ export default function CommentPage({
     const isAdmin =
         hasAdminRole(currentUser.role);
 
-    /*
+    /**
      * 선택된 게시글 작성자
      */
     const selectedPostWriterEmail =
@@ -193,9 +262,6 @@ export default function CommentPage({
             )
             : '';
 
-    /*
-     * 작성자 여부
-     */
     const isPostOwner = Boolean(
         selectedPost &&
         loginUserEmail &&
@@ -203,15 +269,70 @@ export default function CommentPage({
         loginUserEmail === selectedPostWriterEmail,
     );
 
-    /*
-     * 삭제 권한
-     *
-     * 작성자 또는 관리자
-     */
     const canDeletePost =
         isPostOwner || isAdmin;
 
-    /*
+    /**
+     * 댓글 입력 중 500자를 초과하면 즉시 경고합니다.
+     */
+    const handleCommentValueChange = (
+        nextValue: string,
+    ) => {
+        const limit = COMMUNITY_LIMITS.COMMENT;
+
+        if (nextValue.length <= limit) {
+            setCommentValue(nextValue);
+            commentLimitWarnedRef.current = false;
+            return;
+        }
+
+        setCommentValue(
+            nextValue.slice(0, limit),
+        );
+
+        if (commentLimitWarnedRef.current) {
+            return;
+        }
+
+        commentLimitWarnedRef.current = true;
+
+        void showWarningAlert(
+            '댓글 글자 수 초과',
+            `댓글은 최대 ${limit}자까지 입력할 수 있습니다.`,
+        );
+    };
+
+    /**
+     * 답글 입력 중 500자를 초과하면 즉시 경고합니다.
+     */
+    const handleReplyValueChange = (
+        nextValue: string,
+    ) => {
+        const limit = COMMUNITY_LIMITS.REPLY;
+
+        if (nextValue.length <= limit) {
+            setReplyValue(nextValue);
+            replyLimitWarnedRef.current = false;
+            return;
+        }
+
+        setReplyValue(
+            nextValue.slice(0, limit),
+        );
+
+        if (replyLimitWarnedRef.current) {
+            return;
+        }
+
+        replyLimitWarnedRef.current = true;
+
+        void showWarningAlert(
+            '답글 글자 수 초과',
+            `답글은 최대 ${limit}자까지 입력할 수 있습니다.`,
+        );
+    };
+
+    /**
      * 게시글 목록 불러오기
      */
     const loadPosts = useCallback(async () => {
@@ -235,11 +356,16 @@ export default function CommentPage({
             setPosts(data.content ?? []);
 
             setTotalPages(
-                Math.max(data.totalPages ?? 1, 1),
+                Math.max(
+                    data.totalPages ?? 1,
+                    1,
+                ),
             );
 
             setTotalElements(
-                data.totalElements ?? data.content?.length ?? 0,
+                data.totalElements ??
+                data.content?.length ??
+                0,
             );
         } catch (loadError) {
             const message = getErrorMessage(
@@ -258,8 +384,8 @@ export default function CommentPage({
         showAlert,
     ]);
 
-    /*
-     * 상세 상태 초기화
+    /**
+     * 상세 화면 상태 초기화
      */
     const resetPostDetail =
         useCallback(() => {
@@ -267,36 +393,52 @@ export default function CommentPage({
             setComments([]);
             setLiked(false);
 
+            setCommentPage(1);
+            setTotalCommentPages(1);
             setCommentValue('');
             setReplyValue('');
             setReplyParentId(null);
+
+            commentLimitWarnedRef.current = false;
+            replyLimitWarnedRef.current = false;
         }, []);
 
-    /*
+    /**
      * 게시글 상세 불러오기
      */
     const loadPostDetail = useCallback(
-        async (postId: number) => {
+        async (targetPostId: number) => {
             try {
                 setDetailLoading(true);
 
                 const [
                     nextPost,
-                    nextComments,
+                    commentData,
                     likeStatus,
                 ] = await Promise.all([
-                    getPost(postId),
-                    getComments(postId),
-                    getLikeStatus(postId),
+                    getPost(targetPostId),
+                    getCommentPage(
+                        targetPostId,
+                        0,
+                        COMMENTS_PER_PAGE,
+                    ),
+
+                    getLikeStatus(targetPostId)
+                        .catch(() => ({
+                            liked: false,
+                        })),
                 ]);
 
                 setSelectedPost(nextPost);
-                setComments(nextComments);
+                applyCommentPage(commentData);
                 setLiked(likeStatus.liked);
 
                 setCommentValue('');
                 setReplyValue('');
                 setReplyParentId(null);
+
+                commentLimitWarnedRef.current = false;
+                replyLimitWarnedRef.current = false;
             } catch (openError) {
                 const message = getErrorMessage(
                     openError,
@@ -317,6 +459,7 @@ export default function CommentPage({
         [
             navigate,
             listPath,
+            applyCommentPage,
             resetPostDetail,
             showAlert,
         ],
@@ -332,11 +475,11 @@ export default function CommentPage({
             return;
         }
 
-        const postId = Number(postIdParam);
+        const targetPostId = Number(postIdParam);
 
         if (
-            !Number.isInteger(postId) ||
-            postId <= 0
+            !Number.isInteger(targetPostId) ||
+            targetPostId <= 0
         ) {
             resetPostDetail();
 
@@ -347,7 +490,7 @@ export default function CommentPage({
             return;
         }
 
-        void loadPostDetail(postId);
+        void loadPostDetail(targetPostId);
     }, [
         loadPostDetail,
         listPath,
@@ -356,18 +499,38 @@ export default function CommentPage({
         resetPostDetail,
     ]);
 
-    /*
-     * 게시글 열기
+    /**
+     * 댓글 삭제로 전체 댓글 페이지 수가 줄었을 때
+     * 현재 페이지를 유효한 범위로 조정합니다.
      */
+    useEffect(() => {
+        setCommentPage((currentPage) =>
+            Math.min(
+                Math.max(currentPage, 1),
+                totalCommentPages,
+            ),
+        );
+    }, [totalCommentPages]);
+
+    /**
+     * 검색 등으로 게시글 전체 페이지 수가 줄었을 때
+     * 현재 페이지를 유효한 범위로 조정합니다.
+     */
+    useEffect(() => {
+        setPage((currentPage) =>
+            Math.min(
+                Math.max(currentPage, 1),
+                totalPages,
+            ),
+        );
+    }, [totalPages]);
+
     const openPost = (
-        postId: number,
+        targetPostId: number,
     ) => {
-        navigate(detailPath(postId));
+        navigate(detailPath(targetPostId));
     };
 
-    /*
-     * 목록으로 이동
-     */
     const handleBackToList = () => {
         resetPostDetail();
 
@@ -376,30 +539,92 @@ export default function CommentPage({
         });
     };
 
-    /*
-     * 상세 게시글 새로고침
+    /**
+     * 상세 게시글과 게시글 목록 새로고침
      */
     const refreshDetail = async (
-        postId: number,
+        targetPostId: number,
+        requestedPage: number | 'last' = commentPage,
     ) => {
+        const requestedPageIndex = requestedPage === 'last'
+            ? 0
+            : Math.max(requestedPage - 1, 0);
+
         const [
             nextPost,
-            nextComments,
+            initialCommentData,
         ] = await Promise.all([
-            getPost(postId),
-            getComments(postId),
+            getPost(targetPostId),
+            getCommentPage(
+                targetPostId,
+                requestedPageIndex,
+                COMMENTS_PER_PAGE,
+            ),
         ]);
 
+        let commentData = initialCommentData;
+        const lastPageIndex = Math.max(initialCommentData.totalPages - 1, 0);
+
+        if (
+            requestedPage === 'last' &&
+            lastPageIndex !== requestedPageIndex
+        ) {
+            commentData = await getCommentPage(
+                targetPostId,
+                lastPageIndex,
+                COMMENTS_PER_PAGE,
+            );
+        } else if (
+            requestedPage !== 'last' &&
+            requestedPage > Math.max(initialCommentData.totalPages, 1)
+        ) {
+            commentData = await getCommentPage(
+                targetPostId,
+                lastPageIndex,
+                COMMENTS_PER_PAGE,
+            );
+        }
+
         setSelectedPost(nextPost);
-        setComments(nextComments);
+        applyCommentPage(commentData);
 
         await loadPosts();
     };
 
-    /*
-     * 수정 권한 검사
-     *
-     * 수정은 작성자만 가능합니다.
+    /**
+     * 게시글과 목록을 다시 불러오지 않고 댓글 페이지만 변경합니다.
+     */
+    const loadCommentPage = async (
+        nextPage: number,
+    ) => {
+        if (!selectedPost) {
+            return;
+        }
+
+        try {
+            const commentData = await getCommentPage(
+                selectedPost.id,
+                nextPage - 1,
+                COMMENTS_PER_PAGE,
+            );
+
+            applyCommentPage(commentData);
+            setReplyParentId(null);
+            setReplyValue('');
+            replyLimitWarnedRef.current = false;
+        } catch (loadError) {
+            showAlert(
+                getErrorMessage(
+                    loadError,
+                    '댓글 페이지를 불러오지 못했습니다.',
+                ),
+                'error',
+            );
+        }
+    };
+
+    /**
+     * 수정 권한 확인
      */
     const checkEditPermission =
         async () => {
@@ -419,10 +644,8 @@ export default function CommentPage({
             return true;
         };
 
-    /*
-     * 삭제 권한 검사
-     *
-     * 작성자 또는 관리자가 삭제할 수 있습니다.
+    /**
+     * 삭제 권한 확인
      */
     const checkDeletePermission =
         async () => {
@@ -442,8 +665,8 @@ export default function CommentPage({
             return true;
         };
 
-    /*
-     * 좋아요 처리
+    /**
+     * 좋아요 등록 또는 취소
      */
     const toggleLike = async () => {
         if (!selectedPost) {
@@ -489,7 +712,7 @@ export default function CommentPage({
         }
     };
 
-    /*
+    /**
      * 게시글 수정
      */
     const editPost = async () => {
@@ -514,7 +737,7 @@ export default function CommentPage({
         );
     };
 
-    /*
+    /**
      * 게시글 삭제
      */
     const removePost = async () => {
@@ -572,7 +795,7 @@ export default function CommentPage({
         }
     };
 
-    /*
+    /**
      * 댓글 등록
      */
     const submitComment = async (
@@ -580,13 +803,20 @@ export default function CommentPage({
     ) => {
         event.preventDefault();
 
+        if (!selectedPost) {
+            return;
+        }
+
         const content =
             commentValue.trim();
 
-        if (
-            !selectedPost ||
-            !content
-        ) {
+        const valid =
+            await validateCommentContent(
+                content,
+                '댓글',
+            );
+
+        if (!valid) {
             return;
         }
 
@@ -601,8 +831,11 @@ export default function CommentPage({
 
             setCommentValue('');
 
+            commentLimitWarnedRef.current = false;
+
             await refreshDetail(
                 selectedPost.id,
+                'last',
             );
 
             await showSuccessAlert(
@@ -620,7 +853,7 @@ export default function CommentPage({
         }
     };
 
-    /*
+    /**
      * 답글 등록
      */
     const submitReply = async (
@@ -629,13 +862,20 @@ export default function CommentPage({
     ) => {
         event.preventDefault();
 
+        if (!selectedPost) {
+            return;
+        }
+
         const content =
             replyValue.trim();
 
-        if (
-            !selectedPost ||
-            !content
-        ) {
+        const valid =
+            await validateCommentContent(
+                content,
+                '답글',
+            );
+
+        if (!valid) {
             return;
         }
 
@@ -651,8 +891,11 @@ export default function CommentPage({
             setReplyValue('');
             setReplyParentId(null);
 
+            replyLimitWarnedRef.current = false;
+
             await refreshDetail(
                 selectedPost.id,
+                commentPage,
             );
 
             await showSuccessAlert(
@@ -670,7 +913,7 @@ export default function CommentPage({
         }
     };
 
-    /*
+    /**
      * 댓글 또는 답글 삭제
      */
     const removeComment = async (
@@ -704,6 +947,7 @@ export default function CommentPage({
 
             await refreshDetail(
                 selectedPost.id,
+                commentPage,
             );
 
             await showSuccessAlert(
@@ -721,8 +965,8 @@ export default function CommentPage({
         }
     };
 
-    /*
-     * 페이지 번호
+    /**
+     * 게시글 목록 페이지 번호
      */
     const pageGroupStart =
         Math.floor((page - 1) / 10) * 10 + 1;
@@ -758,7 +1002,7 @@ export default function CommentPage({
         );
     }
 
-    /*
+    /**
      * 게시글 상세 화면
      */
     if (selectedPost) {
@@ -792,43 +1036,37 @@ export default function CommentPage({
 
                 <ForumCommentThread
                     comments={comments}
-                    currentUserEmail={
-                        currentUser.email
-                    }
+                    commentCount={selectedPost?.commentCount ?? 0}
+                    currentUserEmail={loginUserEmail}
                     value={commentValue}
                     replyValue={replyValue}
-                    replyParentId={
-                        replyParentId
-                    }
-                    onValueChange={
-                        setCommentValue
-                    }
-                    onReplyValueChange={
-                        setReplyValue
-                    }
+                    replyParentId={replyParentId}
+                    onValueChange={handleCommentValueChange}
+                    onReplyValueChange={handleReplyValueChange}
                     onSubmit={submitComment}
-                    onSubmitReply={
-                        submitReply
-                    }
-                    onToggleReply={(id) => {
-                        setReplyParentId(id);
+                    onSubmitReply={submitReply}
+                    onToggleReply={(nextId) => {
+                        setReplyParentId(nextId);
                         setReplyValue('');
+                        replyLimitWarnedRef.current = false;
                     }}
-                    onDelete={(
-                        id,
-                        isReply,
-                    ) =>
-                        void removeComment(
-                            id,
-                            isReply,
-                        )
+                    onDelete={(commentId, isReply) =>
+                        void removeComment(commentId, isReply)
                     }
+                />
+
+                <CommentPagination
+                    currentPage={commentPage}
+                    totalPages={totalCommentPages}
+                    onPageChange={(nextPage) => {
+                        void loadCommentPage(nextPage);
+                    }}
                 />
             </div>
         );
     }
 
-    /*
+    /**
      * 게시글 목록 화면
      */
     return (
@@ -856,6 +1094,7 @@ export default function CommentPage({
                     event.preventDefault();
 
                     setPage(1);
+
                     setKeyword(
                         searchInput.trim(),
                     );
@@ -992,7 +1231,9 @@ export default function CommentPage({
                                                         openPost(post.id)
                                                     }
                                                 >
-                                                    <span>{post.title}</span>
+                                                    <span>
+                                                        {post.title}
+                                                    </span>
 
                                                     {commentCount > 0 && (
                                                         <span
@@ -1010,7 +1251,10 @@ export default function CommentPage({
                                             </td>
 
                                             <td>
-                                                {post.createdAt?.slice(0, 10)}
+                                                {post.createdAt?.slice(
+                                                    0,
+                                                    10,
+                                                )}
                                             </td>
 
                                             <td>

@@ -25,6 +25,14 @@ export interface ForumComment {
   replies?: ForumComment[];
 }
 
+export interface ForumCommentPage {
+  content: ForumComment[];
+  totalElements?: number;
+  totalPages: number;
+  number?: number;
+  size?: number;
+}
+
 export interface ForumPostPage {
   content: ForumPost[];
   totalElements?: number;
