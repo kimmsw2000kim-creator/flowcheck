@@ -1,12 +1,9 @@
 package com.flowcheck.service;
 
-import com.flowcheck.domain.CommunityPost;
-import com.flowcheck.domain.PostCategory;
-import com.flowcheck.domain.RegisteredSite;
-import com.flowcheck.domain.TestRequest;
-import com.flowcheck.domain.User;
+import com.flowcheck.domain.*;
 import com.flowcheck.dto.community.CommunityPostRequest;
 import com.flowcheck.dto.community.CommunityPostResponse;
+import com.flowcheck.dto.community.CommunityPostUpdateRequest;
 import com.flowcheck.repository.CommunityPostRepository;
 import com.flowcheck.repository.RegisteredSiteRepository;
 import com.flowcheck.repository.TestRequestRepository;
@@ -142,6 +139,8 @@ public class CommunityPostService {
             case TEST_SHARE -> {
                 validateTestShareRequest(request);
 
+
+
                 testRequest = testRequestRepository
                         .findByIdAndUser_UserId(
                                 request.testRequestId(),
@@ -222,6 +221,54 @@ public class CommunityPostService {
     }
 
     /*
+     * 로그인한 사용자가 작성한 게시글의 제목과 내용을 수정합니다.
+     */
+    @Transactional
+    public CommunityPostResponse update(
+            UUID userId,
+            Long postId,
+            CommunityPostUpdateRequest request
+    ) {
+        CommunityPost post = findOwnedPost(
+                userId,
+                postId
+        );
+
+        /*
+         * 카테고리와 연결 정보는 유지하고 제목과 내용만 변경합니다.
+         */
+        post.update(
+                request.title().trim(),
+                request.content().trim()
+        );
+
+        /*
+         * 트랜잭션이 종료될 때 JPA 변경 감지로 UPDATE가 실행됩니다.
+         */
+        return toResponse(post);
+    }
+
+    /*
+     * 로그인한 사용자가 작성한 게시글을 삭제합니다.
+     */
+    @Transactional
+    public void delete(
+            UUID userId,
+            Long postId
+    ) {
+        CommunityPost post = findOwnedPost(
+                userId,
+                postId
+        );
+
+        /*
+         * 테스트 공유 게시글이 삭제되면 DB의 ON DELETE SET NULL에 의해
+         * test_requests.post_id만 null로 변경되고 테스트 이력은 유지됩니다.
+         */
+        communityPostRepository.delete(post);
+    }
+
+    /*
      * 사이트 홍보 요청에 필요한 값과 불필요한 값을 검사합니다.
      */
     private void validateSitePromotionRequest(
@@ -263,6 +310,34 @@ public class CommunityPostService {
         }
     }
 
+    /*
+     * 게시글을 조회하고 로그인한 사용자가 작성자인지 확인합니다.
+     *
+     * 수정과 삭제에서 동일한 권한 검사를 사용합니다.
+     */
+    private CommunityPost findOwnedPost(
+            UUID userId,
+            Long postId
+    ) {
+        CommunityPost post = communityPostRepository
+                .findByPostId(postId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "게시글을 찾을 수 없습니다."
+                ));
+
+        if (!Objects.equals(
+                post.getUser().getUserId(),
+                userId
+        )) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "본인이 작성한 게시글만 수정하거나 삭제할 수 있습니다."
+            );
+        }
+
+        return post;
+    }
     /*
      * 게시글 엔티티를 프론트엔드 응답으로 변환합니다.
      */

@@ -48,7 +48,7 @@ export default function TestHistoryTab() {
          * 테스트 이름으로 기본 제목을 만들어주되
          * 사용자가 자유롭게 수정할 수 있습니다.
          */
-        setTitle(`${test.testName} 테스트 결과 공유`);
+        setTitle(`${test.testName} 결과 공유`);
         setContent('');
     };
 

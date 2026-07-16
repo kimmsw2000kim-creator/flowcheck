@@ -3,6 +3,7 @@ package com.flowcheck.controller;
 import com.flowcheck.domain.PostCategory;
 import com.flowcheck.dto.community.CommunityPostRequest;
 import com.flowcheck.dto.community.CommunityPostResponse;
+import com.flowcheck.dto.community.CommunityPostUpdateRequest;
 import com.flowcheck.service.CommunityPostService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -96,6 +97,55 @@ public class CommunityPostController {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(response);
+    }
+
+    /*
+     * 로그인한 사용자가 본인의 게시글을 수정합니다.
+     *
+     * 실제 작성자 확인은 Service에서 JWT 사용자 ID를 기준으로 처리합니다.
+     */
+    @Operation(summary = "커뮤니티 게시글 수정")
+    @PutMapping("/{postId}")
+    public ResponseEntity<CommunityPostResponse> updatePost(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable Long postId,
+            @Valid @RequestBody CommunityPostUpdateRequest request
+    ) {
+        UUID userId = extractUserId(jwt);
+
+        CommunityPostResponse response =
+                communityPostService.update(
+                        userId,
+                        postId,
+                        request
+                );
+
+        return ResponseEntity.ok(response);
+    }
+
+    /*
+     * 로그인한 사용자가 본인의 게시글을 삭제합니다.
+     *
+     * 다른 사용자의 게시글을 삭제하려고 하면
+     * Service에서 403 Forbidden을 반환합니다.
+     */
+    @Operation(summary = "커뮤니티 게시글 삭제")
+    @DeleteMapping("/{postId}")
+    public ResponseEntity<Void> deletePost(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable Long postId
+    ) {
+        UUID userId = extractUserId(jwt);
+
+        communityPostService.delete(
+                userId,
+                postId
+        );
+
+        /*
+         * 삭제 성공 시 응답 본문 없이 204 상태를 반환합니다.
+         */
+        return ResponseEntity.noContent().build();
     }
 
     /*

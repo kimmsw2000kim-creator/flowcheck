@@ -6,7 +6,10 @@ import type {
     Post,
     PostCategory,
     PostPage,
+    UpdatePostRequest,
 } from '../types/post';
+
+
 
 /*
  * 커뮤니티 게시글 목록 조회에 사용하는 조건입니다.
@@ -31,11 +34,15 @@ function getErrorMessage(
             | {
                 message?: string;
                 error?: string;
+
+                // ResponseStatusException의 오류 내용입니다.
+                detail?: string;
             }
             | undefined;
 
         return (
             responseData?.message ||
+            responseData?.detail ||
             responseData?.error ||
             fallbackMessage
         );
@@ -123,6 +130,55 @@ export async function createCommunityPost(
             getErrorMessage(
                 error,
                 '커뮤니티 게시글을 작성하지 못했습니다.'
+            )
+        );
+    }
+}
+
+/*
+ * 로그인한 사용자가 본인의 커뮤니티 게시글을 수정합니다.
+ *
+ * 카테고리와 연결 정보는 변경하지 않고
+ * 제목과 내용만 전송합니다.
+ */
+export async function updateCommunityPost(
+    postId: number,
+    request: UpdatePostRequest
+): Promise<Post> {
+    try {
+        const response = await apiClient.put<Post>(
+            `/api/community/posts/${postId}`,
+            request
+        );
+
+        return response.data;
+    } catch (error: unknown) {
+        throw new Error(
+            getErrorMessage(
+                error,
+                '커뮤니티 게시글을 수정하지 못했습니다.'
+            )
+        );
+    }
+}
+
+/*
+ * 로그인한 사용자가 본인의 커뮤니티 게시글을 삭제합니다.
+ *
+ * 삭제 성공 시 백엔드는 204 No Content를 반환합니다.
+ */
+export async function deleteCommunityPost(
+    postId: number
+): Promise<void> {
+    try {
+        await apiClient.delete(
+            `/api/community/posts/${postId}`
+        );
+    } catch (error: unknown) {
+        throw new Error(
+            getErrorMessage(
+                error,
+                '커뮤니티 게시글을 삭제하지 못했습니다.'
             )
         );
     }
