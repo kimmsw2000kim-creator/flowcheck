@@ -1,15 +1,29 @@
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { Button, PageHeader } from '../../components/common';
 import SitePromotionTab from '../../components/community/SitePromotionTab';
 import TestHistoryTab from '../../components/community/TestHistoryTab';
+import CommentPage from '../CommentPage';
 
-type CommunityTab = 'tests' | 'promotion';
-const tabs: CommunityTab[] = ['tests', 'promotion'];
+type CommunityTab = 'tests' | 'promotion' | 'free';
+const tabs: CommunityTab[] = ['tests', 'promotion', 'free'];
 
-export default function CommunityHubPage() {
-  const navigate = useNavigate();
+interface CommunityHubPageProps {
+  currentUser: {
+    id: string;
+    email: string;
+    role: string;
+    balance: number;
+    coupons: number;
+  };
+  showAlert: (message: string, type?: string) => void;
+}
+
+export default function CommunityHubPage({ currentUser, showAlert }: CommunityHubPageProps) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab: CommunityTab = searchParams.get('tab') === 'promotion' ? 'promotion' : 'tests';
+  const requestedTab = searchParams.get('tab');
+  const activeTab: CommunityTab = requestedTab === 'promotion' || requestedTab === 'free'
+    ? requestedTab
+    : 'tests';
   const selectTab = (tab: CommunityTab) => setSearchParams({ tab });
 
   const moveTab = (direction: 1 | -1) => {
@@ -24,7 +38,6 @@ export default function CommunityHubPage() {
         eyebrow="Community Preview"
         title="커뮤니티"
         description="테스트 결과를 공유하거나 인증된 사이트를 소개할 수 있습니다."
-        actions={<Button variant="secondary" onClick={() => navigate('/comment')}>자유게시판</Button>}
       />
       <nav className="community-tabs" role="tablist" aria-label="커뮤니티 메뉴" onKeyDown={(event) => {
         if (event.key === 'ArrowRight') { event.preventDefault(); moveTab(1); }
@@ -34,9 +47,18 @@ export default function CommunityHubPage() {
       }}>
         <Button id="community-tab-tests" role="tab" aria-selected={activeTab === 'tests'} aria-controls="community-panel-tests" tabIndex={activeTab === 'tests' ? 0 : -1} variant={activeTab === 'tests' ? 'primary' : 'secondary'} onClick={() => selectTab('tests')}>테스트 이력</Button>
         <Button id="community-tab-promotion" role="tab" aria-selected={activeTab === 'promotion'} aria-controls="community-panel-promotion" tabIndex={activeTab === 'promotion' ? 0 : -1} variant={activeTab === 'promotion' ? 'primary' : 'secondary'} onClick={() => selectTab('promotion')}>내 사이트 홍보</Button>
+        <Button id="community-tab-free" role="tab" aria-selected={activeTab === 'free'} aria-controls="community-panel-free" tabIndex={activeTab === 'free' ? 0 : -1} variant={activeTab === 'free' ? 'primary' : 'secondary'} onClick={() => selectTab('free')}>자유게시판</Button>
       </nav>
       <section id={`community-panel-${activeTab}`} role="tabpanel" aria-labelledby={`community-tab-${activeTab}`} className="community-tab-panel">
-        {activeTab === 'tests' ? <TestHistoryTab /> : <SitePromotionTab />}
+        {activeTab === 'tests' && <TestHistoryTab />}
+        {activeTab === 'promotion' && <SitePromotionTab />}
+        {activeTab === 'free' && (
+          <CommentPage
+            currentUser={currentUser}
+            showAlert={showAlert}
+            integrated
+          />
+        )}
       </section>
     </div>
   );

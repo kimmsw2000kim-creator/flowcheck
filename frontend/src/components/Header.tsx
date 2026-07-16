@@ -15,13 +15,12 @@ const AUTH_NAV = [
   ['load', '부하 테스트'],
   ['billing', '크레딧'],
   ['community', '커뮤니티'],
-  ['comment', '자유게시판'],
   ['support', '문의'],
 ] as const;
 
 const ROUTES: Record<string, string> = {
   dashboard: '/dashboard', domains: '/domains', UIUXTest: '/UIUXTest', load: '/load', billing: '/billing',
-  community: '/community', comment: '/comment', support: '/support', admin: '/admin', mypage: '/mypage', login: '/login', signup: '/signup',
+  community: '/community', support: '/support', admin: '/admin', mypage: '/mypage', login: '/login', signup: '/signup',
 };
 
 export default function Header({ activeTab }: HeaderProps) {
