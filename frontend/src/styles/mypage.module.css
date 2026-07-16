@@ -67,18 +67,70 @@
 .amount-negative { color: var(--color-status-error); }
 
 .test-history-list, .setting-list, .account-panel { display: flex; flex-direction: column; gap: var(--space-3); }
-.test-history-item { display: grid; grid-template-columns: 2.75rem minmax(0, 1fr); gap: var(--space-4); }
-.test-history-icon { display: grid; width: 2.75rem; height: 2.75rem; place-items: center; border-radius: var(--radius-full); background: var(--color-action-primary-subtle); color: var(--color-action-primary); }
-.test-history-main { min-width: 0; }
-.test-history-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); }
-.test-history-title-row strong { display: block; margin-bottom: var(--space-1); color: var(--color-text-primary); font-size: var(--font-size-lg); }
-.test-history-title-row p, .test-history-description { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-md); overflow-wrap: anywhere; }
-.test-history-meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin: var(--space-3) 0; color: var(--color-text-muted); font-size: var(--font-size-sm); }
+.test-history-item {
+  display: grid;
+  grid-template-columns: 2.75rem minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-4);
+  min-height: 11rem;
+}
+.test-history-icon {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  place-items: center;
+  border-radius: var(--radius-full);
+  background: var(--color-action-primary-subtle);
+  color: var(--color-action-primary);
+}
+.test-history-main { display: flex; min-width: 0; flex-direction: column; }
+.test-history-title-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-4);
+}
+.test-history-title-row > div { min-width: 0; }
+.test-history-title-row strong {
+  display: block;
+  margin-bottom: var(--space-1);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-snug);
+}
+.test-history-title-row p, .test-history-description {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-normal);
+}
+.test-history-title-row p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.test-history-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  min-height: 1.25rem;
+  margin: var(--space-3) 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
 .test-history-progress { width: 100%; height: var(--space-2); overflow: hidden; border: 0; border-radius: var(--radius-full); background: var(--color-bg-subtle); accent-color: var(--color-action-primary); }
 .test-history-progress::-webkit-progress-bar { border-radius: var(--radius-full); background: var(--color-bg-subtle); }
 .test-history-progress::-webkit-progress-value { border-radius: var(--radius-full); background: var(--color-action-primary); }
 .test-history-progress::-moz-progress-bar { border-radius: var(--radius-full); background: var(--color-action-primary); }
-.test-history-description { margin-top: var(--space-3); }
+.test-history-description {
+  display: -webkit-box;
+  margin-top: var(--space-3);
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
 .test-history-actions, .pagination { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .test-history-actions { margin-top: var(--space-4); }
 .pagination { justify-content: center; margin-top: var(--space-3); }
@@ -117,12 +169,13 @@
   .mypage-desktop-navigation { display: none; }
   .mypage-mobile-navigation { display: block; }
   .mypage-summary-grid, .theme-options { grid-template-columns: 1fr; }
-  .test-history-title-row, .account-row { align-items: flex-start; flex-direction: column; }
+  .test-history-title-row { grid-template-columns: 1fr; gap: var(--space-2); }
+  .account-row { align-items: flex-start; flex-direction: column; }
 }
 
 @media (max-width: 560px) {
   .mypage-stats { grid-template-columns: 1fr; }
   .mypage-profile-card, .setting-row { align-items: flex-start; }
-  .test-history-item { grid-template-columns: 1fr; }
+  .test-history-item { grid-template-columns: 1fr; min-height: 0; }
   .test-history-actions > *, .account-row > button { width: 100%; }
 }
