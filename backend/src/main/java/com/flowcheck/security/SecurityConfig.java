@@ -36,6 +36,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/billing/webhook", "/api/payment/webhook").permitAll() // Toss payments webhook does not require token
                 .requestMatchers("/api/uiux-tests/*/report", "/api/uiux-tests/*/fail", "/api/uiux-tests/*/steps").permitAll()
                 .requestMatchers("/api/uiux-tests/*/vnc/**").permitAll()
+                .requestMatchers("/api/uiux-tests/*/vnc-ws").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/load-tests/*/progress").permitAll()
                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                 .anyRequest().authenticated()

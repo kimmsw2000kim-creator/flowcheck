@@ -14,6 +14,21 @@ const statusTones: Record<string, BadgeTone> = { PENDING: 'neutral', RUNNING: 'i
 const phaseLabels: Record<string, string> = { QUEUED: '대기', PREPARING_REQUEST: '요청 준비', CALLING_FASTAPI: 'AI 서버 호출', PROCESSING_RESULTS: '결과 처리', SAVING_REPORT: '저장 중', COMPLETED: '완료', FAILED: '실패' };
 const formatDate = (value: string) => value ? new Date(value).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-';
 
+const scoreItems = (test: MypageTestHistoryItem, progress: number): Array<[string, number | null | undefined]> => {
+  if (test.testType === 'UI' || test.testType === 'UIUX') {
+    const uiuxScores = [
+      ['사용성', test.scoreUsability],
+      ['접근성', test.scoreAccessibility],
+      ['탐색', test.scoreEfficiency],
+      ['성능', test.scorePerformance],
+      ['품질', test.scoreBestPractices],
+    ];
+    return uiuxScores.some(([, value]) => value != null) ? uiuxScores : [['진행', progress]];
+  }
+
+  return [['성능', test.scorePerformance ?? test.overallScore ?? progress]];
+};
+
 interface MypageTestHistorySectionProps { onShare?: (test: MypageTestHistoryItem) => void; }
 
 function MypageTestHistorySection({ onShare }: MypageTestHistorySectionProps) {
@@ -52,6 +67,7 @@ function MypageTestHistorySection({ onShare }: MypageTestHistorySectionProps) {
             const phase = test.phase ? phaseLabels[test.phase] || test.phase : null;
             const isUIUX = test.testType === 'UI' || test.testType === 'UIUX';
             const detailPath = `/mypage/tests/${test.testType}/${test.requestId}`;
+            const displayScore = test.overallScore ?? progress;
             return (
               <Card as="article" className={styles['test-history-item']} key={`${test.testType}-${test.requestId}`}>
                 <div className={styles['test-history-icon']} aria-hidden="true">{isUIUX ? <Monitor size={20} /> : <Activity size={20} />}</div>
@@ -62,6 +78,27 @@ function MypageTestHistorySection({ onShare }: MypageTestHistorySectionProps) {
                   </div>
                   <div className={styles['test-history-meta']}><span>{formatDate(test.createdAt)}</span>{phase && <span>{phase}</span>}<span>진행률 {progress}%</span></div>
                   <progress className={styles['test-history-progress']} max="100" value={progress} aria-label={`${test.testName} 진행률`}>{progress}%</progress>
+                  {displayScore != null && (
+                    <div className="uiux-history-score">
+                      <div className="uiux-history-score__header">
+                        <span>{test.overallScore != null ? '결과 점수' : '진행 그래프'}</span>
+                        <strong>{displayScore}점</strong>
+                      </div>
+                      <div className="uiux-history-score__bars">
+                        {scoreItems(test, progress)
+                          .filter(([, value]) => value != null)
+                          .map(([label, value]) => (
+                            <div className="uiux-history-score__row" key={label}>
+                              <span>{label}</span>
+                              <div>
+                                <i style={{ width: `${Math.min(Math.max(value ?? 0, 0), 100)}%` }} />
+                              </div>
+                              <strong>{value}점</strong>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
                   {test.description && <p className={styles['test-history-description']}>{test.description}</p>}
                   <div className={styles['test-history-actions']}>
                     <Button type="button" variant="secondary" size="sm" onClick={() => navigate(detailPath)}>상세 보기</Button>

@@ -112,13 +112,18 @@ public class PaymentService {
                         "Payment record not found for orderId: " + confirmDto.orderId()));
 
         // 데이터 무결성 검증 (요청금액과 DB 기록금액 일치 여부)
+        if ("DONE".equalsIgnoreCase(tossPayment.getPaymentStatus())) {
+            log.info("Payment already completed. Skipping duplicate confirm for order: {}", confirmDto.orderId());
+            return objectMapper.valueToTree(Map.of(
+                    "orderId", tossPayment.getOrderId(),
+                    "paymentKey", tossPayment.getPaymentKey(),
+                    "status", tossPayment.getPaymentStatus(),
+                    "amount", tossPayment.getAmount()));
+        }
+
         if (!tossPayment.getAmount().equals(confirmDto.amount())) {
             throw new IllegalArgumentException("Amount mismatch between request and record.");
         }
-
-        // 토스페이먼츠 인증 헤더 (Basic Auth: secretKey + ":"를 Base64 인코딩)
-        String basicAuthHeader = "Basic "
-                + Base64.getEncoder().encodeToString((secretKey + ":").getBytes(StandardCharsets.UTF_8));
 
         log.info("Sending payment confirm to Toss Payments for order: {}", confirmDto.orderId());
 
@@ -127,7 +132,7 @@ public class PaymentService {
             // 토스 결제 승인 API 타격
             tossResponseString = restClient.post()
                     .uri("https://api.tosspayments.com/v1/payments/confirm")
-                    .header("Authorization", basicAuthHeader)
+                    .header("Authorization", tossBasicAuthHeader())
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(Map.of(
                             "paymentKey", confirmDto.paymentKey(),
@@ -204,21 +209,31 @@ public class PaymentService {
             return;
         }
 
-        // 웹훅 데이터로부터 가상계좌의 입금 완료(DONE) 상태 확인
-        String incomingStatus = webhookDto.data() != null ? webhookDto.data().status() : null;
-        if (incomingStatus == null) {
-            // 예외/호환성 처리: 특정 입금 완료 이벤트의 경우 DONE으로 강제 매핑
-            if ("VIRTUAL_ACCOUNT_DEPOSIT_COMPLETED".equalsIgnoreCase(webhookDto.eventType())
-                    || "DEPOSIT_RECEIVED".equalsIgnoreCase(webhookDto.eventType())) {
-                incomingStatus = "DONE";
-            }
+        String paymentKey = webhookDto.data() != null ? webhookDto.data().paymentKey() : null;
+        if (paymentKey == null || paymentKey.isBlank()) {
+            log.warn("Rejected Toss webhook without paymentKey for order: {}", orderId);
+            throw new IllegalArgumentException("Toss webhook paymentKey is required.");
         }
 
-        if ("DONE".equalsIgnoreCase(incomingStatus)) {
+        JsonNode verifiedPayment = fetchTossPayment(paymentKey);
+        String verifiedOrderId = verifiedPayment.path("orderId").asText();
+        int verifiedAmount = verifiedPayment.path("amount").asInt(-1);
+        String verifiedStatus = verifiedPayment.path("status").asText();
+
+        if (!orderId.equals(verifiedOrderId)) {
+            log.warn("Rejected Toss webhook order mismatch. incoming={}, verified={}", orderId, verifiedOrderId);
+            throw new IllegalArgumentException("Toss webhook orderId mismatch.");
+        }
+
+        if (!tossPayment.getAmount().equals(verifiedAmount)) {
+            log.warn("Rejected Toss webhook amount mismatch for order {}. expected={}, verified={}",
+                    orderId, tossPayment.getAmount(), verifiedAmount);
+            throw new IllegalArgumentException("Toss webhook amount mismatch.");
+        }
+
+        if ("DONE".equalsIgnoreCase(verifiedStatus)) {
             tossPayment.setPaymentStatus("DONE");
-            if (webhookDto.data() != null && webhookDto.data().paymentKey() != null) {
-                tossPayment.setPaymentKey(webhookDto.data().paymentKey());
-            }
+            tossPayment.setPaymentKey(paymentKey);
             tossPaymentRepository.save(tossPayment);
 
             // 유저 크레딧 증가 및 원장 추가
@@ -226,6 +241,8 @@ public class PaymentService {
             creditUserBalance(user, tossPayment);
 
             log.info("Toss payment deposit completed successfully via webhook for orderId: {}", orderId);
+        } else {
+            log.info("Ignoring Toss webhook for order {} with verified status {}", orderId, verifiedStatus);
         }
     }
 
@@ -281,6 +298,31 @@ public class PaymentService {
         creditsLedgerRepository.save(ledger);
         log.info("Credited {} credits to user: {} for completed order: {}", creditAmount, user.getEmail(),
                 payment.getOrderId());
+    }
+
+    private String tossBasicAuthHeader() {
+        return "Basic "
+                + Base64.getEncoder().encodeToString((secretKey + ":").getBytes(StandardCharsets.UTF_8));
+    }
+
+    private JsonNode fetchTossPayment(String paymentKey) {
+        try {
+            String tossResponseString = restClient.get()
+                    .uri("https://api.tosspayments.com/v1/payments/{paymentKey}", paymentKey)
+                    .header("Authorization", tossBasicAuthHeader())
+                    .retrieve()
+                    .onStatus(status -> status.is4xxClientError() || status.is5xxServerError(), (req, res) -> {
+                        String errorText = new String(res.getBody().readAllBytes(), StandardCharsets.UTF_8);
+                        log.error("Toss Payments lookup error response: {}", errorText);
+                        throw new RuntimeException("Toss API lookup error: " + errorText);
+                    })
+                    .body(String.class);
+
+            return objectMapper.readTree(tossResponseString);
+        } catch (Exception e) {
+            log.error("Failed to verify Toss webhook paymentKey with Toss API", e);
+            throw new RuntimeException("Toss webhook verification failed: " + e.getMessage());
+        }
     }
 
     /**

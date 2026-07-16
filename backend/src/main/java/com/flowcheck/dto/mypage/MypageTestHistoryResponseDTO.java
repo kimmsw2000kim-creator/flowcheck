@@ -11,6 +11,12 @@ public record MypageTestHistoryResponseDTO(
         String status,
         String phase,
         Integer progress,
+        Integer overallScore,
+        Integer scoreUsability,
+        Integer scoreAccessibility,
+        Integer scoreEfficiency,
+        Integer scorePerformance,
+        Integer scoreBestPractices,
         String description,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt

@@ -6,6 +6,7 @@ import time
 import base64
 import subprocess
 import tempfile
+from urllib.parse import urljoin, urlparse
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from playwright.sync_api import sync_playwright
@@ -15,6 +16,22 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"), override=True)
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://host.docker.internal:8080")
+
+UNIVERSAL_UIUX_AGENT_PROMPT = """
+너는 범용 UI/UX 테스트 에이전트다.
+목표는 특정 버튼을 무작정 누르는 것이 아니라, 현재 서비스의 핵심 사용자 과업을 발견하고 검증하는 것이다.
+
+진행 원칙:
+1. 화면의 제목, 본문, 내비게이션, 버튼, 링크, 입력창, URL을 보고 서비스 유형을 분류한다.
+2. 분류는 업종명이 아니라 사용자가 수행할 수 있는 핵심 행동 기준으로 한다.
+3. 가능한 유형은 commerce, content_workspace, community, media_content, game_interactive,
+   saas_dashboard, booking_service, auth_portal, marketing_landing, unknown_mixed 이다.
+4. 로그인/회원가입/결제/삭제/OAuth/개인정보 제출은 임의로 진행하지 않는다.
+5. 클릭 자체는 성공이 아니다. 실행 후 결과를 success, auth_required, no_effect,
+   skipped_no_candidate, failed_click 등으로 분류한다.
+6. 인증 장벽이 발견되면 성공으로 처리하지 않고, 가능한 경우 닫거나 돌아간 뒤 다른 공개 과업을 탐색한다.
+7. 최종 보고서는 성공한 과업, 인증에 막힌 과업, 후보가 없던 과업, 실제 UX 문제를 분리한다.
+""".strip()
 
 class UIUXTestScores(BaseModel):
     usability: int
@@ -54,6 +71,10 @@ def capture_live_frame(page) -> Optional[str]:
 
 
 def report_step(request_id: str, step: int, url: str, action: str, selector: str = None, text: str = None, reason: str = None, error: str = None, vnc_url: str = None, screenshot_url: str = None):
+    # UI에 표시되는 STEP은 여기서 백엔드로 보내는 "진행 로그"입니다.
+    # 즉, 이 함수 자체가 브라우저를 조작하는 것은 아니고,
+    # 이미 실행된 작업의 결과를 /api/uiux-tests/{requestId}/steps 에 저장하도록 요청합니다.
+    # 프론트는 이 rawLogs 목록을 받아 타임라인처럼 보여줍니다.
     payload = {
         "step": step,
         "url": url,
@@ -74,6 +95,160 @@ def report_step(request_id: str, step: int, url: str, action: str, selector: str
         r.raise_for_status()
     except Exception as e:
         print(f"Failed to send step: {e}")
+
+def uiux_log(event: str, **fields):
+    safe_fields = {}
+    for key, value in fields.items():
+        if isinstance(value, str):
+            safe_fields[key] = value[:700]
+        elif isinstance(value, list):
+            safe_fields[key] = value[:12]
+        else:
+            safe_fields[key] = value
+    print(f"[UIUX] {event} {json.dumps(safe_fields, ensure_ascii=False, default=str)}", flush=True)
+
+def summarize_page_state(page) -> Dict[str, Any]:
+    try:
+        return page.evaluate("""
+            () => {
+                const visible = (el) => {
+                    const rect = el.getBoundingClientRect();
+                    const style = window.getComputedStyle(el);
+                    return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+                };
+                const text = document.body ? document.body.innerText.slice(0, 3000) : '';
+                const authText = /\uB85C\uADF8\uC778|\uB85C\uADF8\uC778\uD558\uC138\uC694|\uD68C\uC6D0\uAC00\uC785|\uBE44\uBC00\uBC88\uD638|\uC544\uC774\uB514|\uC774\uBA54\uC77C|login|sign\\s?in|sign\\s?up|password/i.test(text);
+                const passwordInputs = Array.from(document.querySelectorAll('input[type="password"]')).filter(visible).length;
+                const links = Array.from(document.querySelectorAll('a[href]')).filter(visible).slice(0, 20).map((a) => ({
+                    text: (a.innerText || a.textContent || '').trim().slice(0, 80),
+                    href: a.href
+                }));
+                const buttons = Array.from(document.querySelectorAll('button, [role="button"], input[type="button"], input[type="submit"]'))
+                    .filter(visible).slice(0, 20).map((el) => ({
+                        text: (el.innerText || el.textContent || el.value || el.getAttribute('aria-label') || '').trim().slice(0, 80)
+                    }));
+                return {
+                    url: location.href,
+                    title: document.title,
+                    bodyLength: text.length,
+                    passwordInputs,
+                    authText,
+                    likelyAuthWall: passwordInputs > 0 && authText,
+                    visibleLinks: links,
+                    visibleButtons: buttons
+                };
+            }
+        """)
+    except Exception as e:
+        return {"url": getattr(page, "url", None), "error": str(e)}
+
+def classify_site_type(page) -> Dict[str, Any]:
+    try:
+        return page.evaluate("""
+            () => {
+                const visible = (el) => {
+                    const rect = el.getBoundingClientRect();
+                    const style = window.getComputedStyle(el);
+                    return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+                };
+                const pickText = (selector, limit) => Array.from(document.querySelectorAll(selector))
+                    .filter(visible)
+                    .slice(0, limit)
+                    .map((el) => (el.innerText || el.textContent || el.value || el.placeholder || el.getAttribute('aria-label') || '').trim())
+                    .filter(Boolean);
+                const title = document.title || '';
+                const headings = pickText('h1, h2, h3', 20);
+                const navTexts = pickText('nav a, header a, nav button, header button', 30);
+                const buttonTexts = pickText('button, [role="button"], input[type="button"], input[type="submit"]', 80);
+                const linkTexts = pickText('a[href]', 80);
+                const inputTexts = Array.from(document.querySelectorAll('input, textarea, select'))
+                    .filter(visible)
+                    .slice(0, 50)
+                    .map((el) => [el.placeholder, el.name, el.id, el.getAttribute('aria-label'), el.type].filter(Boolean).join(' '))
+                    .filter(Boolean);
+                const body = (document.body ? document.body.innerText : '').slice(0, 5000);
+                const haystack = [location.href, title, ...headings, ...navTexts, ...buttonTexts, ...linkTexts, ...inputTexts, body].join('\
+').toLowerCase();
+                const categories = {
+                    commerce: ['상품','제품','가격','원','장바구니','구매','주문','결제','배송','리뷰','product','price','cart','checkout','order','shipping','buy'],
+                    content_workspace: ['문서','노트','페이지','워크스페이스','공유','댓글','편집','템플릿','doc','docs','note','page','workspace','share','comment','edit','template'],
+                    community: ['게시글','댓글','좋아요','팔로우','프로필','글쓰기','신고','태그','forum','post','comment','like','follow','profile','write','report','community'],
+                    media_content: ['뉴스','블로그','영상','강의','아티클','읽기','시청','blog','news','video','course','article','watch','read'],
+                    game_interactive: ['게임','플레이','시작','점수','랭킹','레벨','캐릭터','튜토리얼','play','game','score','ranking','level','character','tutorial'],
+                    saas_dashboard: ['대시보드','필터','테이블','내보내기','분석','관리','상태','리포트','dashboard','filter','table','export','analytics','admin','status','report'],
+                    booking_service: ['예약','일정','날짜','시간','좌석','신청','상담','인원','booking','reserve','schedule','date','time','seat','appointment'],
+                    marketing_landing: ['기능','가격','문의','데모','시작하기','다운로드','고객사','pricing','demo','contact','feature','download','get started']
+                };
+                const scores = {};
+                const evidence = {};
+                for (const [type, keywords] of Object.entries(categories)) {
+                    scores[type] = 0;
+                    evidence[type] = [];
+                    for (const keyword of keywords) {
+                        const lower = keyword.toLowerCase();
+                        const count = haystack.split(lower).length - 1;
+                        if (count > 0) {
+                            scores[type] += Math.min(12, count * 3);
+                            if (evidence[type].length < 5) evidence[type].push(keyword);
+                        }
+                    }
+                }
+                const passwordInputs = Array.from(document.querySelectorAll('input[type="password"]')).filter(visible).length;
+                const hasAuthText = /로그인|회원가입|비밀번호|login|sign\\s?in|sign\\s?up|password/i.test(body);
+                const publicActionCount = buttonTexts.concat(linkTexts).filter((text) => !/로그인|회원가입|login|sign\\s?in|sign\\s?up/i.test(text)).length;
+                if (passwordInputs > 0 && hasAuthText && publicActionCount < 4) {
+                    scores.auth_portal = 40;
+                    evidence.auth_portal = ['password input', 'login text', 'few public actions'];
+                } else {
+                    scores.auth_portal = 0;
+                    evidence.auth_portal = [];
+                }
+                const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+                const [topType, topScore] = sorted[0] || ['unknown_mixed', 0];
+                const secondScore = sorted[1] ? sorted[1][1] : 0;
+                const confidence = topScore <= 0 ? 0.3 : Math.max(0.3, Math.min(0.95, topScore / Math.max(topScore + secondScore + 10, 1)));
+                const primaryType = confidence < 0.55 ? 'unknown_mixed' : topType;
+                const secondaryTypes = sorted
+                    .filter(([type, score]) => type !== primaryType && score > 0 && score >= topScore * 0.45)
+                    .slice(0, 3)
+                    .map(([type]) => type);
+                const taskMap = {
+                    commerce: ['상품 목록/카테고리 탐색', '검색 또는 필터 사용', '상품 상세/장바구니 시도 후 인증 요구 여부 확인'],
+                    content_workspace: ['문서/페이지 목록 탐색', '새 문서/템플릿/공유 affordance 확인', '댓글/협업 기능의 인증 요구 여부 확인'],
+                    community: ['게시글 목록 탐색', '검색/태그/카테고리 확인', '댓글/글쓰기/좋아요의 인증 요구 여부 확인'],
+                    media_content: ['주요 콘텐츠 탐색', '검색/카테고리 확인', '본문 가독성 및 관련 콘텐츠 이동 확인'],
+                    game_interactive: ['시작/플레이 진입 확인', '튜토리얼/조작 안내 확인', '설정/랭킹/재시작 경로 확인'],
+                    saas_dashboard: ['대시보드 요약 정보 확인', '필터/정렬/검색 확인', '생성/수정/내보내기 버튼의 위험도 분류'],
+                    booking_service: ['예약 대상 탐색', '날짜/시간/인원 선택 가능성 확인', '신청 단계의 인증/개인정보 요구 여부 확인'],
+                    marketing_landing: ['주요 CTA 확인', '기능/가격/문의 섹션 탐색', '문의 폼 검증'],
+                    auth_portal: ['로그인 요구 안내 명확성 확인', '공개 도움말/가입/비밀번호 찾기 경로 확인', '인증 없이는 내부 기능을 실행하지 않음'],
+                    unknown_mixed: ['첫 화면 목적 파악', '검색/탐색/주요 CTA 확인', '인증 또는 민감 액션 여부 분류']
+                };
+                return {
+                    primaryType,
+                    secondaryTypes,
+                    confidence: Number(confidence.toFixed(2)),
+                    evidence: evidence[primaryType] || [],
+                    scores,
+                    recommendedTasks: taskMap[primaryType] || taskMap.unknown_mixed,
+                    observed: {
+                        title,
+                        headings: headings.slice(0, 6),
+                        buttons: buttonTexts.slice(0, 10),
+                        links: linkTexts.slice(0, 10),
+                        inputs: inputTexts.slice(0, 10)
+                    }
+                };
+            }
+        """)
+    except Exception as e:
+        return {
+            "primaryType": "unknown_mixed",
+            "secondaryTypes": [],
+            "confidence": 0.0,
+            "evidence": [str(e)],
+            "recommendedTasks": ["첫 화면 목적 파악", "검색/탐색/주요 CTA 확인", "인증 또는 민감 액션 여부 분류"],
+        }
 
 def report_report(request_id: str, report_data: dict):
     try:
@@ -133,10 +308,151 @@ def severity_from_impact(impact: Optional[str]) -> str:
         "minor": "MINOR",
     }.get((impact or "").lower(), "MINOR")
 
+def localize_uiux_text(text: Optional[str]) -> Optional[str]:
+    if not text:
+        return text
+    normalized = " ".join(str(text).strip().split())
+    replacements = {
+        "Buttons must have discernible text": "버튼에는 사용자가 이해할 수 있는 텍스트나 접근성 이름이 있어야 합니다.",
+        "Links must have discernible text": "링크에는 사용자가 이해할 수 있는 텍스트나 접근성 이름이 있어야 합니다.",
+        "An interactive element has no accessible name.": "인터랙티브 요소에 접근성 이름이 없습니다.",
+        "Add clear text or aria-label to buttons and links.": "버튼과 링크에 명확한 텍스트를 넣거나 aria-label을 제공하세요.",
+        "Make clickable elements at least 44x44px and keep enough spacing around them.": "클릭 가능한 요소는 최소 44x44px 이상으로 만들고 주변 간격을 충분히 확보하세요.",
+        "An accessibility issue was detected.": "접근성 문제가 감지되었습니다.",
+        "Password requirements are not explained before input.": "비밀번호 입력 조건이 입력 전에 안내되지 않습니다.",
+        "Show password length and character requirements near the field before submission.": "제출 전에 비밀번호 길이와 문자 조합 조건을 입력 필드 가까이에 표시하세요.",
+        "Declare <!doctype html> at the top of the document.": "문서 최상단에 <!doctype html>을 선언하세요.",
+        "Add rel=\"noopener noreferrer\" to target=_blank links.": "target=_blank 링크에는 rel=\"noopener noreferrer\"를 추가하세요.",
+        "Use specific CTA text so users can predict the next action.": "사용자가 다음 행동을 예측할 수 있도록 구체적인 CTA 문구를 사용하세요.",
+        "Image elements must have alternate text": "이미지에는 대체 텍스트가 있어야 합니다.",
+        "Form elements must have labels": "폼 입력 요소에는 연결된 라벨이 있어야 합니다.",
+        "First Contentful Paint": "첫 콘텐츠 표시 시간이 느립니다.",
+        "Largest Contentful Paint": "가장 큰 콘텐츠가 화면에 표시되기까지 시간이 오래 걸립니다.",
+        "Total Blocking Time": "사용자 입력을 막는 긴 작업 시간이 깁니다.",
+        "Cumulative Layout Shift": "화면 요소가 로딩 중 예기치 않게 이동합니다.",
+        "Speed Index": "화면 주요 콘텐츠가 표시되는 속도가 느립니다.",
+        "Time to Interactive": "페이지가 상호작용 가능한 상태가 되기까지 시간이 오래 걸립니다.",
+    }
+    for source, target in replacements.items():
+        if normalized == source:
+            return target
+    if normalized.startswith("Touch target size is ") and "below the recommended minimum" in normalized:
+        return normalized.replace("Touch target size is", "터치 대상 크기가").replace(
+            "px, below the recommended minimum.", "px로 권장 최소 기준보다 작습니다."
+        )
+    if "Element does not have inner text that is visible to screen readers" in normalized:
+        return "요소에 스크린 리더가 읽을 수 있는 텍스트가 없습니다."
+    if "aria-label attribute does not exist or is empty" in normalized:
+        return "aria-label 속성이 없거나 비어 있습니다."
+    if "Element has no title attribute" in normalized:
+        return "요소에 title 속성이 없습니다."
+    if "First Contentful Paint marks the time" in normalized:
+        return "첫 텍스트나 이미지가 화면에 처음 표시되는 시간을 줄이세요. 서버 응답, 렌더링 차단 CSS/JS, 웹폰트 로딩을 우선 확인하세요."
+    if "Largest Contentful Paint marks the time" in normalized:
+        return "가장 큰 이미지나 텍스트 블록이 빨리 보이도록 핵심 이미지 최적화, 우선 로딩, 서버 응답 시간을 개선하세요."
+    if "Sum of all time periods between FCP and Time to Interactive" in normalized:
+        return "초기 로딩 중 긴 JavaScript 작업을 줄이고 코드 분할, 지연 로딩, 불필요한 스크립트 제거를 적용하세요."
+    if "Measures the movement of visible elements" in normalized:
+        return "이미지와 광고 영역의 크기를 미리 지정하고, 로딩 중 레이아웃이 밀리지 않도록 공간을 예약하세요."
+    return text
+
+def describe_defect_target(selector: Optional[str], evidence: Optional[dict]) -> str:
+    evidence = evidence if isinstance(evidence, dict) else {}
+    candidates = [
+        evidence.get("text"),
+        evidence.get("ariaLabel"),
+        evidence.get("title"),
+        evidence.get("placeholder"),
+        evidence.get("href"),
+        selector,
+    ]
+    target = next((str(value).strip() for value in candidates if str(value or "").strip()), "")
+    if not target:
+        return "식별 가능한 텍스트가 없는 요소"
+    if len(target) > 80:
+        target = target[:77] + "..."
+    return target
+
+def localize_lighthouse_finding(finding: dict) -> tuple[str, str]:
+    rule_id = finding.get("ruleId")
+    display_value = finding.get("displayValue")
+    metric_labels = {
+        "first-contentful-paint": ("첫 콘텐츠 표시 시간이 느립니다.", "첫 텍스트나 이미지가 화면에 나타나는 시간을 줄이세요. 서버 응답, 렌더링 차단 CSS/JS, 웹폰트 로딩을 우선 확인하세요."),
+        "largest-contentful-paint": ("가장 큰 콘텐츠 표시 시간이 느립니다.", "대표 이미지나 큰 텍스트 블록이 빨리 보이도록 이미지 최적화, preload, 서버 응답 개선을 적용하세요."),
+        "total-blocking-time": ("초기 로딩 중 입력 차단 시간이 깁니다.", "긴 JavaScript 작업을 줄이고 코드 분할, 지연 로딩, 불필요한 스크립트 제거를 적용하세요."),
+        "cumulative-layout-shift": ("로딩 중 화면 요소가 흔들립니다.", "이미지/광고/동적 영역의 크기를 미리 예약해 사용자가 보던 위치가 밀리지 않게 하세요."),
+        "speed-index": ("화면 콘텐츠가 표시되는 속도가 느립니다.", "첫 화면에 필요한 리소스만 우선 로드하고 나머지는 지연 로딩하세요."),
+        "interactive": ("상호작용 가능 시점이 늦습니다.", "초기 JavaScript 실행량을 줄여 버튼과 링크가 더 빨리 반응하게 하세요."),
+    }
+    if rule_id in metric_labels:
+        title, recommendation = metric_labels[rule_id]
+        if display_value:
+            title = f"{title} 측정값: {display_value}"
+        return title, recommendation
+    return (
+        localize_uiux_text(finding.get("title")) or "Lighthouse 검사 항목에서 개선점이 발견되었습니다.",
+        localize_uiux_text(finding.get("description")) or "Lighthouse 세부 결과를 확인해 해당 항목을 개선하세요.",
+    )
+
+def summarize_defect_group(defects: List[UIUXTestDefect], category_label: str) -> str:
+    first = defects[0]
+    description = (first.description or "").strip().rstrip(".")
+    recommendation = (first.recommendation or "").strip().rstrip(".")
+    count = len(defects)
+
+    if first.rule_id == "target-size":
+        examples = []
+        for defect in defects[:3]:
+            target = describe_defect_target(defect.selector, defect.evidence)
+            evidence = defect.evidence if isinstance(defect.evidence, dict) else {}
+            size = ""
+            if evidence.get("width") and evidence.get("height"):
+                size = f"({evidence.get('width')}x{evidence.get('height')}px)"
+            examples.append(f"{target} {size}".strip())
+        description = f"터치 대상 크기가 작은 클릭 요소가 {count}개 발견되었습니다. 예: {', '.join(examples)}"
+        recommendation = "반복되는 작은 버튼/링크 패턴을 묶어서 최소 44x44px 터치 영역과 충분한 간격을 확보하세요"
+    elif count > 1:
+        description = f"{description} 같은 유형의 문제가 {count}개 발견되었습니다"
+
+    if recommendation:
+        return f"- {category_label}: {description}. 개선 방향: {recommendation}."
+    return f"- {category_label}: {description}."
+
+def find_chromium_executable() -> Optional[str]:
+    configured_path = os.getenv("CHROME_PATH")
+    if configured_path and os.path.exists(configured_path):
+        return configured_path
+
+    search_roots = [
+        os.getenv("PLAYWRIGHT_BROWSERS_PATH", "/ms-playwright"),
+        os.path.join(os.path.dirname(__file__), "ms-playwright"),
+    ]
+    executable_suffixes = (
+        os.path.join("chrome-linux64", "chrome"),
+        os.path.join("chrome-linux", "chrome"),
+    )
+    for root in search_roots:
+        if not root or not os.path.isdir(root):
+            continue
+        for current_root, _, files in os.walk(root):
+            for suffix in executable_suffixes:
+                candidate = os.path.join(current_root, suffix)
+                if os.path.exists(candidate):
+                    return candidate
+            if "chrome" in files:
+                candidate = os.path.join(current_root, "chrome")
+                if os.access(candidate, os.X_OK):
+                    return candidate
+    return None
+
 def run_lighthouse_audit(target_url: str) -> Dict[str, Any]:
     lighthouse_cli = os.path.join(os.path.dirname(__file__), "node_modules", "lighthouse", "cli", "index.js")
     if not os.path.exists(lighthouse_cli):
         return {"available": False, "error": "Lighthouse package is not installed."}
+
+    chrome_path = find_chromium_executable()
+    if not chrome_path:
+        return {"available": False, "error": "Chromium executable is not installed."}
 
     with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
         output_path = tmp.name
@@ -153,7 +469,8 @@ def run_lighthouse_audit(target_url: str) -> Dict[str, Any]:
     ]
 
     try:
-        subprocess.run(cmd, check=True, timeout=120, capture_output=True, text=True)
+        env = {**os.environ, "CHROME_PATH": chrome_path}
+        subprocess.run(cmd, check=True, timeout=120, capture_output=True, text=True, env=env)
         with open(output_path, "r", encoding="utf-8") as f:
             result = json.load(f)
         categories = result.get("categories", {})
@@ -202,8 +519,21 @@ def run_lighthouse_audit(target_url: str) -> Dict[str, Any]:
             "fetchTime": result.get("fetchTime"),
             "finalUrl": result.get("finalDisplayedUrl") or result.get("finalUrl"),
         }
+    except subprocess.TimeoutExpired:
+        return {"available": False, "error": "Lighthouse timed out before completing."}
+    except subprocess.CalledProcessError as e:
+        stderr = (e.stderr or "").strip()
+        stdout = (e.stdout or "").strip()
+        detail = stderr or stdout
+        print(f"Lighthouse failed before completing: {detail[:1000]}", flush=True)
+        return {
+            "available": False,
+            "error": "Lighthouse exited before completing.",
+            "debugError": detail[:1000],
+        }
     except Exception as e:
-        return {"available": False, "error": str(e)}
+        print(f"Lighthouse could not run: {e}", flush=True)
+        return {"available": False, "error": "Lighthouse could not run.", "debugError": str(e)[:1000]}
     finally:
         try:
             os.remove(output_path)
@@ -279,6 +609,16 @@ def evaluate_accessibility_rules(page, add_defect_fn, start_time):
                     return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
                 };
                 const textOf = (el) => (el.innerText || el.textContent || el.getAttribute('aria-label') || el.getAttribute('title') || '').trim();
+                const targetInfo = (el, rect) => ({
+                    text: (el.innerText || el.textContent || '').trim().slice(0, 80),
+                    ariaLabel: (el.getAttribute('aria-label') || '').trim().slice(0, 80),
+                    title: (el.getAttribute('title') || '').trim().slice(0, 80),
+                    href: (el.href || el.getAttribute('href') || '').toString().slice(0, 120),
+                    role: el.getAttribute('role') || '',
+                    width: Math.round(rect.width),
+                    height: Math.round(rect.height),
+                    expected: '>=44x44'
+                });
                 const hasLabel = (input) => {
                     if (input.getAttribute('aria-label') || input.getAttribute('aria-labelledby')) return true;
                     if (input.id && document.querySelector(`label[for="${CSS.escape(input.id)}"]`)) return true;
@@ -293,9 +633,9 @@ def evaluate_accessibility_rules(page, add_defect_fn, start_time):
                         results.push({
                             ruleId: 'target-size',
                             selector: selectorFor(el),
-                            description: `터치 대상 크기가 ${Math.round(rect.width)}x${Math.round(rect.height)}px로 권장 기준보다 작습니다.`,
-                            recommendation: '클릭 가능한 요소의 최소 크기를 44x44px 이상으로 조정하고 주변 여백을 확보하세요.',
-                            evidence: { width: Math.round(rect.width), height: Math.round(rect.height), expected: '>=44x44' },
+                            description: `터치 대상 크기가 ${Math.round(rect.width)}x${Math.round(rect.height)}px로 권장 최소 기준보다 작습니다.`,
+                            recommendation: '클릭 가능한 요소는 최소 44x44px 이상으로 만들고 주변 간격을 충분히 확보하세요.',
+                            evidence: targetInfo(el, rect),
                             severity: 'MAJOR',
                             deduction: 5,
                         });
@@ -304,9 +644,9 @@ def evaluate_accessibility_rules(page, add_defect_fn, start_time):
                         results.push({
                             ruleId: 'accessible-name',
                             selector: selectorFor(el),
-                            description: '인터랙티브 요소에 사용자가 이해할 수 있는 이름이 없습니다.',
-                            recommendation: '버튼/링크에 명확한 텍스트를 넣거나 aria-label을 제공하세요.',
-                            evidence: { text: textOf(el) },
+                            description: '인터랙티브 요소에 접근성 이름이 없습니다.',
+                            recommendation: '버튼과 링크에 명확한 텍스트를 넣거나 aria-label을 제공하세요.',
+                            evidence: targetInfo(el, rect),
                             severity: 'MAJOR',
                             deduction: 7,
                         });
@@ -334,8 +674,8 @@ def evaluate_accessibility_rules(page, add_defect_fn, start_time):
                         results.push({
                             ruleId: 'image-alt',
                             selector: selectorFor(el),
-                            description: '이미지에 alt 속성이 없습니다.',
-                            recommendation: '의미 있는 이미지에는 대체 텍스트를 제공하고, 장식 이미지는 alt=""로 표시하세요.',
+                            description: '이미지에 대체 텍스트가 없습니다.',
+                            recommendation: '의미 있는 이미지에는 대체 텍스트를 제공하고, 장식 이미지는 빈 alt 텍스트를 사용하세요.',
                             evidence: { src: el.currentSrc || el.src || '' },
                             severity: 'MINOR',
                             deduction: 4,
@@ -356,7 +696,7 @@ def evaluate_accessibility_rules(page, add_defect_fn, start_time):
                 category="ACCESSIBILITY",
                 selector=selector,
                 severity=issue.get("severity", "MAJOR"),
-                description=issue.get("description", "접근성 문제가 감지되었습니다."),
+                description=issue.get("description", "An accessibility issue was detected."),
                 timestamp_offset=current_offset,
                 source="UX_RULE",
                 rule_id=issue.get("ruleId"),
@@ -396,11 +736,12 @@ def add_lighthouse_findings(lighthouse_result, add_defect_fn, start_time):
             "score": score,
             "deduction": deduction,
         })
+        localized_title, localized_recommendation = localize_lighthouse_finding(finding)
         add_defect_fn(
             category=category,
             selector="document",
             severity="MINOR" if category != "ACCESSIBILITY" else "MAJOR",
-            description=finding.get("title") or "Lighthouse audit failed.",
+            description=localized_title,
             timestamp_offset=current_offset,
             source="LIGHTHOUSE",
             rule_id=finding.get("ruleId"),
@@ -411,7 +752,7 @@ def add_lighthouse_findings(lighthouse_result, add_defect_fn, start_time):
                 "numericValue": finding.get("numericValue"),
                 "items": finding.get("items", []),
             },
-            recommendation=finding.get("description")
+            recommendation=localized_recommendation
         )
     return deductions
 
@@ -494,8 +835,8 @@ def evaluate_best_practices(page, target_url, console_errors, page_errors, add_d
     if not target_url.startswith("https://") and not target_url.startswith("http://localhost") and not target_url.startswith("http://127.0.0.1"):
         add_issue(
             "uses-https",
-            "테스트 대상 URL이 HTTPS를 사용하지 않습니다.",
-            "운영 환경에서는 HTTPS를 적용하고 HTTP 요청은 HTTPS로 리다이렉트하세요.",
+            "??? ?? URL? HTTPS? ???? ????.",
+            "?? ????? HTTPS? ???? HTTP ??? HTTPS? ????????.",
             15,
             {"url": target_url},
             "MAJOR"
@@ -504,8 +845,8 @@ def evaluate_best_practices(page, target_url, console_errors, page_errors, add_d
     if console_errors:
         add_issue(
             "console-errors",
-            f"브라우저 콘솔 오류가 {len(console_errors)}건 감지되었습니다.",
-            "콘솔 오류를 확인해 프론트 예외, 리소스 로드 실패, 잘못된 API 호출을 수정하세요.",
+            f"???? ?? ??? {len(console_errors)}? ???????.",
+            "?? ??? ??? ??? ??, ??? ?? ??, ??? API ??? ?????.",
             min(20, len(console_errors) * 5),
             {"errors": console_errors[:5]},
             "MAJOR"
@@ -514,8 +855,8 @@ def evaluate_best_practices(page, target_url, console_errors, page_errors, add_d
     if page_errors:
         add_issue(
             "runtime-errors",
-            f"페이지 런타임 오류가 {len(page_errors)}건 감지되었습니다.",
-            "브라우저 pageerror 로그를 기준으로 예외 발생 지점을 수정하세요.",
+            f"??? ??? ??? {len(page_errors)}? ???????.",
+            "???? pageerror ??? ???? ?? ?? ??? ?????.",
             min(20, len(page_errors) * 10),
             {"errors": page_errors[:5]},
             "MAJOR"
@@ -606,7 +947,7 @@ def evaluate_usability_rules(page, steps_history, failed_selectors, add_defect_f
                     const style = window.getComputedStyle(el);
                     return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
                 };
-                const generic = new Set(['click', 'click here', 'more', 'submit', 'button', '확인', '클릭', '자세히']);
+                const generic = new Set(['click', 'click here', 'more', 'submit', 'button', '\uD655\uC778', '\uD074\uB9AD', '\uC790\uC138\uD788']);
                 const results = [];
                 document.querySelectorAll('button, a').forEach((el) => {
                     if (!visible(el)) return;
@@ -615,8 +956,8 @@ def evaluate_usability_rules(page, steps_history, failed_selectors, add_defect_f
                         results.push({
                             ruleId: 'generic-action-label',
                             selector: selectorFor(el),
-                            description: '버튼 또는 링크 문구가 행동 목적을 충분히 설명하지 않습니다.',
-                            recommendation: '사용자가 다음 행동을 예측할 수 있도록 구체적인 CTA 문구를 사용하세요.',
+                            description: '? ? ??? rel="noopener" ?? noreferrer? ????.',
+                            recommendation: '???? ?? ??? ??? ? ??? ???? CTA ??? ?????.',
                             deduction: 6,
                             evidence: { text },
                         });
@@ -626,14 +967,14 @@ def evaluate_usability_rules(page, steps_history, failed_selectors, add_defect_f
                 if (passwordInputs.length > 0) {
                     const hasHelpText = Array.from(document.querySelectorAll('p, small, span, div')).some((el) => {
                         const text = (el.innerText || '').trim();
-                        return /비밀번호|password/.test(text) && /8|특수|영문|숫자|조건|규칙/.test(text);
+                        return /\uBE44\uBC00\uBC88\uD638|password/.test(text) && /8|\uD2B9\uC218|\uC601\uBB38|\uC22B\uC790|\uC870\uAC74|\uADDC\uCE59/.test(text);
                     });
                     if (!hasHelpText) {
                         results.push({
                             ruleId: 'password-requirements-help',
                             selector: selectorFor(passwordInputs[0]),
-                            description: '비밀번호 입력 조건을 사전에 안내하는 문구가 부족합니다.',
-                            recommendation: '입력 전 비밀번호 길이, 문자 조합 등 요구 조건을 가까운 위치에 표시하세요.',
+                            description: '???? ?? ??? ?? ?? ???? ????.',
+                            recommendation: '?? ?? ???? ??? ?? ?? ??? ?? ?? ???? ?????.',
                             deduction: 6,
                             evidence: { passwordInputCount: passwordInputs.length },
                         });
@@ -681,52 +1022,57 @@ def build_report_markdown(scores, breakdown, defects):
         defects,
         key=lambda defect: (severity_rank.get(defect.severity, 3), defect.timestamp_offset)
     )
-    top_defects = sorted_defects[:5]
+    grouped_defects = []
+    grouped_index = {}
+    for defect in sorted_defects:
+        group_key = (defect.category, defect.rule_id or defect.description)
+        if group_key not in grouped_index:
+            grouped_index[group_key] = len(grouped_defects)
+            grouped_defects.append([defect])
+        else:
+            grouped_defects[grouped_index[group_key]].append(defect)
+    top_groups = grouped_defects[:5]
 
     if scores["overall"] >= 85:
-        summary = "핵심 흐름은 안정적입니다. 일부 세부 품질 항목만 보완하면 더 완성도 높은 경험을 만들 수 있습니다."
+        summary = "주요 흐름은 전반적으로 안정적입니다. 일부 세부 항목을 보완하면 더 완성도 높은 경험이 됩니다."
     elif scores["overall"] >= 70:
-        summary = "서비스 사용은 가능하지만 사용성, 접근성, 탐색 흐름에서 개선 여지가 확인되었습니다."
+        summary = "서비스 이용은 가능하지만 사용성, 접근성, 탐색 흐름에서 개선 지점이 확인되었습니다."
     else:
-        summary = "사용자가 핵심 행동을 완료하는 과정에서 마찰이 큽니다. 주요 결함부터 우선 개선하는 것이 좋습니다."
+        summary = "사용자가 주요 흐름에서 막히거나 지연될 가능성이 큽니다. 심각도가 높은 항목부터 우선 개선하세요."
 
     lines = [
         "### 종합 진단",
         f"- 종합 점수는 {scores['overall']}점입니다.",
         f"- {summary}",
         "",
-        "### 세부 점수",
-        f"- 사용성 {scores['usability']}점",
-        f"- 접근성 {scores['accessibility']}점",
-        f"- 탐색 효율 {scores['efficiency']}점",
-        f"- 성능 {scores['performance']}점",
-        f"- 기술 품질 {scores['bestPractices']}점",
+        "### 항목별 점수",
+        f"- 사용성: {scores['usability']}점",
+        f"- 접근성: {scores['accessibility']}점",
+        f"- 탐색 효율: {scores['efficiency']}점",
+        f"- 성능: {scores['performance']}점",
+        f"- 기술 품질: {scores['bestPractices']}점",
         "",
         "### 주요 개선 항목",
     ]
 
-    if not top_defects:
-        lines.append("- 이번 테스트에서 우선 조치가 필요한 주요 결함은 감지되지 않았습니다.")
+    if not top_groups:
+        lines.append("- 이번 테스트에서 즉시 조치가 필요한 주요 결함은 감지되지 않았습니다.")
     else:
-        for defect in top_defects:
-            label = category_labels.get(defect.category, "품질")
-            description = (defect.description or "").strip().rstrip(".")
-            recommendation = (defect.recommendation or "").strip().rstrip(".")
-            if recommendation:
-                lines.append(f"- {label}: {description}. 개선안: {recommendation}.")
-            else:
-                lines.append(f"- {label}: {description}.")
+        for group in top_groups:
+            defect = group[0]
+            label = category_labels.get(defect.category, "Quality")
+            lines.append(summarize_defect_group(group, label))
 
     lines.extend([
         "",
         "### 평가 기준",
-        "- Lighthouse 성능/기술 품질, axe-core 접근성, Playwright 기반 사용성 규칙을 함께 반영했습니다.",
-        "- 점수는 고정 규칙과 공식 엔진 결과로 산정하며, 보고서 문장은 결과를 이해하기 쉽게 정리하는 용도로만 사용합니다.",
+        "- Lighthouse, axe-core, Playwright 기반 사용성 검사를 종합해 점수를 산정했습니다.",
+        "- AI 문장은 측정 결과를 이해하기 쉽게 요약할 뿐, 점수 자체를 변경하지 않습니다.",
     ])
     return "\n".join(lines)
 
-def deterministic_primary_action(page, add_defect_fn, start_time):
-    action = page.evaluate("""
+def collect_public_action_candidates(page) -> Dict[str, Any]:
+    return page.evaluate("""
         () => {
             const visible = (el) => {
                 const rect = el.getBoundingClientRect();
@@ -737,67 +1083,386 @@ def deterministic_primary_action(page, add_defect_fn, start_time):
             const selectorFor = (el) => {
                 const tag = el.tagName.toLowerCase();
                 if (el.id) return `${tag}#${cssEscape(el.id)}`;
-                const testId = el.getAttribute('data-testid') || el.getAttribute('data-test');
-                if (testId) return `${tag}[data-testid="${cssEscape(testId)}"], ${tag}[data-test="${cssEscape(testId)}"]`;
+                const testId = el.getAttribute('data-testid') || el.getAttribute('data-test') || el.getAttribute('data-cy');
+                if (testId) return `${tag}[data-testid="${cssEscape(testId)}"]`;
+                if (el.getAttribute('aria-label')) return `${tag}[aria-label="${cssEscape(el.getAttribute('aria-label'))}"]`;
                 if (typeof el.className === 'string' && el.className.trim()) return `${tag}.${cssEscape(el.className.trim().split(/\\s+/)[0])}`;
                 const all = Array.from(document.querySelectorAll(tag));
                 const index = all.indexOf(el) + 1;
                 return `${tag}:nth-of-type(${Math.max(index, 1)})`;
             };
-            const priority = [
-                /시작|테스트|분석|무료|체험|로그인|회원가입|구매|결제|검색|문의|start|test|analy[sz]e|login|sign\\s?up|buy|search|contact/i,
-                /더보기|자세히|계속|next|more|continue/i,
-            ];
+            const authPattern = /\uB85C\uADF8\uC778|\uB85C\uADF8\uC544\uC6C3|\uD68C\uC6D0\uAC00\uC785|\uBE44\uBC00\uBC88\uD638|\uC544\uC774\uB514|login|logout|sign\\s?in|sign\\s?up|password|auth/i;
+            const publicPattern = /\uC0C1\uD488|\uC81C\uD488|\uB9C8\uCF13|\uC0C1\uC810|\uC2A4\uD1A0\uC5B4|\uC7A5\uBC14\uAD6C\uB2C8|\uCE74\uD2B8|\uAD6C\uB9E4|\uC8FC\uBB38|\uAC80\uC0C9|\uCE74\uD14C\uACE0\uB9AC|\uBAA9\uB85D|\uC0C1\uC138|\uB354\uBCF4\uAE30|\uC2DC\uC791|\uBD84\uC11D|product|item|shop|market|store|cart|basket|buy|order|search|category|detail|more|start|test|analy[sz]e/i;
+            const strongPattern = /\uC7A5\uBC14\uAD6C\uB2C8|\uCE74\uD2B8|\uAD6C\uB9E4|\uC8FC\uBB38|\uAC80\uC0C9|cart|basket|buy|order|search/i;
+            const logoPattern = /logo|brand|home|bulletmarket/i;
             const candidates = Array.from(document.querySelectorAll('button, a[href], [role="button"], input[type="button"], input[type="submit"]'))
                 .filter(visible)
                 .map((el) => {
                     const text = (el.innerText || el.textContent || el.value || el.getAttribute('aria-label') || el.getAttribute('title') || '').trim();
+                    const href = el.href || el.getAttribute('href') || '';
+                    const haystack = `${text} ${href}`.trim();
                     const rect = el.getBoundingClientRect();
+                    let targetUrl = null;
+                    try {
+                        targetUrl = href ? new URL(href, location.href) : null;
+                    } catch {
+                        targetUrl = null;
+                    }
+                    const isCurrentUrl = targetUrl && targetUrl.href.replace(/#$/, '') === location.href.replace(/#$/, '');
+                    const isHashOnly = href === '#' || href.startsWith('#');
+                    const isLogo = logoPattern.test(haystack) || el.closest('header') && /logo|brand/i.test(el.className || '');
                     let score = 0;
-                    if (priority[0].test(text)) score += 100;
-                    if (priority[1].test(text)) score += 40;
-                    if (rect.top >= 0 && rect.top < window.innerHeight * 0.8) score += 20;
-                    if (rect.width >= 44 && rect.height >= 44) score += 10;
-                    return { selector: selectorFor(el), text, score, href: el.href || null };
+                    if (publicPattern.test(haystack)) score += 120;
+                    if (strongPattern.test(haystack)) score += 80;
+                    if (authPattern.test(haystack)) score -= 200;
+                    if (isLogo || isCurrentUrl) score -= 180;
+                    if (isHashOnly) score -= 20;
+                    if (el.tagName.toLowerCase() === 'button') score += 35;
+                    if (rect.top >= 0 && rect.top < window.innerHeight * 0.85) score += 20;
+                    if (rect.width >= 40 && rect.height >= 32) score += 10;
+                    if (el.tagName.toLowerCase() === 'a' && href) score += 5;
+                    return { selector: selectorFor(el), text, href: href || null, score, isAuth: authPattern.test(haystack), isLogo, isCurrentUrl, isHashOnly };
                 })
                 .sort((a, b) => b.score - a.score || a.selector.localeCompare(b.selector));
-            return candidates[0] || null;
+            return {
+                total: candidates.length,
+                publicCount: candidates.filter((c) => !c.isAuth && c.score > 0).length,
+                authCount: candidates.filter((c) => c.isAuth).length,
+                candidates: candidates.slice(0, 60)
+            };
         }
     """)
-    if not action:
-        return {"ok": False, "reason": "클릭 가능한 주요 액션을 찾지 못했습니다."}
 
-    selector = action.get("selector")
-    current_offset = int(time.time() - start_time)
+
+def recover_to_exploration_base(page, base_url: str):
     try:
-        before_url = page.url
-        nav_start = time.time()
-        page.locator(selector).first.click(timeout=3000)
-        page.wait_for_timeout(700)
-        elapsed = time.time() - nav_start
-        return {
-            "ok": True,
-            "selector": selector,
-            "text": action.get("text"),
-            "beforeUrl": before_url,
-            "afterUrl": page.url,
-            "elapsed": elapsed,
-        }
+        page.keyboard.press("Escape")
+        page.wait_for_timeout(250)
+    except Exception:
+        pass
+    if page.url != base_url:
+        try:
+            page.go_back(timeout=5000, wait_until="domcontentloaded")
+            page.wait_for_timeout(500)
+        except Exception:
+            try:
+                page.goto(base_url, timeout=7000, wait_until="domcontentloaded")
+                page.wait_for_timeout(500)
+            except Exception:
+                pass
+
+
+def flash_click_target(page, selector: str, label: Optional[str] = None):
+    try:
+        page.evaluate(
+            """
+            ({ selector, label }) => {
+                const target = document.querySelector(selector);
+                if (!target) return false;
+                const rect = target.getBoundingClientRect();
+                if (!rect || rect.width <= 0 || rect.height <= 0) return false;
+
+                const previous = document.getElementById('flowcheck-click-flash');
+                if (previous) previous.remove();
+
+                const marker = document.createElement('div');
+                marker.id = 'flowcheck-click-flash';
+                marker.setAttribute('aria-hidden', 'true');
+                marker.style.position = 'fixed';
+                marker.style.left = `${rect.left + rect.width / 2}px`;
+                marker.style.top = `${rect.top + rect.height / 2}px`;
+                marker.style.width = `${Math.max(44, Math.min(120, rect.width + 18))}px`;
+                marker.style.height = `${Math.max(44, Math.min(120, rect.height + 18))}px`;
+                marker.style.transform = 'translate(-50%, -50%)';
+                marker.style.border = '4px solid #ef4444';
+                marker.style.borderRadius = '999px';
+                marker.style.background = 'rgba(239, 68, 68, 0.18)';
+                marker.style.boxShadow = '0 0 0 9999px rgba(239, 68, 68, 0.04), 0 0 22px rgba(239, 68, 68, 0.8)';
+                marker.style.zIndex = '2147483647';
+                marker.style.pointerEvents = 'none';
+                marker.style.transition = 'opacity 220ms ease, transform 220ms ease';
+
+                if (label) {
+                    const caption = document.createElement('div');
+                    caption.textContent = label.slice(0, 40);
+                    caption.style.position = 'absolute';
+                    caption.style.left = '50%';
+                    caption.style.bottom = 'calc(100% + 6px)';
+                    caption.style.transform = 'translateX(-50%)';
+                    caption.style.padding = '4px 8px';
+                    caption.style.borderRadius = '999px';
+                    caption.style.background = '#ef4444';
+                    caption.style.color = '#fff';
+                    caption.style.font = '700 12px/1.2 system-ui, sans-serif';
+                    caption.style.whiteSpace = 'nowrap';
+                    marker.appendChild(caption);
+                }
+
+                document.documentElement.appendChild(marker);
+                window.setTimeout(() => {
+                    marker.style.opacity = '0';
+                    marker.style.transform = 'translate(-50%, -50%) scale(1.18)';
+                }, 650);
+                window.setTimeout(() => marker.remove(), 980);
+                return true;
+            }
+            """,
+            {"selector": selector, "label": label or "클릭"},
+        )
+        page.wait_for_timeout(180)
     except Exception as e:
+        uiux_log("click_flash.failed", selector=selector, error=str(e))
+
+
+def exploratory_action_sweep(page, add_defect_fn, start_time, site_profile=None, max_actions=12):
+    # 여러 기능을 연속으로 훑는 범용 탐색 루프입니다.
+    # 한 번 성공했다고 끝내지 않고, 액션 결과를 기록한 뒤 원래 화면으로 복구해서 다음 후보를 시도합니다.
+    # 네이버 같은 포털/커뮤니티/콘텐츠 사이트에서 한 화면에 멈춰 있지 않게 하기 위한 핵심 로직입니다.
+    base_url = page.url
+    visited = set()
+    actions = []
+    failures = []
+    current_offset = int(time.time() - start_time)
+
+    for round_index in range(max_actions):
+        try:
+            candidate_info = collect_public_action_candidates(page)
+        except Exception as e:
+            failures.append({"round": round_index + 1, "error": str(e)})
+            break
+
+        candidates = [
+            c for c in candidate_info.get("candidates", [])
+            if not c.get("isAuth") and not c.get("isLogo") and c.get("score", 0) > 0
+        ]
+        selected = None
+        for candidate in candidates:
+            key = f"{candidate.get('selector')}|{candidate.get('text')}|{candidate.get('href')}"
+            if key not in visited:
+                selected = candidate
+                visited.add(key)
+                break
+        if not selected:
+            uiux_log("action_sweep.no_candidate", round=round_index + 1, candidateInfo=candidate_info)
+            break
+
+        selector = selected.get("selector")
+        before_url = page.url
+        before_state = summarize_page_state(page)
+        try:
+            nav_start = time.time()
+            flash_click_target(page, selector, selected.get("text") or selected.get("href") or "클릭")
+            page.locator(selector).first.click(timeout=4000)
+            try:
+                page.wait_for_load_state("domcontentloaded", timeout=7000)
+            except Exception:
+                pass
+            page.wait_for_timeout(900)
+            elapsed = time.time() - nav_start
+            after_state = summarize_page_state(page)
+            changed = (
+                page.url != before_url
+                or after_state.get("bodyLength") != before_state.get("bodyLength")
+                or after_state.get("title") != before_state.get("title")
+                or after_state.get("passwordInputs") != before_state.get("passwordInputs")
+            )
+            outcome = "success" if changed else "no_effect"
+            if after_state.get("likelyAuthWall"):
+                outcome = "auth_required"
+            action_log = {
+                "round": round_index + 1,
+                "selector": selector,
+                "text": selected.get("text"),
+                "href": selected.get("href"),
+                "beforeUrl": before_url,
+                "afterUrl": page.url,
+                "elapsed": round(elapsed, 3),
+                "changed": changed,
+                "outcome": outcome,
+                "afterTitle": after_state.get("title"),
+            }
+            actions.append(action_log)
+            uiux_log("action_sweep.clicked", **action_log)
+            if outcome == "auth_required":
+                add_defect_fn(
+                    category="USABILITY",
+                    selector=selector,
+                    severity="MINOR",
+                    description="핵심 기능 후보가 로그인 요구 화면으로 이어졌습니다.",
+                    timestamp_offset=current_offset,
+                    source="PLAYWRIGHT",
+                    rule_id="task-auth-required",
+                    evidence={"selector": selector, "text": selected.get("text"), "siteType": (site_profile or {}).get("primaryType")},
+                    recommendation="인증이 필요한 기능은 이유와 다음 행동을 명확히 안내하고, 가능한 공개 대체 경로를 제공하세요."
+                )
+            recover_to_exploration_base(page, base_url)
+        except Exception as e:
+            failure = {"round": round_index + 1, "selector": selector, "text": selected.get("text"), "error": str(e)}
+            failures.append(failure)
+            uiux_log("action_sweep.failed", **failure)
+            recover_to_exploration_base(page, base_url)
+
+    success_count = len([a for a in actions if a.get("outcome") == "success"])
+    auth_count = len([a for a in actions if a.get("outcome") == "auth_required"])
+    return {
+        "ok": bool(actions),
+        "mode": "action_sweep",
+        "outcome": "multi_action_explored" if actions else "skipped_no_candidate",
+        "actions": actions,
+        "actionCount": len(actions),
+        "successCount": success_count,
+        "authRequiredCount": auth_count,
+        "failures": failures[:5],
+        "candidateCount": len(visited),
+        "publicCandidateCount": len(visited),
+        "reason": f"{len(actions)}개 기능 후보를 순회 탐색했습니다. 성공 {success_count}개, 인증 요구 {auth_count}개.",
+    }
+
+
+def deterministic_primary_action(page, add_defect_fn, start_time, site_profile=None):
+    # STEP 5에서 호출되는 실제 브라우저 조작 함수입니다.
+    # 현재 화면의 버튼/링크 후보를 점수화해서 하나씩 클릭해 봅니다.
+    # 주의: "화면이 바뀌었다"는 판단은 URL, 본문 길이, title, password input 수 변화를 기준으로 합니다.
+    # 따라서 장바구니 클릭처럼 로그인 모달이 뜨는 경우도 변화로 인식될 수 있습니다.
+    current_offset = int(time.time() - start_time)
+    before_state = summarize_page_state(page)
+    uiux_log("primary_action.begin", pageState=before_state, siteProfile=site_profile or {})
+
+    try:
+        candidate_info = collect_public_action_candidates(page)
+    except Exception as e:
+        candidate_info = {"total": 0, "publicCount": 0, "authCount": 0, "candidates": [], "error": str(e)}
+    uiux_log("primary_action.candidates", **candidate_info)
+
+    candidates = [c for c in candidate_info.get("candidates", []) if not c.get("isAuth") and not c.get("isLogo") and c.get("score", 0) > 0]
+    no_effect_attempts = []
+    for action in candidates[:8]:
+        selector = action.get("selector")
+        try:
+            before_url = page.url
+            before_state = summarize_page_state(page)
+            nav_start = time.time()
+            flash_click_target(page, selector, action.get("text") or action.get("href") or "클릭")
+            page.locator(selector).first.click(timeout=4000)
+            try:
+                page.wait_for_load_state("domcontentloaded", timeout=7000)
+            except Exception:
+                pass
+            page.wait_for_timeout(700)
+            elapsed = time.time() - nav_start
+            after_state = summarize_page_state(page)
+            outcome = "success"
+            if after_state.get("likelyAuthWall"):
+                outcome = "auth_required"
+                try:
+                    page.keyboard.press("Escape")
+                    page.wait_for_timeout(300)
+                except Exception:
+                    pass
+            changed = (
+                page.url != before_url
+                or after_state.get("bodyLength") != before_state.get("bodyLength")
+                or after_state.get("title") != before_state.get("title")
+                or after_state.get("passwordInputs") != before_state.get("passwordInputs")
+            )
+            uiux_log("primary_action.clicked", selector=selector, text=action.get("text"), beforeUrl=before_url, afterUrl=page.url, elapsed=round(elapsed, 3), changed=changed, outcome=outcome, afterState=after_state)
+            if not changed:
+                no_effect_attempts.append({"selector": selector, "text": action.get("text"), "href": action.get("href")})
+                continue
+            if outcome == "auth_required":
+                add_defect_fn(
+                    category="USABILITY",
+                    selector=selector,
+                    severity="MINOR",
+                    description="선택한 핵심 액션이 로그인 요구 화면으로 이어졌습니다.",
+                    timestamp_offset=current_offset,
+                    source="PLAYWRIGHT",
+                    rule_id="task-auth-required",
+                    evidence={"selector": selector, "text": action.get("text"), "siteType": (site_profile or {}).get("primaryType")},
+                    recommendation="비로그인 사용자가 접근 가능한 대체 경로를 제공하거나, 인증이 필요한 이유와 다음 행동을 명확히 안내하세요."
+                )
+                no_effect_attempts.append({"selector": selector, "text": action.get("text"), "outcome": "auth_required"})
+                continue
+            return {
+                "ok": True,
+                "mode": "click",
+                "outcome": outcome,
+                "selector": selector,
+                "text": action.get("text"),
+                "beforeUrl": before_url,
+                "afterUrl": page.url,
+                "elapsed": elapsed,
+                "candidateCount": candidate_info.get("total", 0),
+                "publicCandidateCount": candidate_info.get("publicCount", 0),
+                "noEffectAttempts": no_effect_attempts,
+            }
+        except Exception as e:
+            uiux_log("primary_action.click_failed", selector=selector, text=action.get("text"), error=str(e))
+            no_effect_attempts.append({"selector": selector, "text": action.get("text"), "error": str(e)})
+
+    if no_effect_attempts:
+        uiux_log("primary_action.no_effect", attempts=no_effect_attempts)
+
+    attempted_paths = []
+    parsed = urlparse(page.url)
+    base_url = f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme and parsed.netloc else page.url
+    for path in ["/", "/products", "/product", "/items", "/shop", "/market", "/store", "/cart", "/basket", "/search", "/categories"]:
+        candidate_url = urljoin(base_url, path)
+        if candidate_url in attempted_paths:
+            continue
+        attempted_paths.append(candidate_url)
+        try:
+            nav_start = time.time()
+            response = page.goto(candidate_url, timeout=8000, wait_until="domcontentloaded")
+            page.wait_for_timeout(600)
+            state = summarize_page_state(page)
+            status = response.status if response else None
+            elapsed = time.time() - nav_start
+            uiux_log("primary_action.path_probe", url=candidate_url, status=status, elapsed=round(elapsed, 3), likelyAuthWall=state.get("likelyAuthWall"), bodyLength=state.get("bodyLength"))
+            if status and status >= 400:
+                continue
+            if not state.get("likelyAuthWall") and state.get("bodyLength", 0) > 80:
+                return {
+                    "ok": True,
+                    "mode": "path_probe",
+                    "beforeUrl": before_state.get("url"),
+                    "afterUrl": page.url,
+                    "elapsed": elapsed,
+                    "candidateCount": candidate_info.get("total", 0),
+                    "publicCandidateCount": candidate_info.get("publicCount", 0),
+                    "attemptedPaths": attempted_paths,
+                    "reason": "공개 CTA가 없어 같은 도메인의 공개 경로를 추가로 탐색했습니다."
+                }
+        except Exception as e:
+            uiux_log("primary_action.path_probe_failed", url=candidate_url, error=str(e))
+
+    if before_state.get("likelyAuthWall"):
         add_defect_fn(
-            category="EFFICIENCY",
-            selector=selector,
-            severity="MINOR",
-            description="주요 액션 요소 클릭에 실패했습니다.",
+            category="USABILITY",
+            selector="body",
+            severity="MAJOR",
+            description="로그인 폼에 막혔고, 비로그인 상태에서 접근 가능한 상품/장바구니/검색/탐색 흐름을 찾지 못했습니다.",
             timestamp_offset=current_offset,
             source="PLAYWRIGHT",
-            rule_id="primary-action-click-failed",
-            evidence={"selector": selector, "text": action.get("text"), "error": str(e)},
-            recommendation="주요 CTA가 클릭 가능한 상태인지, 오버레이가 가리지 않는지, 클릭 영역이 충분한지 확인하세요."
+            rule_id="login-wall-limited-coverage",
+            evidence={"startUrl": before_state.get("url"), "attemptedPaths": attempted_paths, "candidateSummary": candidate_info},
+            recommendation="공개 데모, 상품 목록, 검색, 비회원 장바구니 경로 중 하나를 제공하거나 테스트 전용 자격 증명을 안전한 설정으로 주입하세요."
         )
-        return {"ok": False, "selector": selector, "text": action.get("text"), "error": str(e)}
+    return {
+        "ok": False,
+        "outcome": "skipped_no_candidate",
+        "reason": "인증 없이 실행 가능한 공개 액션이나 같은 도메인의 공개 경로를 찾지 못했습니다.",
+        "candidateCount": candidate_info.get("total", 0),
+        "publicCandidateCount": candidate_info.get("publicCount", 0),
+        "authCandidateCount": candidate_info.get("authCount", 0),
+        "attemptedPaths": attempted_paths,
+    }
 
 def deterministic_form_feedback_check(page, add_defect_fn, start_time):
+    # STEP 6에서 호출되는 폼/검색 입력 검사 함수입니다.
+    # 검색창이나 일반 입력창을 찾아 테스트 값을 입력하고,
+    # 검색 결과 또는 검증 메시지가 화면에 나타나는지 확인합니다.
+    # 로그인/회원가입 폼만 보이는 상황이면 억지로 비밀번호 폼을 제출하지 않고 스킵하도록 설계되어 있습니다.
     form_info = page.evaluate("""
         () => {
             const visible = (el) => {
@@ -810,75 +1475,109 @@ def deterministic_form_feedback_check(page, add_defect_fn, start_time):
                 const tag = el.tagName.toLowerCase();
                 if (el.id) return `${tag}#${cssEscape(el.id)}`;
                 if (el.name) return `${tag}[name="${cssEscape(el.name)}"]`;
+                if (el.getAttribute('aria-label')) return `${tag}[aria-label="${cssEscape(el.getAttribute('aria-label'))}"]`;
                 if (typeof el.className === 'string' && el.className.trim()) return `${tag}.${cssEscape(el.className.trim().split(/\\s+/)[0])}`;
                 const all = Array.from(document.querySelectorAll(tag));
                 return `${tag}:nth-of-type(${Math.max(all.indexOf(el) + 1, 1)})`;
             };
+            const authPattern = /\uB85C\uADF8\uC778|\uB85C\uADF8\uC544\uC6C3|\uD68C\uC6D0\uAC00\uC785|\uBE44\uBC00\uBC88\uD638|\uC544\uC774\uB514|login|logout|sign\\s?in|sign\\s?up|password|auth/i;
+            const searchPattern = /\uAC80\uC0C9|search|query|keyword|q/i;
             const inputs = Array.from(document.querySelectorAll('input:not([type="hidden"]), textarea'))
                 .filter(visible)
                 .filter((el) => !el.disabled && !el.readOnly);
-            if (!inputs.length) return null;
-            const input = inputs.find((el) => /email/i.test(el.type || el.name || el.placeholder || '')) || inputs[0];
-            const form = input.closest('form');
-            const submit = form
-                ? Array.from(form.querySelectorAll('button, input[type="submit"]')).filter(visible)[0]
-                : Array.from(document.querySelectorAll('button, input[type="submit"]')).filter(visible)[0];
+            if (!inputs.length) return { found: false, totalInputs: 0 };
+            const enriched = inputs.map((input) => {
+                const form = input.closest('form');
+                const container = form || input.closest('section, aside, header, main, div') || input.parentElement;
+                const formText = container ? container.innerText : '';
+                const haystack = `${input.type || ''} ${input.name || ''} ${input.placeholder || ''} ${input.getAttribute('aria-label') || ''} ${formText || ''}`;
+                const isPassword = (input.type || '').toLowerCase() === 'password';
+                const isAuth = isPassword || authPattern.test(haystack);
+                const isSearch = searchPattern.test(haystack) || (input.type || '').toLowerCase() === 'search';
+                return { input, form, isAuth, isSearch };
+            });
+            const nonAuth = enriched.filter((item) => !item.isAuth);
+            const chosen = nonAuth.find((item) => item.isSearch) || nonAuth[0];
+            if (!chosen) {
+                return { found: true, skipped: true, reason: '로그인/회원가입 입력 폼만 표시되어 폼 검사를 건너뛰었습니다.', totalInputs: inputs.length, authInputs: enriched.filter((item) => item.isAuth).length };
+            }
+            const submit = chosen.form
+                ? Array.from(chosen.form.querySelectorAll('button, input[type="submit"]')).filter(visible)[0]
+                : Array.from(document.querySelectorAll('button, input[type="submit"]')).filter(visible).find((el) => !authPattern.test(el.innerText || el.value || ''));
             return {
-                inputSelector: selectorFor(input),
-                inputType: input.getAttribute('type') || input.tagName.toLowerCase(),
+                found: true,
+                skipped: false,
+                inputSelector: selectorFor(chosen.input),
+                inputType: chosen.input.getAttribute('type') || chosen.input.tagName.toLowerCase(),
+                isSearch: chosen.isSearch,
                 submitSelector: submit ? selectorFor(submit) : null,
                 beforeText: document.body.innerText.slice(0, 5000),
+                totalInputs: inputs.length,
+                authInputs: enriched.filter((item) => item.isAuth).length
             };
         }
     """)
-    if not form_info:
-        return {"ok": True, "reason": "검사할 입력 필드가 없습니다."}
+    uiux_log("form_feedback.selected", **(form_info or {}), url=page.url)
+    if not form_info or not form_info.get("found"):
+        return {"ok": True, "reason": "검사 가능한 입력 필드가 화면에 없습니다.", "totalInputs": 0}
+    if form_info.get("skipped"):
+        return {"ok": True, "skipped": True, "reason": form_info.get("reason"), "totalInputs": form_info.get("totalInputs"), "authInputs": form_info.get("authInputs")}
 
     current_offset = int(time.time() - start_time)
-    invalid_value = "invalid-email" if "email" in (form_info.get("inputType") or "").lower() else "x"
+    input_type = (form_info.get("inputType") or "").lower()
+    invalid_value = "not-an-email" if "email" in input_type else "flowcheck-test"
+    if form_info.get("isSearch"):
+        invalid_value = "test"
     try:
         page.locator(form_info["inputSelector"]).first.fill(invalid_value, timeout=3000)
         if form_info.get("submitSelector"):
+            flash_click_target(page, form_info["submitSelector"], "제출")
             page.locator(form_info["submitSelector"]).first.click(timeout=3000)
         else:
             page.locator(form_info["inputSelector"]).first.press("Enter", timeout=3000)
-        page.wait_for_timeout(600)
+        page.wait_for_timeout(800)
         feedback = page.evaluate("""
             (beforeText) => {
                 const text = document.body.innerText.slice(0, 7000);
-                const added = text.replace(beforeText, '').trim();
-                const hasValidation = /필수|오류|잘못|형식|입력|확인|required|invalid|error|check|format/i.test(text);
-                return { hasValidation, addedText: added.slice(0, 500) };
+                const added = text.replace(beforeText || '', '').trim();
+                const hasValidation = /\uD544\uC218|\uC624\uB958|\uC798\uBABB|\uD615\uC2DD|\uC785\uB825|\uD655\uC778|required|invalid|error|check|format/i.test(text);
+                const hasSearchResult = /\uAC80\uC0C9|\uACB0\uACFC|\uC0C1\uD488|\uC81C\uD488|\uC5C6\uC2B5\uB2C8\uB2E4|search|result|product|item|no results/i.test(text);
+                return { hasValidation, hasSearchResult, addedText: added.slice(0, 500) };
             }
         """, form_info.get("beforeText", ""))
-        if not feedback.get("hasValidation"):
+        uiux_log("form_feedback.result", inputSelector=form_info["inputSelector"], isSearch=form_info.get("isSearch"), feedback=feedback, url=page.url)
+        if not form_info.get("isSearch") and not feedback.get("hasValidation"):
             add_defect_fn(
                 category="USABILITY",
                 selector=form_info["inputSelector"],
                 severity="MINOR",
-                description="잘못된 입력 후 명확한 오류 안내가 감지되지 않았습니다.",
+                description="잘못된 입력 후 명확한 검증 피드백이 표시되지 않았습니다.",
                 timestamp_offset=current_offset,
                 source="UX_RULE",
                 rule_id="form-validation-feedback",
                 evidence={"inputSelector": form_info["inputSelector"], "submittedValue": invalid_value},
-                recommendation="입력값이 잘못되었을 때 필드 근처에 구체적인 오류 메시지와 수정 방법을 표시하세요."
+                recommendation="입력값이 올바르지 않을 때 해당 필드 근처에 구체적인 오류 메시지를 표시하세요."
             )
-        return {"ok": True, "inputSelector": form_info["inputSelector"], "feedbackDetected": bool(feedback.get("hasValidation"))}
+        return {"ok": True, "inputSelector": form_info["inputSelector"], "feedbackDetected": bool(feedback.get("hasValidation") or feedback.get("hasSearchResult")), "isSearch": form_info.get("isSearch")}
     except Exception as e:
+        uiux_log("form_feedback.failed", inputSelector=form_info.get("inputSelector"), error=str(e))
         add_defect_fn(
             category="EFFICIENCY",
             selector=form_info["inputSelector"],
             severity="MINOR",
-            description="폼 피드백 검사 중 입력 또는 제출에 실패했습니다.",
+            description="폼 피드백 검사를 완료하지 못했습니다.",
             timestamp_offset=current_offset,
             source="PLAYWRIGHT",
             rule_id="form-feedback-check-failed",
             evidence={"inputSelector": form_info["inputSelector"], "error": str(e)},
-            recommendation="폼 요소가 테스트 시점에 입력 가능한 상태인지, 제출 버튼이 정상적으로 활성화되는지 확인하세요."
+            recommendation="테스트 시점에 입력 필드가 수정 가능하고 제출 버튼이 활성화되어 있는지 확인하세요."
         )
         return {"ok": False, "inputSelector": form_info["inputSelector"], "error": str(e)}
 
 def deterministic_navigation_check(page, add_defect_fn, start_time):
+    # STEP 7에서 호출되는 내비게이션 검사 함수입니다.
+    # 같은 도메인 내부 링크 중 로그인/회원가입 링크를 제외하고 이동 가능한 후보를 찾습니다.
+    # 후보가 없으면 실제 클릭 없이 "스킵" 결과를 반환하므로 UI에서는 STEP이 바로 지나간 것처럼 보일 수 있습니다.
     nav_info = page.evaluate("""
         () => {
             const visible = (el) => {
@@ -886,11 +1585,19 @@ def deterministic_navigation_check(page, add_defect_fn, start_time):
                 const style = window.getComputedStyle(el);
                 return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
             };
-            const links = Array.from(document.querySelectorAll('nav a[href], header a[href], a[href]'))
+            const cssEscape = (value) => window.CSS && CSS.escape ? CSS.escape(value) : String(value).replace(/"/g, '\\"');
+            const authPattern = /\uB85C\uADF8\uC778|\uB85C\uADF8\uC544\uC6C3|\uD68C\uC6D0\uAC00\uC785|\uBE44\uBC00\uBC88\uD638|\uC544\uC774\uB514|login|logout|sign\\s?in|sign\\s?up|password|auth/i;
+            const publicPattern = /\uC0C1\uD488|\uC81C\uD488|\uB9C8\uCF13|\uC0C1\uC810|\uC2A4\uD1A0\uC5B4|\uC7A5\uBC14\uAD6C\uB2C8|\uCE74\uD2B8|\uAD6C\uB9E4|\uC8FC\uBB38|\uAC80\uC0C9|\uCE74\uD14C\uACE0\uB9AC|\uBAA9\uB85D|\uC0C1\uC138|product|item|shop|market|store|cart|basket|buy|order|search|category|detail/i;
+            const selectorFor = (a) => {
+                if (a.id) return `a#${cssEscape(a.id)}`;
+                const href = a.getAttribute('href') || '';
+                return `a[href="${cssEscape(href)}"]`;
+            };
+            const links = Array.from(document.querySelectorAll('nav a[href], header a[href], main a[href], a[href]'))
                 .filter(visible)
                 .filter((a) => {
                     const href = a.getAttribute('href') || '';
-                    if (!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:')) return false;
+                    if (!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:') || href.startsWith('javascript:')) return false;
                     try {
                         const url = new URL(href, location.href);
                         return url.origin === location.origin && url.href !== location.href;
@@ -898,57 +1605,75 @@ def deterministic_navigation_check(page, add_defect_fn, start_time):
                         return false;
                     }
                 })
-                .map((a, index) => ({
-                    selector: a.id ? `a#${CSS.escape(a.id)}` : `a[href="${CSS.escape(a.getAttribute('href'))}"]`,
-                    href: a.href,
-                    text: (a.innerText || a.textContent || '').trim(),
-                    index,
-                }))
-                .sort((a, b) => a.index - b.index);
-            return links[0] || null;
+                .map((a, index) => {
+                    const text = (a.innerText || a.textContent || '').trim();
+                    const haystack = `${text} ${a.href}`;
+                    let score = 0;
+                    if (publicPattern.test(haystack)) score += 100;
+                    if (authPattern.test(haystack)) score -= 200;
+                    if (index < 10) score += 10;
+                    return { selector: selectorFor(a), href: a.href, text, index, score, isAuth: authPattern.test(haystack) };
+                })
+                .sort((a, b) => b.score - a.score || a.index - b.index);
+            return {
+                total: links.length,
+                publicCount: links.filter((l) => !l.isAuth && l.score > 0).length,
+                authCount: links.filter((l) => l.isAuth).length,
+                selected: links.find((l) => !l.isAuth && l.score > 0) || links.find((l) => !l.isAuth) || null,
+                candidates: links.slice(0, 10)
+            };
         }
     """)
-    if not nav_info:
-        return {"ok": True, "reason": "검사할 내부 내비게이션 링크가 없습니다."}
+    uiux_log("navigation.candidates", **(nav_info or {}), url=page.url)
+    selected = (nav_info or {}).get("selected")
+    if not selected:
+        return {"ok": True, "skipped": True, "reason": "로그인 외 같은 도메인 내비게이션 링크가 보이지 않아 건너뛰었습니다.", "candidateCount": (nav_info or {}).get("total", 0), "authCandidateCount": (nav_info or {}).get("authCount", 0)}
 
     current_offset = int(time.time() - start_time)
     try:
         before_url = page.url
         nav_start = time.time()
-        page.locator(nav_info["selector"]).first.click(timeout=3000)
-        page.wait_for_load_state("domcontentloaded", timeout=7000)
+        flash_click_target(page, selected["selector"], selected.get("text") or selected.get("href") or "이동")
+        page.locator(selected["selector"]).first.click(timeout=4000)
+        try:
+            page.wait_for_load_state("domcontentloaded", timeout=7000)
+        except Exception:
+            pass
+        page.wait_for_timeout(500)
         elapsed = time.time() - nav_start
         after_url = page.url
+        uiux_log("navigation.clicked", selector=selected["selector"], text=selected.get("text"), href=selected.get("href"), beforeUrl=before_url, afterUrl=after_url, elapsed=round(elapsed, 3))
         if after_url == before_url:
             add_defect_fn(
                 category="EFFICIENCY",
-                selector=nav_info["selector"],
+                selector=selected["selector"],
                 severity="MINOR",
-                description="내부 내비게이션 링크 클릭 후 URL 변화가 감지되지 않았습니다.",
+                description="같은 도메인 내비게이션 링크를 클릭했지만 페이지 URL 변화가 감지되지 않았습니다.",
                 timestamp_offset=current_offset,
                 source="PLAYWRIGHT",
                 rule_id="navigation-no-url-change",
-                evidence={"selector": nav_info["selector"], "href": nav_info["href"], "text": nav_info["text"]},
-                recommendation="링크 라우팅 처리와 클릭 이벤트가 정상적으로 동작하는지 확인하세요."
+                evidence={"selector": selected["selector"], "href": selected["href"], "text": selected["text"]},
+                recommendation="링크 라우트와 클릭 핸들러가 실제 화면 변화로 이어지는지 확인하세요."
             )
         try:
             page.go_back(timeout=5000, wait_until="domcontentloaded")
         except Exception:
             pass
-        return {"ok": True, "selector": nav_info["selector"], "beforeUrl": before_url, "afterUrl": after_url, "elapsed": elapsed}
+        return {"ok": True, "selector": selected["selector"], "text": selected.get("text"), "beforeUrl": before_url, "afterUrl": after_url, "elapsed": elapsed, "candidateCount": nav_info.get("total", 0), "publicCandidateCount": nav_info.get("publicCount", 0)}
     except Exception as e:
+        uiux_log("navigation.failed", selector=selected.get("selector"), href=selected.get("href"), error=str(e))
         add_defect_fn(
             category="EFFICIENCY",
-            selector=nav_info["selector"],
+            selector=selected["selector"],
             severity="MINOR",
-            description="내부 내비게이션 링크 이동에 실패했습니다.",
+            description="같은 도메인 내비게이션 링크를 열지 못했습니다.",
             timestamp_offset=current_offset,
             source="PLAYWRIGHT",
             rule_id="navigation-click-failed",
-            evidence={"selector": nav_info["selector"], "href": nav_info["href"], "error": str(e)},
-            recommendation="내비게이션 링크가 실제 이동 가능한 href를 갖고 있는지, 클릭 이벤트가 예외 없이 처리되는지 확인하세요."
+            evidence={"selector": selected["selector"], "href": selected["href"], "error": str(e)},
+            recommendation="라우트가 존재하는지, 링크가 가려졌거나 비활성화되지 않았는지 확인하세요."
         )
-        return {"ok": False, "selector": nav_info["selector"], "error": str(e)}
+        return {"ok": False, "selector": selected["selector"], "error": str(e), "candidateCount": nav_info.get("total", 0)}
 
 def main():
     request_id = os.getenv("REQUEST_ID")
@@ -995,23 +1720,42 @@ def main():
         key = (category, selector, description, rule_id)
         if key not in unique_defects:
             unique_defects.add(key)
+            localized_description = localize_uiux_text(description)
+            localized_recommendation = localize_uiux_text(recommendation)
+            if rule_id == "target-size":
+                target = describe_defect_target(selector, evidence)
+                if target and "대상:" not in localized_description:
+                    localized_description = f"{localized_description} 대상: {target}."
             defects.append(UIUXTestDefect(
                 category=category,
                 selector=selector[:100] if selector else "N/A",
                 severity=severity,
-                description=description,
+                description=localized_description,
                 timestamp_offset=timestamp_offset,
                 source=source,
                 rule_id=rule_id,
                 evidence=evidence,
-                recommendation=recommendation,
+                recommendation=localized_recommendation,
                 screenshot_url=screenshot_url
             ))
     
     with sync_playwright() as p:
         try:
+            # 여기부터가 UI/UX 테스트 워커의 실제 실행 순서입니다.
+            # 각 단계는 "실제 검사 함수 실행 -> report_step()으로 진행 로그 저장" 순서로 동작합니다.
+            # 프론트에 보이는 STEP 번호는 이 report_step 로그를 기반으로 표시됩니다.
             headless_mode = os.getenv("PLAYWRIGHT_HEADLESS", "false").lower() == "true"
-            browser = p.chromium.launch(headless=headless_mode)
+            browser = p.chromium.launch(
+                headless=headless_mode,
+                args=[
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-gpu",
+                    "--use-gl=swiftshader",
+                    "--window-size=1280,800",
+                    "--ignore-certificate-errors",
+                ],
+            )
             video_dir = os.path.join(os.path.dirname(__file__), "videos")
             os.makedirs(video_dir, exist_ok=True)
             
@@ -1022,9 +1766,12 @@ def main():
                 ignore_https_errors=True
             )
             page = context.new_page()
+            page.bring_to_front()
             page.on("console", lambda msg: console_errors.append(msg.text) if msg.type == "error" else None)
             page.on("pageerror", lambda exc: page_errors.append(str(exc)))
             
+            # STEP 1: 대상 URL을 실제 Chromium 페이지에 로드합니다.
+            # 이 단계는 브라우저 화면을 만드는 진짜 네비게이션 작업입니다.
             nav_start = time.time()
             lighthouse_result = {"available": False, "error": "not-run"}
             axe_result = {"available": False, "error": "not-run"}
@@ -1032,6 +1779,7 @@ def main():
             accessibility_deductions = []
             try:
                 page.goto(target_url, timeout=20000, wait_until="load")
+                page.bring_to_front()
                 page.wait_for_timeout(2000)
                 performance_times.append(time.time() - nav_start)
             except Exception as e:
@@ -1041,59 +1789,118 @@ def main():
                 browser.close()
                 sys.exit(1)
 
-            report_step(request_id, 1, page.url, "LOAD_PAGE", reason="대상 페이지를 로드하고 기준 화면을 확보했습니다.", screenshot_url=capture_live_frame(page))
-            steps_history.append({"step": 1, "url": page.url, "action": "LOAD_PAGE", "reason": "대상 페이지를 로드하고 기준 화면을 확보했습니다."})
+            page.bring_to_front()
+            initial_state = summarize_page_state(page)
+            uiux_log("page.loaded", pageState=initial_state)
+            report_step(request_id, 1, page.url, "LOAD_PAGE", reason="대상 페이지를 로드하고 초기 브라우저 상태를 기록했습니다.", screenshot_url=capture_live_frame(page))
+            steps_history.append({"step": 1, "url": page.url, "action": "LOAD_PAGE", "reason": "대상 페이지를 로드하고 초기 브라우저 상태를 기록했습니다.", "pageState": initial_state})
 
-            report_step(request_id, 2, page.url, "RUN_LIGHTHOUSE", reason="Lighthouse로 성능, 접근성, 기술 품질 점수를 측정합니다.", screenshot_url=capture_live_frame(page))
+            # STEP 2: 사이트 유형을 먼저 분류하고, 그 유형에 맞는 UX 과업 후보를 정합니다.
+            # 쇼핑몰/문서 협업/커뮤니티/게임/대시보드처럼 서비스별로 버튼 이름은 달라도
+            # "핵심 사용자 과업" 관점으로 이후 액션을 해석하기 위한 준비 단계입니다.
+            site_profile = classify_site_type(page)
+            classification_reason = (
+                f"사이트 유형을 {site_profile.get('primaryType')}로 분류했습니다. "
+                f"신뢰도={site_profile.get('confidence')}, 근거={', '.join(site_profile.get('evidence', [])[:4]) or '근거 부족'}."
+            )
+            uiux_log("site.classified", siteProfile=site_profile, prompt=UNIVERSAL_UIUX_AGENT_PROMPT)
+            report_step(request_id, 2, page.url, "CLASSIFY_SITE", reason=classification_reason, screenshot_url=capture_live_frame(page))
+            steps_history.append({"step": 2, "url": page.url, "action": "CLASSIFY_SITE", "reason": classification_reason, "siteProfile": site_profile})
+
+            # STEP 2: Lighthouse CLI를 별도 프로세스로 실행합니다.
+            # Playwright 화면을 직접 조작하는 단계가 아니라, 같은 targetUrl에 대해 성능/품질 audit을 수행합니다.
+            # Lighthouse가 실패하면 점수 계산에서는 Playwright 기반 대체 규칙을 사용합니다.
+            page.bring_to_front()
             lighthouse_result = run_lighthouse_audit(target_url)
+            lighthouse_step_reason = "Lighthouse 공식 audit 결과를 수집했습니다." if lighthouse_result.get("available") else "Lighthouse가 완료되지 않아 대체 규칙을 사용합니다."
+            report_step(request_id, 3, page.url, "RUN_LIGHTHOUSE", reason=lighthouse_step_reason, screenshot_url=capture_live_frame(page))
             steps_history.append({
-                "step": 2,
+                "step": 3,
                 "url": page.url,
                 "action": "RUN_LIGHTHOUSE",
-                "reason": "Lighthouse 공식 audit 결과를 수집했습니다." if lighthouse_result.get("available") else "Lighthouse 실행에 실패하여 대체 규칙을 사용합니다.",
+                "reason": lighthouse_step_reason,
                 "available": lighthouse_result.get("available", False),
                 "error": lighthouse_result.get("error")
             })
 
-            report_step(request_id, 3, page.url, "RUN_AXE", reason="axe-core로 WCAG 기반 접근성 위반을 검사합니다.", screenshot_url=capture_live_frame(page))
+            # STEP 3: 현재 Playwright 페이지에 axe-core 스크립트를 주입해 접근성 위반을 검사합니다.
+            # 이 단계도 일반 사용자 클릭 흐름은 아니고, DOM을 분석하는 audit 단계입니다.
+            page.bring_to_front()
             axe_result = run_axe_audit(page)
+            axe_step_reason = "axe-core 접근성 검사 결과를 수집했습니다." if axe_result.get("available") else "axe-core가 완료되지 않아 대체 규칙을 사용합니다."
+            report_step(request_id, 4, page.url, "RUN_AXE", reason=axe_step_reason, screenshot_url=capture_live_frame(page))
             steps_history.append({
-                "step": 3,
+                "step": 4,
                 "url": page.url,
                 "action": "RUN_AXE",
-                "reason": "axe-core 접근성 검사 결과를 수집했습니다." if axe_result.get("available") else "axe-core 실행에 실패하여 대체 규칙을 사용합니다.",
+                "reason": axe_step_reason,
                 "available": axe_result.get("available", False),
                 "error": axe_result.get("error")
             })
 
-            report_step(request_id, 4, page.url, "CHECK_DOM_RULES", reason="DOM 기반 접근성 및 기본 사용성 규칙을 검사합니다.", screenshot_url=capture_live_frame(page))
+            # STEP 4: 자체 DOM 규칙 검사입니다.
+            # 터치 대상 크기, accessible name, form label, image alt 같은 정적 규칙을 확인합니다.
+            # 클릭을 하지 않는 분석 단계라 빠르게 끝날 수 있습니다.
+            page.bring_to_front()
             accessibility_score, accessibility_deductions = evaluate_accessibility_rules(page, add_defect, start_time)
-            steps_history.append({"step": 4, "url": page.url, "action": "CHECK_DOM_RULES", "reason": "터치 대상 크기, 라벨, 이미지 대체 텍스트 등 DOM 규칙을 검사했습니다."})
+            dom_reason = f"DOM 기반 규칙을 검사했고 {len(accessibility_deductions)}개 이슈 그룹을 찾았습니다."
+            uiux_log("dom_rules.checked", url=page.url, issueGroups=len(accessibility_deductions), score=accessibility_score)
+            report_step(request_id, 5, page.url, "CHECK_DOM_RULES", reason=dom_reason, screenshot_url=capture_live_frame(page))
+            steps_history.append({"step": 5, "url": page.url, "action": "CHECK_DOM_RULES", "reason": dom_reason, "issueGroups": len(accessibility_deductions)})
 
-            report_step(request_id, 5, page.url, "EXPLORE_PRIMARY_ACTION", reason="우선순위가 높은 주요 CTA 또는 인터랙션을 결정론적으로 선택해 검사합니다.", screenshot_url=capture_live_frame(page))
-            primary_result = deterministic_primary_action(page, add_defect, start_time)
+            # STEP 5: 첫 번째 실제 사용자 액션 탐색입니다.
+            # 버튼/링크 후보를 점수화해서 클릭합니다.
+            # 현재 구조에서는 "장바구니 클릭 -> 로그인 모달 표시"도 화면 변화로 보고 성공 처리될 수 있습니다.
+            # 따라서 이 함수의 결과를 해석할 때 afterState.likelyAuthWall 또는 selector/text 로그를 같이 봐야 합니다.
+            page.bring_to_front()
+            primary_result = exploratory_action_sweep(page, add_defect, start_time, site_profile)
             if primary_result.get("elapsed") is not None:
                 performance_times.append(primary_result["elapsed"])
             if not primary_result.get("ok") and primary_result.get("selector"):
                 failed_selectors.append(primary_result["selector"])
-            steps_history.append({"step": 5, "url": page.url, "action": "EXPLORE_PRIMARY_ACTION", "reason": "주요 액션 요소의 클릭 가능 여부를 검사했습니다.", **primary_result})
+            primary_reason = (
+                f"주요 공개 흐름을 {primary_result.get('mode', 'none')} 방식으로 탐색했습니다. "
+                f"공개 후보={primary_result.get('publicCandidateCount', 0)}개, 전체 후보={primary_result.get('candidateCount', 0)}개."
+            )
+            if primary_result.get("reason"):
+                primary_reason += f" {primary_result.get('reason')}"
+            report_step(request_id, 6, page.url, "EXPLORE_PRIMARY_ACTION", selector=primary_result.get("selector"), text=primary_result.get("text"), reason=primary_reason, error=primary_result.get("error"), screenshot_url=capture_live_frame(page))
+            steps_history.append({"step": 6, "url": page.url, "action": "EXPLORE_PRIMARY_ACTION", "reason": primary_reason, **primary_result})
 
-            report_step(request_id, 6, page.url, "CHECK_FORM_FEEDBACK", reason="입력 필드의 오류 피드백과 검증 안내를 검사합니다.", screenshot_url=capture_live_frame(page))
+            # STEP 6: 폼 또는 검색 입력 피드백 검사입니다.
+            # STEP 5 이후의 현재 화면을 그대로 사용합니다.
+            # 그래서 STEP 5에서 로그인 모달이 떠 있으면, 이 단계도 로그인 모달 위에서 입력 후보를 찾게 됩니다.
+            # 후보가 없거나 로그인 폼만 있으면 실제 제출 없이 스킵되어 매우 빨리 끝납니다.
+            page.bring_to_front()
             form_result = deterministic_form_feedback_check(page, add_defect, start_time)
             if not form_result.get("ok") and form_result.get("inputSelector"):
                 failed_selectors.append(form_result["inputSelector"])
-            steps_history.append({"step": 6, "url": page.url, "action": "CHECK_FORM_FEEDBACK", "reason": "폼 입력과 오류 피드백 표시 여부를 검사했습니다.", **form_result})
+            form_reason = form_result.get("reason") or (
+                f"폼/검색 피드백을 검사했습니다. 입력={form_result.get('inputSelector')}, 피드백 감지={form_result.get('feedbackDetected')}."
+            )
+            report_step(request_id, 7, page.url, "CHECK_FORM_FEEDBACK", selector=form_result.get("inputSelector"), reason=form_reason, error=form_result.get("error"), screenshot_url=capture_live_frame(page))
+            steps_history.append({"step": 7, "url": page.url, "action": "CHECK_FORM_FEEDBACK", "reason": form_reason, **form_result})
 
-            report_step(request_id, 7, page.url, "CHECK_NAVIGATION", reason="내부 내비게이션 링크의 이동 가능 여부를 검사합니다.", screenshot_url=capture_live_frame(page))
+            # STEP 7: 내부 내비게이션 링크 검사입니다.
+            # 현재 화면에서 같은 도메인 링크를 찾고, 로그인/회원가입 링크는 제외합니다.
+            # 후보가 0개면 클릭 없이 스킵 결과를 반환하므로 UI상 거의 즉시 지나갑니다.
+            page.bring_to_front()
             navigation_result = deterministic_navigation_check(page, add_defect, start_time)
             if navigation_result.get("elapsed") is not None:
                 performance_times.append(navigation_result["elapsed"])
             if not navigation_result.get("ok") and navigation_result.get("selector"):
                 failed_selectors.append(navigation_result["selector"])
-            steps_history.append({"step": 7, "url": page.url, "action": "CHECK_NAVIGATION", "reason": "내부 링크 이동과 복귀 흐름을 검사했습니다.", **navigation_result})
-            report_step(request_id, 8, page.url, "CALCULATE_SCORE", reason="수집한 audit과 탐색 결과로 최종 점수를 산정합니다.", screenshot_url=capture_live_frame(page))
-            steps_history.append({"step": 8, "url": page.url, "action": "CALCULATE_SCORE", "reason": "수집한 audit과 탐색 결과로 최종 점수를 산정합니다."})
+            navigation_reason = navigation_result.get("reason") or (
+                f"로그인 외 같은 도메인 내비게이션을 검사했습니다. 공개 후보={navigation_result.get('publicCandidateCount', 0)}개, 전체 후보={navigation_result.get('candidateCount', 0)}개."
+            )
+            report_step(request_id, 8, page.url, "CHECK_NAVIGATION", selector=navigation_result.get("selector"), text=navigation_result.get("text"), reason=navigation_reason, error=navigation_result.get("error"), screenshot_url=capture_live_frame(page))
+            steps_history.append({"step": 8, "url": page.url, "action": "CHECK_NAVIGATION", "reason": navigation_reason, **navigation_result})
+            page.bring_to_front()
 
+            # STEP 8은 브라우저를 조작하는 단계가 아닙니다.
+            # 위에서 모은 Lighthouse/axe/DOM/액션 결과를 바탕으로 점수와 결함 목록을 계산한 뒤
+            # "점수 계산 완료" 진행 로그를 저장합니다.
+            # 따라서 STEP 7이 스킵되면 STEP 8은 바로 이어서 표시됩니다.
             # Final score calculation. Official engines provide core scores; AI never changes scores.
             lighthouse_deductions = add_lighthouse_findings(lighthouse_result, add_defect, start_time)
             axe_deductions = add_axe_findings(axe_result, add_defect, start_time)
@@ -1200,13 +2007,14 @@ def main():
                     "usability": "PLAYWRIGHT_UX_RULES",
                     "accessibility": "AXE_CORE_AND_LIGHTHOUSE_ACCESSIBILITY",
                     "efficiency": "PLAYWRIGHT_ACTION_OUTCOMES",
-                    "performance": "LIGHTHOUSE_PERFORMANCE",
-                    "bestPractices": "LIGHTHOUSE_BEST_PRACTICES"
+                    "performance": "LIGHTHOUSE_PERFORMANCE" if lighthouse_performance_score is not None else "PLAYWRIGHT_TIMING_RULES",
+                    "bestPractices": "LIGHTHOUSE_BEST_PRACTICES" if lighthouse_best_practices_score is not None else "PLAYWRIGHT_BEST_PRACTICE_RULES"
                 },
                 "engineResults": {
                     "lighthouse": {
                         "available": lighthouse_result.get("available", False),
                         "error": lighthouse_result.get("error"),
+                        "debugError": lighthouse_result.get("debugError"),
                         "scores": lighthouse_scores,
                         "finalUrl": lighthouse_result.get("finalUrl"),
                         "fetchTime": lighthouse_result.get("fetchTime")
@@ -1220,12 +2028,13 @@ def main():
                 }
             }
             final_evaluation_md = build_report_markdown(scores_payload, score_breakdown, defects)
+            report_step(request_id, 9, page.url, "CALCULATE_SCORE", reason="수집한 audit과 탐색 결과로 최종 점수를 계산했습니다.", screenshot_url=capture_live_frame(page))
+            steps_history.append({"step": 9, "url": page.url, "action": "CALCULATE_SCORE", "reason": "수집한 audit과 탐색 결과로 최종 점수를 계산했습니다."})
             
-            # 사용자가 최종 화면을 확인할 수 있도록 컨테이너를 잠시 유지합니다.
-            keepalive_seconds = int(os.getenv("VNC_KEEPALIVE_SECONDS", "180"))
-            print(f"Test finished. Keeping VNC alive for {keepalive_seconds} seconds...")
-            time.sleep(keepalive_seconds)
-
+            # STEP 10: 최종 보고서를 저장하는 단계입니다.
+            # 이전에는 VNC 화면 확인용 keepalive sleep이 여기 있었지만,
+            # 점수 계산 후에도 Running 상태가 불필요하게 오래 유지되어 제거했습니다.
+            # 테스트가 끝났으면 바로 보고서를 저장하고 워커를 종료합니다.
             final_page_url = page.url
             video_path = page.video.path() if page.video else None
             context.close()
@@ -1239,8 +2048,8 @@ def main():
                 except Exception:
                     pass
 
-            report_step(request_id, 9, final_page_url, "SAVE_REPORT", reason="점수, 결함, 영상 URL을 포함한 최종 보고서를 저장합니다.")
-            steps_history.append({"step": 9, "url": final_page_url, "action": "SAVE_REPORT", "reason": "점수, 결함, 영상 URL을 포함한 최종 보고서를 저장합니다."})
+            report_step(request_id, 10, final_page_url, "SAVE_REPORT", reason="점수, 결함, 영상 URL을 포함한 최종 보고서를 저장했습니다.")
+            steps_history.append({"step": 10, "url": final_page_url, "action": "SAVE_REPORT", "reason": "점수, 결함, 영상 URL을 포함한 최종 보고서를 저장했습니다."})
             
             final_report = {
                 "requestId": request_id,
