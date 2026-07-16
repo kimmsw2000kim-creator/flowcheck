@@ -4,6 +4,7 @@ import com.flowcheck.domain.PostCategory;
 import com.flowcheck.dto.community.CommunityPostRequest;
 import com.flowcheck.dto.community.CommunityPostResponse;
 import com.flowcheck.dto.community.CommunityPostUpdateRequest;
+import com.flowcheck.dto.community.CommunitySharedTestResultResponse;
 import com.flowcheck.service.CommunityPostService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -70,6 +71,26 @@ public class CommunityPostController {
     ) {
         CommunityPostResponse response =
                 communityPostService.findPost(postId);
+
+        return ResponseEntity.ok(response);
+    }
+
+    /*
+     * 테스트 공유 게시글에 연결된 실제 테스트 결과를 조회합니다.
+     *
+     * requestId를 외부에서 직접 받지 않고 게시글 번호를 이용해
+     * 서버가 연결된 테스트 요청을 찾습니다.
+     */
+    @Operation(summary = "커뮤니티 공유 테스트 결과 조회")
+    @GetMapping("/{postId}/test-result")
+    public ResponseEntity<CommunitySharedTestResultResponse>
+    getSharedTestResult(
+            @PathVariable Long postId
+    ) {
+        CommunitySharedTestResultResponse response =
+                communityPostService.findSharedTestResult(
+                        postId
+                );
 
         return ResponseEntity.ok(response);
     }

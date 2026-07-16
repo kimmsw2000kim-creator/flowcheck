@@ -1,9 +1,12 @@
 package com.flowcheck.service;
 
 import com.flowcheck.domain.*;
+import com.flowcheck.dto.LoadTest.LoadTestResponse;
 import com.flowcheck.dto.community.CommunityPostRequest;
 import com.flowcheck.dto.community.CommunityPostResponse;
 import com.flowcheck.dto.community.CommunityPostUpdateRequest;
+import com.flowcheck.dto.community.CommunitySharedTestResultResponse;
+import com.flowcheck.dto.uiuxtest.UIUXTestStatusResponse;
 import com.flowcheck.repository.CommunityPostRepository;
 import com.flowcheck.repository.RegisteredSiteRepository;
 import com.flowcheck.repository.TestRequestRepository;
@@ -16,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -28,6 +32,14 @@ public class CommunityPostService {
     private final UserRepository userRepository;
     private final RegisteredSiteRepository registeredSiteRepository;
     private final TestRequestRepository testRequestRepository;
+
+    /*
+     * 기존 테스트 결과 생성 로직을 재사용합니다.
+     *
+     * 커뮤니티 서비스에서 리포트 계산 로직을 중복해서 만들지 않습니다.
+     */
+    private final LoadTestService loadTestService;
+    private final UIUXTestService uiuxTestService;
 
     /*
      * 카테고리별 게시글 목록을 조회합니다.
@@ -56,6 +68,123 @@ public class CommunityPostService {
         }
 
         return posts.map(this::toResponse);
+    }
+
+    /*
+     * 테스트 공유 게시글과 연결된 실제 결과를 조회합니다.
+     *
+     * 클라이언트가 requestId를 직접 전달하지 않고
+     * postId를 기준으로 서버가 연결된 테스트를 찾습니다.
+     */
+    public CommunitySharedTestResultResponse findSharedTestResult(
+            Long postId
+    ) {
+        CommunityPost post = communityPostRepository
+                .findByPostId(postId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "게시글을 찾을 수 없습니다."
+                ));
+
+        /*
+         * 사이트 홍보글이나 자유게시판 글에서는
+         * 테스트 결과를 조회할 수 없습니다.
+         */
+        if (post.getCategory() != PostCategory.TEST_SHARE) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "테스트 공유 게시글이 아닙니다."
+            );
+        }
+
+        /*
+         * test_requests.post_id를 이용해
+         * 게시글에 실제로 연결된 테스트 요청을 찾습니다.
+         */
+        TestRequest testRequest = testRequestRepository
+                .findByCommunityPost_PostId(postId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "게시글에 연결된 테스트 결과가 없습니다."
+                ));
+
+        /*
+         * 완료된 테스트만 커뮤니티에 결과를 공개합니다.
+         */
+        if (!"COMPLETED".equalsIgnoreCase(
+                testRequest.getTestStatus()
+        )) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "아직 완료되지 않은 테스트입니다."
+            );
+        }
+
+        String testType = testRequest
+                .getTestType()
+                .toUpperCase(Locale.ROOT);
+
+        return switch (testType) {
+            case "LOAD" -> {
+                /*
+                 * 기존 부하 테스트 서비스의 결과 계산을 재사용합니다.
+                 *
+                 * 사용자 ID는 화면에서 받은 값이 아니라
+                 * DB에 저장된 테스트 소유자 ID를 사용합니다.
+                 */
+                LoadTestResponse response =
+                        loadTestService.getTestResult(
+                                testRequest
+                                        .getUser()
+                                        .getUserId(),
+                                testRequest.getId()
+                        );
+
+                if (response.getTestResults() == null) {
+                    throw new ResponseStatusException(
+                            HttpStatus.NOT_FOUND,
+                            "부하 테스트 리포트를 찾을 수 없습니다."
+                    );
+                }
+
+                yield CommunitySharedTestResultResponse.load(
+                        response.getTestResults()
+                );
+            }
+
+            case "UIUX" -> {
+                /*
+                 * 기존 UI/UX 결과 생성 로직을 재사용합니다.
+                 */
+                UIUXTestStatusResponse response =
+                        uiuxTestService.getTestStatus(
+                                testRequest.getId()
+                        );
+
+                /*
+                 * URL, 영상, 화면 캡처 등의 민감 정보는 제외하고
+                 * 점수와 분석 보고서만 커뮤니티 응답으로 변환합니다.
+                 */
+                CommunitySharedTestResultResponse.SharedUiuxResult
+                        sharedResult =
+                        new CommunitySharedTestResultResponse
+                                .SharedUiuxResult(
+                                response.getReport(),
+                                response.getScores(),
+                                response.getScoreBreakdown(),
+                                response.getEvaluationVersion()
+                        );
+
+                yield CommunitySharedTestResultResponse.uiux(
+                        sharedResult
+                );
+            }
+
+            default -> throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "지원하지 않는 테스트 유형입니다."
+            );
+        };
     }
 
     /*

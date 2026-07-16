@@ -8,17 +8,20 @@ import type {
     UpdatePostRequest,
 } from '../types/post';
 
+import type {
+    CommunitySharedTestResult,
+} from '../types/communityTestResult';
 
 
 /*
  * 커뮤니티 게시글 목록 조회에 사용하는 조건입니다.
  */
 interface FetchCommunityPostsParams {
-  category: PostCategory;
-  keyword?: string;
-  page?: number;
-  size?: number;
-  sort?: string;
+    category: PostCategory;
+    keyword?: string;
+    page?: number;
+    size?: number;
+    sort?: string;
 }
 
 /*
@@ -51,29 +54,54 @@ function getErrorMessage(
 }
 
 export async function fetchCommunityPosts({
-  category,
-  keyword,
-  page = 0,
-  size = 10,
-  sort = 'createdAt,desc',
+    category,
+    keyword,
+    page = 0,
+    size = 10,
+    sort = 'createdAt,desc',
 }: FetchCommunityPostsParams): Promise<PostPage> {
-  try {
-    const response = await apiClient.get<PostPage>('/api/community/posts', {
-      params: { category, keyword: keyword || undefined, page, size, sort },
-    });
-    return response.data;
-  } catch (error) {
-    throw new Error(getErrorMessage(error, '커뮤니티 게시글을 불러오지 못했습니다.'));
-  }
+    try {
+        const response = await apiClient.get<PostPage>('/api/community/posts', {
+            params: { category, keyword: keyword || undefined, page, size, sort },
+        });
+        return response.data;
+    } catch (error) {
+        throw new Error(getErrorMessage(error, '커뮤니티 게시글을 불러오지 못했습니다.'));
+    }
 }
 
 export async function fetchCommunityPost(postId: number): Promise<Post> {
-  try {
-    const response = await apiClient.get<Post>(`/api/community/posts/${postId}`);
-    return response.data;
-  } catch (error) {
-    throw new Error(getErrorMessage(error, '커뮤니티 게시글을 불러오지 못했습니다.'));
-  }
+    try {
+        const response = await apiClient.get<Post>(`/api/community/posts/${postId}`);
+        return response.data;
+    } catch (error) {
+        throw new Error(getErrorMessage(error, '커뮤니티 게시글을 불러오지 못했습니다.'));
+    }
+}
+
+/*
+ * 테스트 공유 게시글과 연결된 실제 테스트 결과를 조회합니다.
+ *
+ * requestId를 직접 사용하지 않고 게시글 번호를 기준으로 조회합니다.
+ */
+export async function fetchCommunityTestResult(
+    postId: number
+): Promise<CommunitySharedTestResult> {
+    try {
+        const response =
+            await apiClient.get<CommunitySharedTestResult>(
+                `/api/community/posts/${postId}/test-result`
+            );
+
+        return response.data;
+    } catch (error: unknown) {
+        throw new Error(
+            getErrorMessage(
+                error,
+                '공유된 테스트 결과를 불러오지 못했습니다.'
+            )
+        );
+    }
 }
 
 /*
