@@ -1,6 +1,31 @@
+import json
+from functools import lru_cache
+from pathlib import Path
+from string import Template
 from typing import Any
 
 from .exceptions import LoadTestGenerationError
+
+DEFAULT_K6_TEMPLATE_PATH = (
+    Path(__file__).resolve().parent / "templates" / "default_k6.js.template"
+)
+
+
+@lru_cache(maxsize=1)
+def load_default_k6_template() -> Template:
+    return Template(DEFAULT_K6_TEMPLATE_PATH.read_text(encoding="utf-8"))
+
+
+def render_default_k6_script(
+    target_url: str,
+    vusers: int,
+    duration: int,
+) -> str:
+    return load_default_k6_template().substitute(
+        target_url=json.dumps(target_url),
+        vusers=str(int(vusers)),
+        duration=json.dumps(f"{int(duration)}s"),
+    )
 
 
 def build_k6_system_prompt(
@@ -44,6 +69,14 @@ async def generate_k6_script(
     duration: int,
     load_prompt: str,
 ) -> str:
+    if not (load_prompt or "").strip():
+        try:
+            return render_default_k6_script(target_url, vusers, duration)
+        except Exception as exc:
+            raise LoadTestGenerationError(
+                "기본 k6 스크립트를 생성하지 못했습니다."
+            ) from exc
+
     try:
         system_prompt = build_k6_system_prompt(
             target_url,

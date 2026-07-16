@@ -24,7 +24,7 @@ async def run_load_test_pipeline(client: Any, request: Any) -> TestResultsRespon
             status="RUNNING",
             phase="GENERATING_SCRIPT",
             progress=15,
-            message="k6 스크립트를 생성하는 중입니다.",
+            message="k6 스크립트를 준비하는 중입니다.",
         ),
     )
 
@@ -46,7 +46,7 @@ async def run_load_test_pipeline(client: Any, request: Any) -> TestResultsRespon
         ),
     )
 
-    logger.debug("Gemini generated k6 script:\n%s", generated_script)
+    logger.debug("Prepared k6 script:\n%s", generated_script)
 
     summary = await asyncio.to_thread(
         run_k6_aws_fargate,
