@@ -11,8 +11,10 @@ UIUX_TASK_FAMILY = os.getenv("ECS_UIUX_TASK_FAMILY", "flowcheck-uiux-task")
 CONTAINER_NAME = os.getenv("ECS_UIUX_CONTAINER_NAME", "flowcheck-ai")
 DOCKER_USERNAME = os.getenv("DOCKER_USERNAME")
 AI_IMAGE = os.getenv("AI_IMAGE", "flowcheck-ai")
-ENABLE_AWSLOGS = os.getenv("ECS_UIUX_ENABLE_AWSLOGS", "false").lower() == "true"
+ENABLE_AWSLOGS = os.getenv("ECS_UIUX_ENABLE_AWSLOGS", "true").lower() == "true"
 AWSLOGS_GROUP = os.getenv("ECS_UIUX_AWSLOGS_GROUP", "/ecs/flowcheck-uiux")
+UIUX_TASK_CPU = os.getenv("ECS_UIUX_TASK_CPU", "2048")
+UIUX_TASK_MEMORY = os.getenv("ECS_UIUX_TASK_MEMORY", "4096")
 
 if not SOURCE_TASK_FAMILY:
     raise SystemExit("ECS_TASK_FAMILY is required so the UIUX task can reuse its IAM roles.")
@@ -32,8 +34,8 @@ except Exception as exc:
 container_definition = {
     "name": CONTAINER_NAME,
     "image": f"{DOCKER_USERNAME}/{AI_IMAGE}:latest",
-    "cpu": 1024,
-    "memory": 2048,
+    "cpu": int(UIUX_TASK_CPU),
+    "memory": int(UIUX_TASK_MEMORY),
     "essential": True,
     "portMappings": [
         {
@@ -45,14 +47,17 @@ container_definition = {
 }
 
 if ENABLE_AWSLOGS:
+    log_options = {
+        "awslogs-group": AWSLOGS_GROUP,
+        "awslogs-region": AWS_REGION,
+        "awslogs-stream-prefix": "ecs",
+    }
+    if os.getenv("ECS_UIUX_AWSLOGS_CREATE_GROUP", "false").lower() == "true":
+        log_options["awslogs-create-group"] = "true"
+
     container_definition["logConfiguration"] = {
         "logDriver": "awslogs",
-        "options": {
-            "awslogs-group": AWSLOGS_GROUP,
-            "awslogs-region": AWS_REGION,
-            "awslogs-stream-prefix": "ecs",
-            "awslogs-create-group": "false",
-        },
+        "options": log_options,
     }
 
 try:
@@ -63,8 +68,8 @@ try:
         networkMode="awsvpc",
         containerDefinitions=[container_definition],
         requiresCompatibilities=["FARGATE"],
-        cpu="1024",
-        memory="2048",
+        cpu=UIUX_TASK_CPU,
+        memory=UIUX_TASK_MEMORY,
     )
     revision = response["taskDefinition"]["revision"]
     print(f"Registered {UIUX_TASK_FAMILY}:{revision} using image {DOCKER_USERNAME}/{AI_IMAGE}:latest")

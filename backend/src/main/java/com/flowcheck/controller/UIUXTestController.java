@@ -8,12 +8,10 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URLEncoder;
@@ -85,8 +83,10 @@ public class UIUXTestController {
     public ResponseEntity<?> issueVncToken(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable UUID requestId) {
+        String userIdForLog = jwt != null ? jwt.getSubject() : "anonymous";
+        log.info("VNC_DIAG token_request requestId={} userId={}", requestId, userIdForLog);
         try {
-            UUID userId = UUID.fromString(jwt.getSubject());
+            UUID userId = UUID.fromString(userIdForLog);
             long expiresAt = UIUXTestService.issueVncAccessExpiresAt(userId, requestId);
             String token = UIUXTestService.signVncAccess(requestId, expiresAt);
             String websocketPath = "/api/uiux-tests/" + requestId + "/vnc-ws"
@@ -100,29 +100,20 @@ public class UIUXTestController {
                     + "&expires=" + expiresAt
                     + "&token=" + token;
 
-            return ResponseEntity.ok(new UIUXVncAccessResponse(url, expiresAt));
+            log.info("VNC_DIAG token_ready requestId={} userId={} expiresAt={} proxyPath={}",
+                    requestId, userIdForLog, expiresAt, "/api/uiux-tests/" + requestId + "/vnc/vnc.html");
+            return ResponseEntity.ok(UIUXVncAccessResponse.ready(url, expiresAt));
         } catch (IllegalArgumentException e) {
             log.warn("VNC signed URL 발급 실패: {}", e.getMessage());
+            log.warn("VNC_DIAG token_forbidden requestId={} userId={} reason={}", requestId, userIdForLog, e.getMessage());
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
         } catch (IllegalStateException e) {
             log.warn("VNC signed URL 준비 실패: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
+            log.info("VNC_DIAG token_pending requestId={} userId={} reason={}", requestId, userIdForLog, e.getMessage());
+            return ResponseEntity.accepted().body(UIUXVncAccessResponse.pending(e.getMessage()));
         } catch (Exception e) {
+            log.error("VNC_DIAG token_error requestId={} userId={}", requestId, userIdForLog, e);
             log.error("VNC signed URL 발급 중 오류", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
-        }
-    }
-
-    @Autowired
-    private jakarta.persistence.EntityManager entityManager;
-
-    @GetMapping("/fix-db")
-    @Transactional
-    public ResponseEntity<?> fixDb() {
-        try {
-            entityManager.createNativeQuery("ALTER TABLE public.uiux_test_reports DROP COLUMN ai_ux_review").executeUpdate();
-            return ResponseEntity.ok("ai_ux_review column dropped successfully.");
-        } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
         }
     }
@@ -179,5 +170,47 @@ public class UIUXTestController {
             log.error("실패 보고 중 오류 발생", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
         }
+    }
+
+    @Operation(summary = "UI/UX 테스트 사용자 중지", description = "로그인 사용자가 진행 중인 UI/UX 테스트를 중지하고 실패 상태로 표시합니다.")
+    @PostMapping("/{requestId}/cancel")
+    public ResponseEntity<?> cancelTest(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID requestId) {
+        try {
+            UUID userId = UUID.fromString(jwt.getSubject());
+            UIUXTestService.cancelTestForUser(userId, requestId);
+            return ResponseEntity.ok().build();
+        } catch (IllegalArgumentException e) {
+            log.warn("UI/UX 테스트 중지 요청 실패: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (IllegalStateException e) {
+            log.warn("UI/UX 테스트 중지 불가: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
+        } catch (Exception e) {
+            log.error("UI/UX 테스트 중지 중 오류 발생", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/{requestId}/client-log")
+    public ResponseEntity<?> recordClientLog(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID requestId,
+            @RequestBody java.util.Map<String, Object> payload) {
+        String userId = jwt != null ? jwt.getSubject() : "anonymous";
+        String event = sanitizeClientLogValue(payload != null ? payload.get("event") : null);
+        String detail = sanitizeClientLogValue(payload != null ? payload.get("detail") : null);
+        log.info("VNC_DIAG client requestId={} userId={} event={} detail={}", requestId, userId, event, detail);
+        return ResponseEntity.ok().build();
+    }
+
+    private String sanitizeClientLogValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        String text = String.valueOf(value)
+                .replaceAll("(?i)(token=)[^&\\s,}]+", "$1[redacted]");
+        return text.length() <= 2000 ? text : text.substring(0, 2000) + "...[truncated]";
     }
 }

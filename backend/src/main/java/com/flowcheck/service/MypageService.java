@@ -6,7 +6,6 @@ import com.flowcheck.domain.CreditsLedger;
 import com.flowcheck.domain.LoadTestReport;
 import com.flowcheck.domain.RegisteredSite;
 import com.flowcheck.domain.TestRequest;
-import com.flowcheck.domain.UIUXTestReport;
 import com.flowcheck.domain.User;
 import com.flowcheck.dto.mypage.MypageCouponHistoryResponseDTO;
 import com.flowcheck.dto.mypage.MypagePointHistoryResponseDTO;
@@ -105,12 +104,17 @@ public class MypageService {
                                         null,
                                         test.getPromptInput(),
                                         test.getCreatedAt(),
-                                        test.getUpdatedAt()));
+                                        test.getUpdatedAt(),
+
+                                        // 이미 공유된 테스트인지 프런트에서 구분할 수 있게 게시글 ID를 전달합니다.
+                                        test.getCommunityPost() == null
+                                                ? null
+                                                : test.getCommunityPost().getPostId()));
                 });
 
                 List<TestRequest> uiRequests = testRequestRepository.findByUserAndTestTypeOrderByCreatedAtAsc(user, "UIUX");
                 uiRequests.forEach(test -> {
-                        UIUXTestReport report = uiuxTestReportRepository.findByTestRequestId(test.getId()).orElse(null);
+                        var report = uiuxTestReportRepository.findScoresProjectionByTestRequestId(test.getId()).orElse(null);
                         histories.add(new MypageTestHistoryResponseDTO(
                                         test.getId(),
                                         "UIUX",
@@ -127,7 +131,12 @@ public class MypageService {
                                         report != null ? report.getScoreBestPractices() : null,
                                         test.getPromptInput(),
                                         test.getCreatedAt(),
-                                        test.getUpdatedAt()));
+                                        test.getUpdatedAt(),
+
+                                        // LOAD 테스트와 동일하게 공유된 게시글 ID를 전달합니다.
+                                        test.getCommunityPost() == null
+                                                ? null
+                                                : test.getCommunityPost().getPostId()));
                 });
 
                 histories.sort(Comparator.comparing(

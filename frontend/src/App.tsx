@@ -21,16 +21,17 @@ import DomainsPage from './pages/DomainsPage';
 import UIUXTestPage from './pages/UIUXTestPage';
 import LoadPage from './pages/LoadPage';
 import PaymentPage from './pages/PaymentPage';
-import CommunityPage from './pages/CommunityPage';
-import PostWritePage from './pages/PostWritePage';
-import PostDetailPage from './pages/PostDetailPage';
-import PostEditPage from './pages/PostEditPage';
-import CommentPage from './pages/CommentPage';
+import PostWritePage from "./pages/PostWritePage";
+import PostEditPage from "./pages/PostEditPage";
+import AdminPage from './pages/admin/AdminPage';
 import SupportPage from './pages/SupportPage';
 import Mypage from './pages/Mypage';
-import AdminPage from './pages/admin/AdminPage';
-
-// Styles
+import AuthPage from './pages/AuthPage';
+import AuthCallback from './pages/AuthCallback';
+import LandingPage from './pages/LandingPage';
+import CommentPage from "./pages/CommentPage";
+import CommunityHubPage from './pages/community/CommunityHubPage';
+import CommunityPostDetailPage from './pages/community/CommunityPostDetailPage';
 import './styles/CommunityPages.css';
 import './styles/AppShell.css';
 import './styles/UtilityPages.css';
@@ -302,17 +303,47 @@ function App() {
               {/* 커뮤니티 */}
               <Route
                 path="/community"
+                element={<CommunityHubPage />}
+              />
+
+              {/* 기존 미리보기 주소로 접근하면 실제 커뮤니티로 이동합니다. */}
+              <Route
+                path="/community-preview"
                 element={
-                  <CommunityPage
-                    currentUser={
-                      authenticatedUser
-                    }
-                    showAlert={showAlert}
-                    handleSubmitReport={
-                      handleSubmitReport
-                    }
+                  <Navigate
+                    to="/community"
+                    replace
                   />
                 }
+              />
+
+              {/* 과거 커뮤니티 작성 주소는 새 커뮤니티로 이동시킵니다. */}
+              <Route
+                path="/community/write"
+                element={<Navigate to="/community" replace />}
+              />
+
+              {/* 새 community_posts 테이블을 사용하는 상세 페이지입니다. */}
+              <Route
+                path="/community/:postId"
+                element={<CommunityPostDetailPage />}
+              />
+
+              {/* 수정은 상세 화면의 모달을 사용합니다. */}
+              <Route
+                path="/community/:postId/edit"
+                element={<Navigate to="/community" replace />}
+              />
+
+              {/* 자유게시판 작성과 수정 경로는 그대로 유지합니다. */}
+              <Route
+                path="/comment/write"
+                element={<PostWritePage />}
+              />
+
+              <Route
+                path="/comment/:postId/edit"
+                element={<PostEditPage />}
               />
 
               <Route

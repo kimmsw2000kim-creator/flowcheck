@@ -47,15 +47,19 @@ public class UIUXVncWebSocketProxyHandler implements WebSocketHandler, SubProtoc
                         ? List.of(acceptedProtocol)
                         : List.of("binary"));
 
+        log.info("VNC_DIAG ws_open requestId={} clientSession={} upstreamHost={} upstreamPort={}",
+                requestId, clientSession.getId(), upstreamUri.getHost(), upstreamUri.getPort());
         log.info("Opening VNC websocket proxy. requestId={}, clientSession={}, upstream={}",
                 requestId, clientSession.getId(), upstreamUri);
 
         WebSocketSession upstreamSession = webSocketClient.execute(
-                new UpstreamRelayHandler(clientSession),
+                new UpstreamRelayHandler(clientSession, requestId),
                 headers,
                 upstreamUri
         ).get();
         upstreamSessions.put(clientSession.getId(), upstreamSession);
+        log.info("VNC_DIAG ws_connected requestId={} clientSession={} upstreamSession={}",
+                requestId, clientSession.getId(), upstreamSession.getId());
         log.info("VNC websocket proxy connected. requestId={}, clientSession={}, upstreamSession={}",
                 requestId, clientSession.getId(), upstreamSession.getId());
     }
@@ -66,6 +70,8 @@ public class UIUXVncWebSocketProxyHandler implements WebSocketHandler, SubProtoc
         if (upstreamSession != null && upstreamSession.isOpen()) {
             send(upstreamSession, copyMessage(message));
         } else {
+            log.warn("VNC_DIAG ws_drop_message requestId={} clientSession={} reason=upstream_not_open",
+                    clientSession.getAttributes().get("requestId"), clientSession.getId());
             log.warn("Dropping VNC client message because upstream is not open. clientSession={}",
                     clientSession.getId());
         }
@@ -73,12 +79,16 @@ public class UIUXVncWebSocketProxyHandler implements WebSocketHandler, SubProtoc
 
     @Override
     public void handleTransportError(WebSocketSession session, Throwable exception) throws Exception {
+        log.warn("VNC_DIAG ws_client_error requestId={} clientSession={}",
+                session.getAttributes().get("requestId"), session.getId(), exception);
         log.warn("VNC websocket proxy transport error", exception);
         closePair(session, CloseStatus.SERVER_ERROR);
     }
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus closeStatus) throws Exception {
+        log.info("VNC_DIAG ws_client_closed requestId={} clientSession={} status={}",
+                session.getAttributes().get("requestId"), session.getId(), closeStatus);
         log.info("VNC client websocket closed. clientSession={}, status={}", session.getId(), closeStatus);
         closePair(session, closeStatus);
     }
@@ -130,13 +140,17 @@ public class UIUXVncWebSocketProxyHandler implements WebSocketHandler, SubProtoc
 
     private class UpstreamRelayHandler implements WebSocketHandler {
         private final WebSocketSession clientSession;
+        private final UUID requestId;
 
-        private UpstreamRelayHandler(WebSocketSession clientSession) {
+        private UpstreamRelayHandler(WebSocketSession clientSession, UUID requestId) {
             this.clientSession = clientSession;
+            this.requestId = requestId;
         }
 
         @Override
         public void afterConnectionEstablished(WebSocketSession session) {
+            log.info("VNC_DIAG ws_upstream_connected requestId={} clientSession={} upstreamSession={}",
+                    requestId, clientSession.getId(), session.getId());
             log.info("VNC upstream websocket connected. upstreamSession={}", session.getId());
         }
 
@@ -149,6 +163,8 @@ public class UIUXVncWebSocketProxyHandler implements WebSocketHandler, SubProtoc
 
         @Override
         public void handleTransportError(WebSocketSession session, Throwable exception) throws Exception {
+            log.warn("VNC_DIAG ws_upstream_error requestId={} clientSession={} upstreamSession={}",
+                    requestId, clientSession.getId(), session.getId(), exception);
             log.warn("VNC upstream websocket error", exception);
             if (clientSession.isOpen()) {
                 clientSession.close(CloseStatus.SERVER_ERROR);
@@ -157,6 +173,8 @@ public class UIUXVncWebSocketProxyHandler implements WebSocketHandler, SubProtoc
 
         @Override
         public void afterConnectionClosed(WebSocketSession session, CloseStatus closeStatus) throws Exception {
+            log.info("VNC_DIAG ws_upstream_closed requestId={} clientSession={} upstreamSession={} status={}",
+                    requestId, clientSession.getId(), session.getId(), closeStatus);
             log.info("VNC upstream websocket closed. upstreamSession={}, status={}", session.getId(), closeStatus);
             if (clientSession.isOpen()) {
                 clientSession.close(closeStatus);

@@ -1,8 +1,9 @@
+import json
 import os
 import sys
 import unittest
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
@@ -13,7 +14,11 @@ from load_test.report_generator import (
     sanitize_analysis_markdown,
 )
 from load_test.result_processor import calculate_performance_assessment
-from load_test.script_generator import clean_k6_script, generate_k6_script
+from load_test.script_generator import (
+    clean_k6_script,
+    generate_k6_script,
+    load_default_k6_template,
+)
 
 
 def gemini_client(response_text=None, side_effect=None):
@@ -30,12 +35,57 @@ class ScriptGeneratorTest(unittest.IsolatedAsyncioTestCase):
     def test_clean_k6_script_removes_markdown_fences(self):
         self.assertEqual("export default {}", clean_k6_script("```js\nexport default {}\n```"))
 
-    async def test_generate_k6_script_returns_clean_code(self):
+    async def test_empty_prompts_render_default_template_without_llm(self):
+        target_url = 'https://example.com/path?value="quoted"\\next\nline'
+
+        for load_prompt in ("", "   ", None):
+            with self.subTest(load_prompt=load_prompt):
+                client = gemini_client("must not be used")
+                result = await generate_k6_script(
+                    client,
+                    target_url,
+                    17,
+                    42,
+                    load_prompt,
+                )
+
+                self.assertIn("vus: 17", result)
+                self.assertIn('duration: "42s"', result)
+                self.assertIn("discardResponseBodies: true", result)
+                self.assertIn(f"http.get({json.dumps(target_url)})", result)
+                client.aio.models.generate_content.assert_not_awaited()
+
+    async def test_non_empty_prompt_calls_llm_and_returns_clean_code(self):
         client = gemini_client("```javascript\nexport default {}\n```")
-        result = await generate_k6_script(client, "https://example.com", 2, 10, "")
+        result = await generate_k6_script(
+            client,
+            "https://example.com",
+            2,
+            10,
+            "점진적으로 부하를 증가시켜 주세요.",
+        )
         self.assertEqual("export default {}", result)
         call = client.aio.models.generate_content.await_args.kwargs
         self.assertEqual("gemini-3.5-flash", call["model"])
+        self.assertIn("점진적으로 부하를 증가", call["contents"])
+
+    async def test_template_read_failure_is_wrapped(self):
+        load_default_k6_template.cache_clear()
+        try:
+            with patch(
+                "load_test.script_generator.Path.read_text",
+                side_effect=OSError("missing template"),
+            ):
+                with self.assertRaisesRegex(LoadTestGenerationError, "기본 k6"):
+                    await generate_k6_script(
+                        gemini_client(),
+                        "https://example.com",
+                        2,
+                        10,
+                        "",
+                    )
+        finally:
+            load_default_k6_template.cache_clear()
 
     async def test_generate_k6_script_wraps_client_failure(self):
         with self.assertRaises(LoadTestGenerationError):
@@ -44,7 +94,7 @@ class ScriptGeneratorTest(unittest.IsolatedAsyncioTestCase):
                 "https://example.com",
                 2,
                 10,
-                "",
+                "사용자 정의 시나리오",
             )
 
 

@@ -16,6 +16,10 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"), override=True)
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://host.docker.internal:8080")
+INITIAL_PAGE_LOAD_TIMEOUT_MS = int(os.getenv("UIUX_INITIAL_PAGE_LOAD_TIMEOUT_MS", "7000"))
+INITIAL_SETTLE_TIMEOUT_MS = int(os.getenv("UIUX_INITIAL_SETTLE_TIMEOUT_MS", "250"))
+LIGHTHOUSE_TIMEOUT_SECONDS = int(os.getenv("UIUX_LIGHTHOUSE_TIMEOUT_SECONDS", "8"))
+LIGHTHOUSE_PRECHECK_TIMEOUT_SECONDS = float(os.getenv("UIUX_LIGHTHOUSE_PRECHECK_TIMEOUT_SECONDS", "5"))
 
 UNIVERSAL_UIUX_AGENT_PROMPT = """
 너는 범용 UI/UX 테스트 에이전트다.
@@ -143,30 +147,33 @@ def summarize_page_state(page) -> Dict[str, Any]:
         return {"url": getattr(page, "url", None), "error": str(e)}
 
 def classify_site_type(page) -> Dict[str, Any]:
+    started_at = time.time()
     try:
-        return page.evaluate("""
+        profile = page.evaluate("""
             () => {
                 const visible = (el) => {
                     const rect = el.getBoundingClientRect();
                     const style = window.getComputedStyle(el);
                     return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
                 };
-                const pickText = (selector, limit) => Array.from(document.querySelectorAll(selector))
+                const pickText = (selector, limit, maxScan = 120) => Array.from(document.querySelectorAll(selector))
+                    .slice(0, maxScan)
                     .filter(visible)
                     .slice(0, limit)
                     .map((el) => (el.innerText || el.textContent || el.value || el.placeholder || el.getAttribute('aria-label') || '').trim())
                     .filter(Boolean);
                 const title = document.title || '';
-                const headings = pickText('h1, h2, h3', 20);
-                const navTexts = pickText('nav a, header a, nav button, header button', 30);
-                const buttonTexts = pickText('button, [role="button"], input[type="button"], input[type="submit"]', 80);
-                const linkTexts = pickText('a[href]', 80);
+                const headings = pickText('h1, h2, h3', 12, 80);
+                const navTexts = pickText('nav a, header a, nav button, header button', 18, 80);
+                const buttonTexts = pickText('button, [role="button"], input[type="button"], input[type="submit"]', 35, 120);
+                const linkTexts = pickText('a[href]', 35, 140);
                 const inputTexts = Array.from(document.querySelectorAll('input, textarea, select'))
+                    .slice(0, 35)
                     .filter(visible)
-                    .slice(0, 50)
+                    .slice(0, 18)
                     .map((el) => [el.placeholder, el.name, el.id, el.getAttribute('aria-label'), el.type].filter(Boolean).join(' '))
                     .filter(Boolean);
-                const body = (document.body ? document.body.innerText : '').slice(0, 5000);
+                const body = (document.body ? (document.body.innerText || document.body.textContent || '') : '').slice(0, 2500);
                 const haystack = [location.href, title, ...headings, ...navTexts, ...buttonTexts, ...linkTexts, ...inputTexts, body].join('\
 ').toLowerCase();
                 const categories = {
@@ -241,7 +248,15 @@ def classify_site_type(page) -> Dict[str, Any]:
                 };
             }
         """)
+        uiux_log(
+            "site.classified_fast",
+            elapsedSeconds=round(time.time() - started_at, 3),
+            primaryType=profile.get("primaryType"),
+            confidence=profile.get("confidence"),
+        )
+        return profile
     except Exception as e:
+        uiux_log("site.classification_failed", elapsedSeconds=round(time.time() - started_at, 3), error=str(e))
         return {
             "primaryType": "unknown_mixed",
             "secondaryTypes": [],
@@ -445,17 +460,43 @@ def find_chromium_executable() -> Optional[str]:
                     return candidate
     return None
 
+def _trim_debug_text(value: Optional[str], limit: int = 1500) -> str:
+    return (value or "").strip()[:limit]
+
 def run_lighthouse_audit(target_url: str) -> Dict[str, Any]:
+    started_at = time.time()
+    diagnostics = {
+        "targetUrl": target_url,
+        "timeoutSeconds": LIGHTHOUSE_TIMEOUT_SECONDS,
+        "precheckTimeoutSeconds": LIGHTHOUSE_PRECHECK_TIMEOUT_SECONDS,
+    }
     lighthouse_cli = os.path.join(os.path.dirname(__file__), "node_modules", "lighthouse", "cli", "index.js")
+    diagnostics["lighthouseCli"] = lighthouse_cli
+    diagnostics["lighthouseCliExists"] = os.path.exists(lighthouse_cli)
     if not os.path.exists(lighthouse_cli):
-        return {"available": False, "error": "Lighthouse package is not installed."}
+        uiux_log("lighthouse.preflight_failed", **diagnostics, reason="missing_lighthouse_package")
+        return {"available": False, "error": "Lighthouse package is not installed.", "diagnostics": diagnostics}
 
     chrome_path = find_chromium_executable()
+    diagnostics["chromePath"] = chrome_path
+    diagnostics["chromePathExists"] = bool(chrome_path and os.path.exists(chrome_path))
     if not chrome_path:
-        return {"available": False, "error": "Chromium executable is not installed."}
+        uiux_log("lighthouse.preflight_failed", **diagnostics, reason="missing_chromium")
+        return {"available": False, "error": "Chromium executable is not installed.", "diagnostics": diagnostics}
+
+    try:
+        precheck_started = time.time()
+        with httpx.Client(timeout=LIGHTHOUSE_PRECHECK_TIMEOUT_SECONDS, follow_redirects=True, verify=False) as client:
+            response = client.get(target_url)
+        diagnostics["targetPrecheckStatus"] = response.status_code
+        diagnostics["targetPrecheckFinalUrl"] = str(response.url)
+        diagnostics["targetPrecheckSeconds"] = round(time.time() - precheck_started, 3)
+    except Exception as e:
+        diagnostics["targetPrecheckError"] = str(e)[:500]
 
     with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
         output_path = tmp.name
+    diagnostics["outputPath"] = output_path
 
     cmd = [
         "node",
@@ -467,10 +508,15 @@ def run_lighthouse_audit(target_url: str) -> Dict[str, Any]:
         "--only-categories=performance,accessibility,best-practices",
         "--chrome-flags=--headless=new --no-sandbox --disable-dev-shm-usage --ignore-certificate-errors",
     ]
+    diagnostics["command"] = " ".join(cmd[:3] + ["...", f"--timeout={LIGHTHOUSE_TIMEOUT_SECONDS}s"])
+    uiux_log("lighthouse.start", **diagnostics)
 
     try:
         env = {**os.environ, "CHROME_PATH": chrome_path}
-        subprocess.run(cmd, check=True, timeout=120, capture_output=True, text=True, env=env)
+        completed = subprocess.run(cmd, check=True, timeout=LIGHTHOUSE_TIMEOUT_SECONDS, capture_output=True, text=True, env=env)
+        diagnostics["processSeconds"] = round(time.time() - started_at, 3)
+        diagnostics["returnCode"] = completed.returncode
+        diagnostics["stderrTail"] = _trim_debug_text(completed.stderr)
         with open(output_path, "r", encoding="utf-8") as f:
             result = json.load(f)
         categories = result.get("categories", {})
@@ -511,6 +557,13 @@ def run_lighthouse_audit(target_url: str) -> Dict[str, Any]:
                 }
                 findings.append(finding)
 
+        uiux_log(
+            "lighthouse.success",
+            elapsedSeconds=diagnostics["processSeconds"],
+            lighthouseVersion=result.get("lighthouseVersion"),
+            finalUrl=result.get("finalDisplayedUrl") or result.get("finalUrl"),
+            scores=scores,
+        )
         return {
             "available": True,
             "scores": scores,
@@ -518,28 +571,47 @@ def run_lighthouse_audit(target_url: str) -> Dict[str, Any]:
             "lighthouseVersion": result.get("lighthouseVersion"),
             "fetchTime": result.get("fetchTime"),
             "finalUrl": result.get("finalDisplayedUrl") or result.get("finalUrl"),
+            "diagnostics": diagnostics,
         }
-    except subprocess.TimeoutExpired:
-        return {"available": False, "error": "Lighthouse timed out before completing."}
+    except subprocess.TimeoutExpired as e:
+        diagnostics["processSeconds"] = round(time.time() - started_at, 3)
+        diagnostics["timeoutExpired"] = True
+        diagnostics["stdoutTail"] = _trim_debug_text(e.stdout.decode("utf-8", errors="ignore") if isinstance(e.stdout, bytes) else e.stdout)
+        diagnostics["stderrTail"] = _trim_debug_text(e.stderr.decode("utf-8", errors="ignore") if isinstance(e.stderr, bytes) else e.stderr)
+        uiux_log("lighthouse.timeout", **diagnostics)
+        return {
+            "available": False,
+            "error": f"Lighthouse timed out after {LIGHTHOUSE_TIMEOUT_SECONDS}s before completing.",
+            "diagnostics": diagnostics,
+        }
     except subprocess.CalledProcessError as e:
         stderr = (e.stderr or "").strip()
         stdout = (e.stdout or "").strip()
         detail = stderr or stdout
+        diagnostics["processSeconds"] = round(time.time() - started_at, 3)
+        diagnostics["returnCode"] = e.returncode
+        diagnostics["stdoutTail"] = _trim_debug_text(stdout)
+        diagnostics["stderrTail"] = _trim_debug_text(stderr)
+        uiux_log("lighthouse.process_failed", **diagnostics)
         print(f"Lighthouse failed before completing: {detail[:1000]}", flush=True)
         return {
             "available": False,
             "error": "Lighthouse exited before completing.",
             "debugError": detail[:1000],
+            "diagnostics": diagnostics,
         }
     except Exception as e:
+        diagnostics["processSeconds"] = round(time.time() - started_at, 3)
+        diagnostics["exception"] = str(e)[:500]
+        uiux_log("lighthouse.crashed", **diagnostics)
         print(f"Lighthouse could not run: {e}", flush=True)
-        return {"available": False, "error": "Lighthouse could not run.", "debugError": str(e)[:1000]}
+        return {"available": False, "error": "Lighthouse could not run.", "debugError": str(e)[:1000], "diagnostics": diagnostics}
     finally:
         try:
-            os.remove(output_path)
+            if os.path.exists(output_path):
+                os.remove(output_path)
         except Exception:
             pass
-
 def run_axe_audit(page) -> Dict[str, Any]:
     axe_path = os.path.join(os.path.dirname(__file__), "node_modules", "axe-core", "axe.min.js")
     if not os.path.exists(axe_path):
@@ -1142,12 +1214,12 @@ def recover_to_exploration_base(page, base_url: str):
         pass
     if page.url != base_url:
         try:
-            page.go_back(timeout=5000, wait_until="domcontentloaded")
-            page.wait_for_timeout(500)
+            page.go_back(timeout=3500, wait_until="domcontentloaded")
+            page.wait_for_timeout(250)
         except Exception:
             try:
-                page.goto(base_url, timeout=7000, wait_until="domcontentloaded")
-                page.wait_for_timeout(500)
+                page.goto(base_url, timeout=4500, wait_until="domcontentloaded")
+                page.wait_for_timeout(250)
             except Exception:
                 pass
 
@@ -1214,7 +1286,7 @@ def flash_click_target(page, selector: str, label: Optional[str] = None):
         uiux_log("click_flash.failed", selector=selector, error=str(e))
 
 
-def exploratory_action_sweep(page, add_defect_fn, start_time, site_profile=None, max_actions=12):
+def exploratory_action_sweep(page, add_defect_fn, start_time, site_profile=None, max_actions=7):
     # 여러 기능을 연속으로 훑는 범용 탐색 루프입니다.
     # 한 번 성공했다고 끝내지 않고, 액션 결과를 기록한 뒤 원래 화면으로 복구해서 다음 후보를 시도합니다.
     # 네이버 같은 포털/커뮤니티/콘텐츠 사이트에서 한 화면에 멈춰 있지 않게 하기 위한 핵심 로직입니다.
@@ -1252,12 +1324,12 @@ def exploratory_action_sweep(page, add_defect_fn, start_time, site_profile=None,
         try:
             nav_start = time.time()
             flash_click_target(page, selector, selected.get("text") or selected.get("href") or "클릭")
-            page.locator(selector).first.click(timeout=4000)
+            page.locator(selector).first.click(timeout=2500)
             try:
-                page.wait_for_load_state("domcontentloaded", timeout=7000)
+                page.wait_for_load_state("domcontentloaded", timeout=4000)
             except Exception:
                 pass
-            page.wait_for_timeout(900)
+            page.wait_for_timeout(350)
             elapsed = time.time() - nav_start
             after_state = summarize_page_state(page)
             changed = (
@@ -1343,12 +1415,12 @@ def deterministic_primary_action(page, add_defect_fn, start_time, site_profile=N
             before_state = summarize_page_state(page)
             nav_start = time.time()
             flash_click_target(page, selector, action.get("text") or action.get("href") or "클릭")
-            page.locator(selector).first.click(timeout=4000)
+            page.locator(selector).first.click(timeout=2500)
             try:
-                page.wait_for_load_state("domcontentloaded", timeout=7000)
+                page.wait_for_load_state("domcontentloaded", timeout=4000)
             except Exception:
                 pass
-            page.wait_for_timeout(700)
+            page.wait_for_timeout(350)
             elapsed = time.time() - nav_start
             after_state = summarize_page_state(page)
             outcome = "success"
@@ -1413,8 +1485,8 @@ def deterministic_primary_action(page, add_defect_fn, start_time, site_profile=N
         attempted_paths.append(candidate_url)
         try:
             nav_start = time.time()
-            response = page.goto(candidate_url, timeout=8000, wait_until="domcontentloaded")
-            page.wait_for_timeout(600)
+            response = page.goto(candidate_url, timeout=5000, wait_until="domcontentloaded")
+            page.wait_for_timeout(300)
             state = summarize_page_state(page)
             status = response.status if response else None
             elapsed = time.time() - nav_start
@@ -1529,13 +1601,13 @@ def deterministic_form_feedback_check(page, add_defect_fn, start_time):
     if form_info.get("isSearch"):
         invalid_value = "test"
     try:
-        page.locator(form_info["inputSelector"]).first.fill(invalid_value, timeout=3000)
+        page.locator(form_info["inputSelector"]).first.fill(invalid_value, timeout=2000)
         if form_info.get("submitSelector"):
             flash_click_target(page, form_info["submitSelector"], "제출")
-            page.locator(form_info["submitSelector"]).first.click(timeout=3000)
+            page.locator(form_info["submitSelector"]).first.click(timeout=2000)
         else:
-            page.locator(form_info["inputSelector"]).first.press("Enter", timeout=3000)
-        page.wait_for_timeout(800)
+            page.locator(form_info["inputSelector"]).first.press("Enter", timeout=2000)
+        page.wait_for_timeout(400)
         feedback = page.evaluate("""
             (beforeText) => {
                 const text = document.body.innerText.slice(0, 7000);
@@ -1634,12 +1706,12 @@ def deterministic_navigation_check(page, add_defect_fn, start_time):
         before_url = page.url
         nav_start = time.time()
         flash_click_target(page, selected["selector"], selected.get("text") or selected.get("href") or "이동")
-        page.locator(selected["selector"]).first.click(timeout=4000)
+        page.locator(selected["selector"]).first.click(timeout=2500)
         try:
-            page.wait_for_load_state("domcontentloaded", timeout=7000)
+            page.wait_for_load_state("domcontentloaded", timeout=4000)
         except Exception:
             pass
-        page.wait_for_timeout(500)
+        page.wait_for_timeout(300)
         elapsed = time.time() - nav_start
         after_url = page.url
         uiux_log("navigation.clicked", selector=selected["selector"], text=selected.get("text"), href=selected.get("href"), beforeUrl=before_url, afterUrl=after_url, elapsed=round(elapsed, 3))
@@ -1656,7 +1728,7 @@ def deterministic_navigation_check(page, add_defect_fn, start_time):
                 recommendation="링크 라우트와 클릭 핸들러가 실제 화면 변화로 이어지는지 확인하세요."
             )
         try:
-            page.go_back(timeout=5000, wait_until="domcontentloaded")
+            page.go_back(timeout=3500, wait_until="domcontentloaded")
         except Exception:
             pass
         return {"ok": True, "selector": selected["selector"], "text": selected.get("text"), "beforeUrl": before_url, "afterUrl": after_url, "elapsed": elapsed, "candidateCount": nav_info.get("total", 0), "publicCandidateCount": nav_info.get("publicCount", 0)}
@@ -1766,6 +1838,8 @@ def main():
                 ignore_https_errors=True
             )
             page = context.new_page()
+            page.set_default_timeout(3000)
+            page.set_default_navigation_timeout(INITIAL_PAGE_LOAD_TIMEOUT_MS)
             page.bring_to_front()
             page.on("console", lambda msg: console_errors.append(msg.text) if msg.type == "error" else None)
             page.on("pageerror", lambda exc: page_errors.append(str(exc)))
@@ -1778,9 +1852,9 @@ def main():
             accessibility_score = 80
             accessibility_deductions = []
             try:
-                page.goto(target_url, timeout=20000, wait_until="load")
+                page.goto(target_url, timeout=INITIAL_PAGE_LOAD_TIMEOUT_MS, wait_until="domcontentloaded")
                 page.bring_to_front()
-                page.wait_for_timeout(2000)
+                page.wait_for_timeout(INITIAL_SETTLE_TIMEOUT_MS)
                 performance_times.append(time.time() - nav_start)
             except Exception as e:
                 err = f"URL 로드 실패 {target_url}: {str(e)}"
@@ -1806,37 +1880,6 @@ def main():
             uiux_log("site.classified", siteProfile=site_profile, prompt=UNIVERSAL_UIUX_AGENT_PROMPT)
             report_step(request_id, 2, page.url, "CLASSIFY_SITE", reason=classification_reason, screenshot_url=capture_live_frame(page))
             steps_history.append({"step": 2, "url": page.url, "action": "CLASSIFY_SITE", "reason": classification_reason, "siteProfile": site_profile})
-
-            # STEP 2: Lighthouse CLI를 별도 프로세스로 실행합니다.
-            # Playwright 화면을 직접 조작하는 단계가 아니라, 같은 targetUrl에 대해 성능/품질 audit을 수행합니다.
-            # Lighthouse가 실패하면 점수 계산에서는 Playwright 기반 대체 규칙을 사용합니다.
-            page.bring_to_front()
-            lighthouse_result = run_lighthouse_audit(target_url)
-            lighthouse_step_reason = "Lighthouse 공식 audit 결과를 수집했습니다." if lighthouse_result.get("available") else "Lighthouse가 완료되지 않아 대체 규칙을 사용합니다."
-            report_step(request_id, 3, page.url, "RUN_LIGHTHOUSE", reason=lighthouse_step_reason, screenshot_url=capture_live_frame(page))
-            steps_history.append({
-                "step": 3,
-                "url": page.url,
-                "action": "RUN_LIGHTHOUSE",
-                "reason": lighthouse_step_reason,
-                "available": lighthouse_result.get("available", False),
-                "error": lighthouse_result.get("error")
-            })
-
-            # STEP 3: 현재 Playwright 페이지에 axe-core 스크립트를 주입해 접근성 위반을 검사합니다.
-            # 이 단계도 일반 사용자 클릭 흐름은 아니고, DOM을 분석하는 audit 단계입니다.
-            page.bring_to_front()
-            axe_result = run_axe_audit(page)
-            axe_step_reason = "axe-core 접근성 검사 결과를 수집했습니다." if axe_result.get("available") else "axe-core가 완료되지 않아 대체 규칙을 사용합니다."
-            report_step(request_id, 4, page.url, "RUN_AXE", reason=axe_step_reason, screenshot_url=capture_live_frame(page))
-            steps_history.append({
-                "step": 4,
-                "url": page.url,
-                "action": "RUN_AXE",
-                "reason": axe_step_reason,
-                "available": axe_result.get("available", False),
-                "error": axe_result.get("error")
-            })
 
             # STEP 4: 자체 DOM 규칙 검사입니다.
             # 터치 대상 크기, accessible name, form label, image alt 같은 정적 규칙을 확인합니다.
@@ -1896,6 +1939,37 @@ def main():
             report_step(request_id, 8, page.url, "CHECK_NAVIGATION", selector=navigation_result.get("selector"), text=navigation_result.get("text"), reason=navigation_reason, error=navigation_result.get("error"), screenshot_url=capture_live_frame(page))
             steps_history.append({"step": 8, "url": page.url, "action": "CHECK_NAVIGATION", "reason": navigation_reason, **navigation_result})
             page.bring_to_front()
+
+            # 공식/외부 분석 도구는 실제 탐색 액션을 먼저 수행한 뒤 실행합니다.
+            # 배포 환경에서 Lighthouse가 느리거나 timeout이 나도 사용자는 이미 탐색 과정을 볼 수 있습니다.
+            report_step(request_id, 9, page.url, "START_LIGHTHOUSE", reason="주요 화면 탐색 후 Lighthouse 측정을 짧게 시도합니다.", screenshot_url=capture_live_frame(page))
+            steps_history.append({"step": 9, "url": page.url, "action": "START_LIGHTHOUSE", "reason": "주요 화면 탐색 후 Lighthouse 측정을 짧게 시도합니다."})
+            lighthouse_result = run_lighthouse_audit(target_url)
+            lighthouse_step_reason = "Lighthouse 공식 audit 결과를 수집했습니다." if lighthouse_result.get("available") else "Lighthouse가 제한 시간 안에 완료되지 않아 대체 규칙을 사용합니다."
+            report_step(request_id, 9, page.url, "RUN_LIGHTHOUSE", reason=lighthouse_step_reason, screenshot_url=capture_live_frame(page))
+            steps_history.append({
+                "step": 9,
+                "url": page.url,
+                "action": "RUN_LIGHTHOUSE",
+                "reason": lighthouse_step_reason,
+                "available": lighthouse_result.get("available", False),
+                "error": lighthouse_result.get("error")
+            })
+
+            page.bring_to_front()
+            report_step(request_id, 10, page.url, "START_AXE", reason="현재 화면 기준 axe-core 접근성 검사를 실행합니다.", screenshot_url=capture_live_frame(page))
+            steps_history.append({"step": 10, "url": page.url, "action": "START_AXE", "reason": "현재 화면 기준 axe-core 접근성 검사를 실행합니다."})
+            axe_result = run_axe_audit(page)
+            axe_step_reason = "axe-core 접근성 검사 결과를 수집했습니다." if axe_result.get("available") else "axe-core가 완료되지 않아 대체 규칙을 사용합니다."
+            report_step(request_id, 10, page.url, "RUN_AXE", reason=axe_step_reason, screenshot_url=capture_live_frame(page))
+            steps_history.append({
+                "step": 10,
+                "url": page.url,
+                "action": "RUN_AXE",
+                "reason": axe_step_reason,
+                "available": axe_result.get("available", False),
+                "error": axe_result.get("error")
+            })
 
             # STEP 8은 브라우저를 조작하는 단계가 아닙니다.
             # 위에서 모은 Lighthouse/axe/DOM/액션 결과를 바탕으로 점수와 결함 목록을 계산한 뒤
@@ -2015,6 +2089,7 @@ def main():
                         "available": lighthouse_result.get("available", False),
                         "error": lighthouse_result.get("error"),
                         "debugError": lighthouse_result.get("debugError"),
+                        "diagnostics": lighthouse_result.get("diagnostics"),
                         "scores": lighthouse_scores,
                         "finalUrl": lighthouse_result.get("finalUrl"),
                         "fetchTime": lighthouse_result.get("fetchTime")
@@ -2028,8 +2103,8 @@ def main():
                 }
             }
             final_evaluation_md = build_report_markdown(scores_payload, score_breakdown, defects)
-            report_step(request_id, 9, page.url, "CALCULATE_SCORE", reason="수집한 audit과 탐색 결과로 최종 점수를 계산했습니다.", screenshot_url=capture_live_frame(page))
-            steps_history.append({"step": 9, "url": page.url, "action": "CALCULATE_SCORE", "reason": "수집한 audit과 탐색 결과로 최종 점수를 계산했습니다."})
+            report_step(request_id, 11, page.url, "CALCULATE_SCORE", reason="수집한 audit과 탐색 결과로 최종 점수를 계산했습니다.", screenshot_url=capture_live_frame(page))
+            steps_history.append({"step": 11, "url": page.url, "action": "CALCULATE_SCORE", "reason": "수집한 audit과 탐색 결과로 최종 점수를 계산했습니다."})
             
             # STEP 10: 최종 보고서를 저장하는 단계입니다.
             # 이전에는 VNC 화면 확인용 keepalive sleep이 여기 있었지만,
@@ -2048,8 +2123,8 @@ def main():
                 except Exception:
                     pass
 
-            report_step(request_id, 10, final_page_url, "SAVE_REPORT", reason="점수, 결함, 영상 URL을 포함한 최종 보고서를 저장했습니다.")
-            steps_history.append({"step": 10, "url": final_page_url, "action": "SAVE_REPORT", "reason": "점수, 결함, 영상 URL을 포함한 최종 보고서를 저장했습니다."})
+            report_step(request_id, 12, final_page_url, "SAVE_REPORT", reason="점수, 결함, 영상 URL을 포함한 최종 보고서를 저장했습니다.")
+            steps_history.append({"step": 12, "url": final_page_url, "action": "SAVE_REPORT", "reason": "점수, 결함, 영상 URL을 포함한 최종 보고서를 저장했습니다."})
             
             final_report = {
                 "requestId": request_id,
