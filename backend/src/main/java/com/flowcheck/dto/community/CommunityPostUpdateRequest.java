@@ -2,6 +2,7 @@ package com.flowcheck.dto.community;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.NotNull;
 
 /*
  * 커뮤니티 게시글 수정 요청입니다.
@@ -18,7 +19,11 @@ public record CommunityPostUpdateRequest(
         )
         String title,
 
-        @NotBlank(message = "게시글 내용은 필수입니다.")
+        /*
+         * 테스트 공유글에서는 결과만 표시할 수 있도록
+         * 빈 문자열을 허용합니다.
+         */
+        @NotNull(message = "게시글 내용 값이 필요합니다.")
         String content
 ) {
 }

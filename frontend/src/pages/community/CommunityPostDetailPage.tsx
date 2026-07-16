@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { fetchCommunityPost } from '../../api/communityPostApi';
 import EmptyState from '../../components/common/EmptyState';
 import CommunityPostActions from '../../components/community/CommunityPostActions';
+import CommunityTestResultSection from '../../components/community/CommunityTestResultSection';
 import type { Post } from '../../types/post';
 
 /*
@@ -159,34 +160,28 @@ export default function CommunityPostDetailPage() {
                     </small>
                 </header>
 
-                <p
-                    style={{
-                        minHeight: '160px',
-                        whiteSpace: 'pre-wrap',
-                        lineHeight: 1.7,
-                    }}
-                >
-                    {post.content}
-                </p>
-
-                {/* 사이트 홍보글일 때만 사이트 이동 버튼을 표시합니다. */}
-                {post.promoUrl && (
-                    <a
-                        className="btn btn-primary"
-                        href={post.promoUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                {/* 소개글을 작성한 경우에만 본문 영역을 표시합니다. */}
+                {post.content.trim() && (
+                    <p
+                        style={{
+                            minHeight: '160px',
+                            whiteSpace: 'pre-wrap',
+                            lineHeight: 1.7,
+                        }}
                     >
-                        사이트 방문
-                    </a>
-                )}
-
-                {/* 테스트 요청과 연결된 공유글인지 표시합니다. */}
-                {post.testRequestId && (
-                    <p style={{ color: 'var(--success)' }}>
-                        테스트 결과 연결 완료
+                        {post.content}
                     </p>
                 )}
+                {/*
+ * 테스트 공유 게시글이고 실제 테스트 요청이 연결된 경우에만
+ * 부하 테스트 또는 UI/UX 테스트 결과를 조회합니다.
+ */}
+                {post.category === 'TEST_SHARE' &&
+                    post.testRequestId && (
+                        <CommunityTestResultSection
+                            postId={post.id}
+                        />
+                    )}
 
                 <CommunityPostActions
                     post={post}

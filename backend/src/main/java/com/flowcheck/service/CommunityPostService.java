@@ -317,12 +317,23 @@ public class CommunityPostService {
             }
         }
 
+        /*
+         * 생성 요청의 카테고리에 따라 내용을 검사합니다.
+         *
+         * TEST_SHARE는 빈 문자열을 허용하고,
+         * 다른 카테고리는 빈 내용을 거부합니다.
+         */
+        String normalizedContent = normalizeContent(
+                request.category(),
+                request.content()
+        );
+
         CommunityPost post = CommunityPost.builder()
                 .user(user)
                 .site(site)
                 .category(request.category())
                 .title(request.title().trim())
-                .content(request.content().trim())
+                .content(normalizedContent)
                 .promoUrl(promoUrl)
                 .build();
 
@@ -364,11 +375,21 @@ public class CommunityPostService {
         );
 
         /*
-         * 카테고리와 연결 정보는 유지하고 제목과 내용만 변경합니다.
+         * 기존 게시글 카테고리를 기준으로
+         * 빈 내용을 허용할지 결정합니다.
+         */
+        String normalizedContent = normalizeContent(
+                post.getCategory(),
+                request.content()
+        );
+
+        /*
+         * 카테고리와 연결 정보는 유지하고
+         * 제목과 검사된 내용만 변경합니다.
          */
         post.update(
                 request.title().trim(),
-                request.content().trim()
+                normalizedContent
         );
 
         /*
@@ -491,5 +512,27 @@ public class CommunityPostService {
                 0L,
                 testRequestId
         );
+    }
+    /*
+     * TEST_SHARE는 결과만 공유할 수 있도록 빈 내용을 허용합니다.
+     *
+     * 사이트 홍보와 자유게시판은 기존처럼 내용을 필수로 유지합니다.
+     */
+    private String normalizeContent(
+            PostCategory category,
+            String content
+    ) {
+        String normalizedContent =
+                content == null ? "" : content.trim();
+
+        if (category != PostCategory.TEST_SHARE
+                && normalizedContent.isBlank()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "게시글 내용은 필수입니다."
+            );
+        }
+
+        return normalizedContent;
     }
 }

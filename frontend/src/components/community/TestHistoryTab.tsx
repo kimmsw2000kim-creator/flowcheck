@@ -66,11 +66,11 @@ export default function TestHistoryTab() {
   ) => {
     event.preventDefault();
 
-    if (
-      !selectedTest ||
-      !title.trim() ||
-      !content.trim()
-    ) {
+    /*
+     * 테스트 결과 자체만 공유할 수 있으므로
+     * 소개글은 검사하지 않습니다.
+     */
+    if (!selectedTest || !title.trim()) {
       return;
     }
 
@@ -184,9 +184,8 @@ export default function TestHistoryTab() {
                 </Field>
 
                 <Field
-                  label="테스트 결과 소개"
+                  label="테스트 결과 소개 (선택)"
                   htmlFor="test-share-content"
-                  required
                 >
                   <textarea
                     id="test-share-content"
@@ -197,7 +196,7 @@ export default function TestHistoryTab() {
                       setContent(event.target.value)
                     }
                     disabled={submitting}
-                    required
+                    placeholder="소개 없이 테스트 결과만 공유할 수도 있습니다."
                   />
                 </Field>
 

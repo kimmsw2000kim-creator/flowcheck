@@ -79,11 +79,19 @@ export default function CommunityPostActions({
     ) => {
         event.preventDefault();
 
-        if (!title.trim() || !content.trim()) {
-            showAlert(
-                '제목과 내용을 모두 입력해 주세요.',
-                'error'
-            );
+        if (!title.trim()) {
+            showAlert('제목을 입력해 주세요.', 'error');
+            return;
+        }
+
+        /*
+         * 테스트 공유글만 빈 내용을 허용합니다.
+         */
+        if (
+            post.category !== 'TEST_SHARE' &&
+            !content.trim()
+        ) {
+            showAlert('내용을 입력해 주세요.', 'error');
             return;
         }
 
@@ -251,9 +259,10 @@ export default function CommunityPostActions({
                                     className="form-label"
                                     htmlFor={`post-content-${post.id}`}
                                 >
-                                    내용
+                                    {post.category === 'TEST_SHARE'
+                                        ? '내용 (선택)'
+                                        : '내용'}
                                 </label>
-
                                 <textarea
                                     id={`post-content-${post.id}`}
                                     className="form-input"
@@ -262,9 +271,10 @@ export default function CommunityPostActions({
                                     onChange={(event) =>
                                         setContent(event.target.value)
                                     }
-                                    required
-                                />
-                            </div>
+
+                                    // 테스트 공유글은 소개글 없이 수정할 수 있습니다.
+                                    required={post.category !== 'TEST_SHARE'}
+                                />                            </div>
 
                             <div
                                 style={{

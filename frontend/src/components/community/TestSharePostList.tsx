@@ -187,15 +187,17 @@ export default function TestSharePostList({
                             </Link>
                         </h3>
 
-                        <p
-                            style={{
-                                color: 'var(--text-secondary)',
-                                whiteSpace: 'pre-wrap',
-                            }}
-                        >
-                            {post.content}
-                        </p>
-
+                        {/* 소개글이 있는 게시글에서만 본문을 표시합니다. */}
+                        {post.content.trim() && (
+                            <p
+                                style={{
+                                    color: 'var(--text-secondary)',
+                                    whiteSpace: 'pre-wrap',
+                                }}
+                            >
+                                {post.content}
+                            </p>
+                        )}
                         <div
                             style={{
                                 display: 'flex',
