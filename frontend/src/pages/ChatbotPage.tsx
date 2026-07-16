@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowUp, Loader2, Menu } from 'lucide-react';
+import { ArrowUp, Loader2, Menu, Check, Copy } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import styles from '../styles/chatbot.module.css';
@@ -16,6 +16,43 @@ interface Session {
   title: string;
   updatedAt: string;
 }
+
+const CodeBlock = ({ inline, className, children, ...props }: any) => {
+  const match = /language-(\w+)/.exec(className || '');
+  const codeContent = String(children).replace(/\n$/, '');
+  const [isCopied, setIsCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(codeContent);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
+  };
+
+  if (!inline && match) {
+    return (
+      <div className={styles.codeBlockWrapper}>
+        <div className={styles.codeBlockHeader}>
+          <span className={styles.codeLang}>{match[1]}</span>
+          <button onClick={handleCopy} className={styles.copyBtn} title="코드 복사">
+            {isCopied ? <Check size={14} /> : <Copy size={14} />}
+            {isCopied ? 'Copied!' : 'Copy'}
+          </button>
+        </div>
+        <pre className={styles.codePre}>
+          <code className={className} {...props}>
+            {children}
+          </code>
+        </pre>
+      </div>
+    );
+  }
+  
+  return (
+    <code className={`${className || ''} ${styles.inlineCode}`} {...props}>
+      {children}
+    </code>
+  );
+};
 
 const ChatbotPage: React.FC = () => {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -123,7 +160,7 @@ const ChatbotPage: React.FC = () => {
           {messages.map(msg => (
             <div key={msg.messageId} className={`${styles.messageWrapper} ${msg.role === 'USER' ? styles.user : styles.assistant}`}>
               <div className={`${styles.messageBubble} ${styles.markdownBody}`}>
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: CodeBlock }}>
                   {msg.content}
                 </ReactMarkdown>
               </div>

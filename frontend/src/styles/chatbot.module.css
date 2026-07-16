@@ -105,6 +105,7 @@
   display: flex;
   flex-direction: column;
   position: relative;
+  min-width: 0; /* Prevents overflow from wide content like pre/code */
 }
 
 .messageList {
@@ -141,6 +142,7 @@
   border-radius: 12px;
   line-height: 1.6;
   font-size: 15px;
+  word-break: break-word; /* Ensure long links wrap */
 }
 
 .user .messageBubble {
@@ -260,4 +262,65 @@
   border-radius: 8px;
   margin: 10px 0;
   display: block;
+}
+
+/* Code Block Styles */
+.codeBlockWrapper {
+  background-color: #1e1e1e;
+  border-radius: 8px;
+  margin: 12px 0;
+  overflow: hidden;
+  max-width: 100%;
+}
+
+.codeBlockHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #2d2d2d;
+  padding: 6px 12px;
+  color: #a0a0a0;
+  font-size: 12px;
+}
+
+.codeLang {
+  font-family: monospace;
+  text-transform: uppercase;
+}
+
+.copyBtn {
+  background: transparent;
+  border: none;
+  color: #a0a0a0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  transition: color 0.2s;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.copyBtn:hover {
+  color: #ffffff;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.codePre {
+  margin: 0;
+  padding: 12px;
+  overflow-x: auto;
+  color: #d4d4d4;
+  font-size: 14px;
+  max-width: 100%;
+}
+
+.inlineCode {
+  background-color: var(--color-bg-subtle);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.9em;
+  color: var(--color-text-primary);
 }
