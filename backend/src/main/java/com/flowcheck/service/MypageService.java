@@ -3,8 +3,10 @@ package com.flowcheck.service;
 import com.flowcheck.domain.CouponType;
 import com.flowcheck.domain.CouponUsageLog;
 import com.flowcheck.domain.CreditsLedger;
+import com.flowcheck.domain.LoadTestReport;
 import com.flowcheck.domain.RegisteredSite;
 import com.flowcheck.domain.TestRequest;
+import com.flowcheck.domain.UIUXTestReport;
 import com.flowcheck.domain.User;
 import com.flowcheck.dto.mypage.MypageCouponHistoryResponseDTO;
 import com.flowcheck.dto.mypage.MypagePointHistoryResponseDTO;
@@ -14,8 +16,10 @@ import com.flowcheck.dto.mypage.SiteSummaryResponseDTO;
 import com.flowcheck.dto.uiuxtest.UIUXTestStatusResponse;
 import com.flowcheck.repository.CouponUsageLogRepository;
 import com.flowcheck.repository.CreditsLedgerRepository;
+import com.flowcheck.repository.LoadTestReportRepository;
 import com.flowcheck.repository.RegisteredSiteRepository;
 import com.flowcheck.repository.TestRequestRepository;
+import com.flowcheck.repository.UIUXTestReportRepository;
 import com.flowcheck.repository.UserCouponRepository;
 import com.flowcheck.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +42,8 @@ public class MypageService {
         private final CreditsLedgerRepository creditsLedgerRepository;
         private final CouponUsageLogRepository couponUsageLogRepository;
         private final UIUXTestService uiuxTestService;
+        private final LoadTestReportRepository loadTestReportRepository;
+        private final UIUXTestReportRepository uiuxTestReportRepository;
 
         public MypageResponseDTO getMyPage(UUID userId) {
                 User user = userRepository.findById(userId)
@@ -79,36 +85,74 @@ public class MypageService {
                 List<MypageTestHistoryResponseDTO> histories = new ArrayList<>();
 
                 List<TestRequest> loadTests = testRequestRepository.findByUserAndTestTypeOrderByCreatedAtAsc(user, "LOAD");
-                loadTests.forEach(test -> histories.add(new MypageTestHistoryResponseDTO(
-                                test.getId(),
-                                "LOAD",
-                                "부하 테스트",
-                                test.getTargetUrl(),
-                                test.getTestStatus(),
-                                test.getTestPhase(),
-                                test.getTestProgress(),
-                                test.getPromptInput(),
-                                test.getCreatedAt(),
-                                test.getUpdatedAt())));
+                loadTests.forEach(test -> {
+                        Integer performanceScore = loadTestReportRepository.findByTestRequestId(test.getId())
+                                        .map(this::extractLoadPerformanceScore)
+                                        .orElse(null);
+                        histories.add(new MypageTestHistoryResponseDTO(
+                                        test.getId(),
+                                        "LOAD",
+                                        "부하 테스트",
+                                        test.getTargetUrl(),
+                                        test.getTestStatus(),
+                                        test.getTestPhase(),
+                                        test.getTestProgress(),
+                                        performanceScore,
+                                        null,
+                                        null,
+                                        null,
+                                        performanceScore,
+                                        null,
+                                        test.getPromptInput(),
+                                        test.getCreatedAt(),
+                                        test.getUpdatedAt()));
+                });
 
                 List<TestRequest> uiRequests = testRequestRepository.findByUserAndTestTypeOrderByCreatedAtAsc(user, "UIUX");
-                uiRequests.forEach(test -> histories.add(new MypageTestHistoryResponseDTO(
-                                test.getId(),
-                                "UIUX",
-                                "UI/UX 테스트",
-                                test.getTargetUrl(),
-                                test.getTestStatus(),
-                                test.getTestPhase(),
-                                test.getTestProgress(),
-                                test.getPromptInput(),
-                                test.getCreatedAt(),
-                                test.getUpdatedAt())));
+                uiRequests.forEach(test -> {
+                        UIUXTestReport report = uiuxTestReportRepository.findByTestRequestId(test.getId()).orElse(null);
+                        histories.add(new MypageTestHistoryResponseDTO(
+                                        test.getId(),
+                                        "UIUX",
+                                        "UI/UX 테스트",
+                                        test.getTargetUrl(),
+                                        test.getTestStatus(),
+                                        test.getTestPhase(),
+                                        test.getTestProgress(),
+                                        report != null ? report.getOverallScore() : null,
+                                        report != null ? report.getScoreUsability() : null,
+                                        report != null ? report.getScoreAccessibility() : null,
+                                        report != null ? report.getScoreEfficiency() : null,
+                                        report != null ? report.getScorePerformance() : null,
+                                        report != null ? report.getScoreBestPractices() : null,
+                                        test.getPromptInput(),
+                                        test.getCreatedAt(),
+                                        test.getUpdatedAt()));
+                });
 
                 histories.sort(Comparator.comparing(
                                 MypageTestHistoryResponseDTO::createdAt,
                                 Comparator.nullsLast(Comparator.reverseOrder())));
 
                 return histories;
+        }
+
+        private Integer extractLoadPerformanceScore(LoadTestReport report) {
+                if (report.getRawMetrics() == null) {
+                        return null;
+                }
+                Object score = report.getRawMetrics().get("performanceScore");
+                if (score instanceof Number number) {
+                        return number.intValue();
+                }
+                if (score instanceof String text) {
+                        try {
+                                return Integer.parseInt(text);
+                        } catch (NumberFormatException ignored) {
+                                return null;
+                        }
+                }
+                return null;
         }
 
         public UIUXTestStatusResponse getUIUXTestDetail(UUID userId, UUID requestId) {

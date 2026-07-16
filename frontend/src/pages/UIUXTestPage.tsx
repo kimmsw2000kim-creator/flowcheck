@@ -1,18 +1,24 @@
 ﻿import React, { useEffect, useRef, useState } from 'react';
 import apiClient from '../api/client';
 import ApiURL from '../api/ApiURL';
-import { startUIUXTest, getUIUXTestStatus, UIUXTestStepData, UIUXTestStatusResponse } from '../api/UIUXTestApi';
-import { Badge, Button, Card, EmptyState, Field, PageHeader, Select } from '../components/common';
-import type { BadgeTone } from '../components/common';
-import { UIUXResultView } from '../components/uiux';
+import {
+  startUIUXTest,
+  getUIUXTestStatus,
+  issueUIUXVncAccess,
+  UIUXTestStepData,
+  UIUXTestStatusResponse,
+} from '../api/UIUXTestApi';
+import CustomVideoPlayer from '../components/video/CustomVideoPlayer';
+import UIUXScoreRadarChart from '../components/dashboard/UIUXScoreRadarChart';
+import UIUXScoreBarChart from '../components/dashboard/UIUXScoreBarChart';
 import { useUserStore } from '../store/userStore';
 import { useAlertStore } from '../store/alertStore';
 import { useDomains } from '../hooks/useDomains';
-import '../styles/UIUXTestPage.css';
 
 interface UIUXTestPageProps {
   selectedUIUXTestDomain: number;
   setSelectedUIUXTestDomain: (id: number) => void;
+  onAddLedger: (ledgerItem: any) => void;
 }
 
 const formatStepNumber = (step: number) => String(step).padStart(2, '0');
@@ -32,30 +38,121 @@ const getLiveVncProxyOrigin = () => {
   return ApiURL;
 };
 
-const buildLiveVncProxyUrl = (requestId: string) => {
-  const path = `/api/uiux-tests/${requestId}/vnc/vnc.html`;
-  const websocketPath = `/api/uiux-tests/${requestId}/vnc/websockify`;
-  return `${getLiveVncProxyOrigin()}${path}?autoconnect=true&resize=scale&path=${encodeURIComponent(websocketPath)}`;
+const buildLiveVncProxyUrl = (url: string) => {
+  if (/^https?:\/\//i.test(url)) {
+    return url;
+  }
+
+  return `${getLiveVncProxyOrigin()}${url}`;
 };
 
-const isLocalBrowser = () => ['localhost', '127.0.0.1'].includes(window.location.hostname);
+const formatTimeForDisplay = (time: number) => {
+  if (Number.isNaN(time)) return '0:00';
+  const minutes = Math.floor(time / 60);
+  const seconds = Math.floor(time % 60);
+  return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+};
 
-const getDirectLocalVncUrl = (steps: UIUXTestStepData[]) => {
-  if (!isLocalBrowser()) return null;
+const parseReportCards = (report?: string) => {
+  const lines = report
+    ?.split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
 
-  const directUrl = [...steps]
-    .reverse()
-    .find((step) => typeof step.vncUrl === 'string' && step.vncUrl.length > 0)
-    ?.vncUrl;
+  if (!lines?.length) return [];
 
-  if (!directUrl) return null;
+  const cards: Array<{ id: string; title: string; items: string[] }> = [];
+  let currentCard: { id: string; title: string; items: string[] } | null = null;
 
-  try {
-    const parsed = new URL(directUrl);
-    return ['localhost', '127.0.0.1'].includes(parsed.hostname) ? directUrl : null;
-  } catch {
-    return null;
+  lines.forEach((line) => {
+    const isHeading = line.startsWith('#');
+    const normalized = line
+      .replace(/^#{1,6}\s*/, '')
+      .replace(/^[-*]\s*/, '')
+      .replace(/\*\*/g, '')
+      .trim();
+
+    if (!normalized) return;
+
+    if (isHeading) {
+      currentCard = {
+        id: `${cards.length}-${normalized.slice(0, 20)}`,
+        title: normalized,
+        items: [],
+      };
+      cards.push(currentCard);
+      return;
+    }
+
+    if (!currentCard) {
+      currentCard = {
+        id: `${cards.length}-summary`,
+        title: '진단 요약',
+        items: [],
+      };
+      cards.push(currentCard);
+    }
+
+    currentCard.items.push(normalized);
+  });
+
+  return cards.map((card) => ({
+    ...card,
+    items: card.items.length ? card.items : ['이번 테스트에서 추가 설명이 감지되지 않았습니다.'],
+  }));
+};
+
+const getEngineLabel = (source?: string) => {
+  switch (source) {
+    case 'LIGHTHOUSE':
+      return 'Lighthouse';
+    case 'AXE':
+      return 'axe-core';
+    case 'PLAYWRIGHT':
+      return 'Playwright';
+    case 'UX_RULE':
+      return 'UX Rule';
+    default:
+      return 'Rule';
   }
+};
+
+const getDefectCategoryLabel = (category?: string) => {
+  switch (category) {
+    case 'USABILITY':
+      return '사용성';
+    case 'ACCESSIBILITY':
+      return '접근성';
+    case 'EFFICIENCY':
+      return '탐색 효율';
+    case 'PERFORMANCE':
+      return '성능';
+    case 'BEST_PRACTICES':
+      return '기술 품질';
+    default:
+      return '품질';
+  }
+};
+
+const getDefectSeverityLabel = (severity?: string) => {
+  switch (severity) {
+    case 'CRITICAL':
+      return '긴급';
+    case 'MAJOR':
+      return '중요';
+    case 'MINOR':
+      return '경미';
+    default:
+      return '확인 필요';
+  }
+};
+
+const getScoreGrade = (score?: number) => {
+  if (score == null) return '대기';
+  if (score >= 90) return '우수';
+  if (score >= 75) return '양호';
+  if (score >= 60) return '개선 필요';
+  return '위험';
 };
 
 const getStepActionLabel = (action?: string) => {
@@ -65,6 +162,8 @@ const getStepActionLabel = (action?: string) => {
       return '브라우저 준비';
     case 'LOAD_PAGE':
       return '페이지 로드';
+    case 'CLASSIFY_SITE':
+      return '사이트 유형 분류';
     case 'RUN_LIGHTHOUSE':
       return 'Lighthouse 측정';
     case 'RUN_AXE':
@@ -88,6 +187,41 @@ const getStepActionLabel = (action?: string) => {
   }
 };
 
+const getEngineSummary = (scoreBreakdown?: Record<string, unknown>) => {
+  const engineResults = scoreBreakdown?.engineResults as Record<string, any> | undefined;
+  const lighthouse = engineResults?.lighthouse;
+  const axe = engineResults?.axe;
+
+  return [
+    {
+      label: 'Lighthouse',
+      value: lighthouse?.available ? '정상' : '대체 규칙',
+      detail: lighthouse?.available ? '성능, 접근성, 기술 품질 점수를 반영했습니다.' : summarizeEngineFallback(lighthouse?.error),
+    },
+    {
+      label: 'axe-core',
+      value: axe?.available ? '정상' : '대체 규칙',
+      detail: axe?.available ? `${axe?.violationCount ?? 0}개 접근성 위반을 분석했습니다.` : summarizeEngineFallback(axe?.error),
+    },
+  ];
+};
+
+const summarizeEngineFallback = (error?: string) => {
+  if (!error) {
+    return '분석 도구 결과를 가져오지 못해 브라우저 기반 대체 규칙으로 평가했습니다.';
+  }
+
+  if (/Command|returned non-zero exit status|node_modules|lighthouse\/cli|subprocess/i.test(error)) {
+    return '분석 도구 실행이 완료되지 않아 브라우저 기반 대체 규칙으로 평가했습니다.';
+  }
+
+  if (/timeout|timed out/i.test(error)) {
+    return '분석 도구 실행 시간이 초과되어 브라우저 기반 대체 규칙으로 평가했습니다.';
+  }
+
+  return '분석 도구 결과를 사용할 수 없어 브라우저 기반 대체 규칙으로 평가했습니다.';
+};
+
 export default function UIUXTestPage({
   selectedUIUXTestDomain,
   setSelectedUIUXTestDomain,
@@ -101,13 +235,18 @@ export default function UIUXTestPage({
   const [UIUXTestStatus, setUIUXTestStatus] = useState('idle');
   const [UIUXTestSteps, setUIUXTestSteps] = useState<UIUXTestStepData[]>([]);
   const [currentRequestId, setCurrentRequestId] = useState<string | null>(null);
+  const [liveVncProxyUrl, setLiveVncProxyUrl] = useState<string | null>(null);
+  const [vncAccessRequestId, setVncAccessRequestId] = useState<string | null>(null);
   const [reportData, setReportData] = useState<UIUXTestStatusResponse | null>(null);
+  const [activeDefectId, setActiveDefectId] = useState<number | null>(null);
+  const [showHeuristics, setShowHeuristics] = useState(false);
 
   const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollErrorCountRef = useRef(0);
   const pollCountRef = useRef(0);
   const activePollRequestIdRef = useRef<string | null>(null);
   const isSubmittingRef = useRef(false);
+  const customVideoRef = useRef<any>(null);
 
   const stopPolling = React.useCallback(() => {
     activePollRequestIdRef.current = null;
@@ -128,19 +267,40 @@ export default function UIUXTestPage({
 
   const isRunning = UIUXTestStatus === 'running';
   const hasLiveVncUrl = UIUXTestSteps.some((step) => typeof step.vncUrl === 'string' && step.vncUrl.length > 0);
-  const directLocalVncUrl = getDirectLocalVncUrl(UIUXTestSteps);
-  const liveVncProxyUrl = directLocalVncUrl || (currentRequestId && hasLiveVncUrl ? buildLiveVncProxyUrl(currentRequestId) : null);
+  const reportCards = parseReportCards(reportData?.report);
+  const overallScore = reportData?.scores?.overall;
+  const engineSummary = getEngineSummary(reportData?.scoreBreakdown);
   const latestLiveFrame = [...UIUXTestSteps]
     .reverse()
     .find((step) => typeof step.screenshotUrl === 'string' && step.screenshotUrl.startsWith('data:image/'))
     ?.screenshotUrl;
-  const statusPresentation: Record<string, { label: string; tone: BadgeTone }> = {
-    idle: { label: 'Ready', tone: 'neutral' },
-    running: { label: 'Running', tone: 'info' },
-    success: { label: 'Completed', tone: 'success' },
-    error: { label: 'Failed', tone: 'danger' },
-  };
-  const currentStatus = statusPresentation[UIUXTestStatus] || statusPresentation.idle;
+
+  useEffect(() => {
+    if (!isRunning || !currentRequestId || !hasLiveVncUrl) {
+      return;
+    }
+
+    if (vncAccessRequestId === currentRequestId && liveVncProxyUrl) {
+      return;
+    }
+
+    let disposed = false;
+
+    void issueUIUXVncAccess(currentRequestId)
+      .then((response) => {
+        if (disposed) return;
+        setLiveVncProxyUrl(buildLiveVncProxyUrl(response.url));
+        setVncAccessRequestId(currentRequestId);
+      })
+      .catch((error) => {
+        if (disposed) return;
+        console.error('Failed to issue VNC access URL:', error);
+      });
+
+    return () => {
+      disposed = true;
+    };
+  }, [currentRequestId, hasLiveVncUrl, isRunning, liveVncProxyUrl, vncAccessRequestId]);
 
   const handleRunUIUXTest = async () => {
     if (isSubmittingRef.current) {
@@ -172,6 +332,8 @@ export default function UIUXTestPage({
     setUIUXTestSteps([]);
     setReportData(null);
     setCurrentRequestId(null);
+    setLiveVncProxyUrl(null);
+    setVncAccessRequestId(null);
     isSubmittingRef.current = true;
 
     try {
@@ -262,64 +424,75 @@ export default function UIUXTestPage({
     }
   };
 
+  const handleVideoTimeUpdate = (currentTime: number) => {
+    if (!reportData?.defects) return;
+    const currentDefect = reportData.defects.find((defect) => Math.abs(defect.timestampOffset - currentTime) < 1);
+    setActiveDefectId(currentDefect?.id || null);
+  };
+
+  const handleDefectClick = (offset: number) => {
+    setActiveDefectId(reportData?.defects?.find((defect) => defect.timestampOffset === offset)?.id || null);
+    customVideoRef.current?.seekTo(offset);
+  };
+
   const renderPlayerPlaceholder = (title: string, description: string) => (
     <div className="uiux-player-placeholder">
-      <span className="uiux-loading-ring" aria-hidden="true" />
+      <span className="uiux-loading-ring" />
       <strong>{title}</strong>
       <p>{description}</p>
     </div>
   );
-
   return (
     <div className="uiux-page">
-      <PageHeader
-        headingLevel={2}
-        title="AI UI/UX 테스트"
-        description="실시간 탐색 화면과 실행 로그를 확인하고, 완료 후 결과 영상과 결함 리포트를 제작합니다."
-      />
+      <header className="uiux-header">
+        <div>
+          <h2>AI UI/UX 테스트</h2>
+          <p>실시간 탐색 화면과 실행 로그를 확인하고, 완료 후 결과 영상과 결함 리포트를 제작합니다.</p>
+        </div>
+      </header>
 
       <section className="uiux-workbench">
-        <Card as="aside" padding="md" className="uiux-start-card">
+        <aside className="uiux-card uiux-start-card">
           <div className="uiux-section-title">
             <span>테스트 시작</span>
             <small>{currentUser.UIUXTestCoupons > 0 ? '쿠폰 차감' : '크레딧 차감'}</small>
           </div>
 
-          <Select
-            id="uiux-domain-select"
-            containerClassName="uiux-start-field"
-            label="인증 도메인"
-            description="검증이 완료된 도메인만 UI 테스트 대상으로 사용할 수 있습니다."
-            value={selectedUIUXTestDomain}
-            onChange={(event) => setSelectedUIUXTestDomain(Number(event.target.value))}
-            disabled={isRunning}
-            required
-          >
-            <option value="">도메인을 선택하세요</option>
-            {domains.filter((domain) => domain.verified).map((domain) => (
-              <option key={domain.id} value={domain.id}>{domain.domainUrl}</option>
-            ))}
-          </Select>
+          <div className="uiux-select-field">
+            <div className="uiux-select-label-row">
+              <label className="uiux-select-label" htmlFor="uiux-domain-select">인증 도메인</label>
+              <span className="uiux-select-required">필수</span>
+            </div>
+            <div className="uiux-select-shell">
+              <select
+                id="uiux-domain-select"
+                className="uiux-select-control"
+                value={selectedUIUXTestDomain}
+                onChange={(event) => setSelectedUIUXTestDomain(Number(event.target.value))}
+                disabled={isRunning}
+              >
+                <option value="">도메인을 선택하세요</option>
+                {domains.filter((domain) => domain.verified).map((domain) => (
+                  <option key={domain.id} value={domain.id}>{domain.domainUrl}</option>
+                ))}
+              </select>
+              <span className="uiux-select-chevron" aria-hidden="true" />
+            </div>
+            <p className="uiux-select-hint">검증이 완료된 도메인만 UI 테스트 대상으로 사용할 수 있습니다.</p>
+          </div>
 
-          <Field
-            className="uiux-start-field uiux-readonly-field"
-            label={(
-              <span className="uiux-readonly-label">
-                테스트 대상 URL
-                <Badge tone="neutral">자동 반영</Badge>
-              </span>
-            )}
-            htmlFor="uiux-target-url"
-            description="위에서 선택한 인증 도메인 주소가 테스트 대상으로 사용됩니다."
-          >
-            <output
-              id="uiux-target-url"
-              className="uiux-selected-url"
-              data-empty={targetUrl ? undefined : 'true'}
-            >
-              {targetUrl || '선택한 도메인 주소가 여기에 표시됩니다.'}
-            </output>
-          </Field>
+          <div className="uiux-select-field">
+            <div className="uiux-select-label-row">
+              <span className="uiux-select-label">테스트 대상 URL</span>
+              <span className="uiux-select-required muted">자동 반영</span>
+            </div>
+            <div className="uiux-select-shell readonly">
+              <div className={`uiux-selected-url ${targetUrl ? '' : 'empty'}`}>
+                {targetUrl || '선택한 도메인 주소가 여기에 표시됩니다.'}
+              </div>
+            </div>
+            <p className="uiux-select-hint">위에서 선택한 인증 도메인 주소가 테스트 대상으로 사용됩니다.</p>
+          </div>
 
           <div className="uiux-balance-panel">
             <div>
@@ -338,24 +511,27 @@ export default function UIUXTestPage({
               : '이번 테스트에 1,000 크레딧이 소모됩니다.'}
           </p>
 
-          <Button
-            size="lg"
-            fullWidth
-            isLoading={isRunning}
-            loadingText="테스트 진행 중"
-            onClick={handleRunUIUXTest}
-          >
-            UI 테스트 시작
-          </Button>
-        </Card>
+          <button className="uiux-primary-button" onClick={handleRunUIUXTest} disabled={isRunning}>
+            {isRunning ? (
+              <span className="uiux-button-content">
+                <span>테스트 진행 중</span>
+                <span className="uiux-button-spinner" />
+              </span>
+            ) : (
+              'UI 테스트 시작'
+            )}
+          </button>
+        </aside>
 
-        <Card as="section" padding="none" className="uiux-live-card">
+        <main className="uiux-card uiux-live-card">
           <div className="uiux-card-header">
             <div>
               <span className="uiux-eyebrow">Live Stream</span>
               <h3>실시간 탐색 스트림</h3>
             </div>
-            <Badge tone={currentStatus.tone} role="status" aria-live="polite">{currentStatus.label}</Badge>
+            <span className={`uiux-status-pill uiux-status-${UIUXTestStatus}`}>
+              {isRunning ? 'Running' : UIUXTestStatus === 'success' ? 'Completed' : UIUXTestStatus === 'error' ? 'Failed' : 'Ready'}
+            </span>
           </div>
 
           <div className="uiux-youtube-frame uiux-live-frame">
@@ -372,9 +548,9 @@ export default function UIUXTestPage({
               </div>
             )}
           </div>
-        </Card>
+        </main>
 
-        <Card as="aside" padding="sm" className="uiux-log-card">
+        <aside className="uiux-card uiux-log-card">
           <div className="uiux-card-header compact">
             <div>
               <span className="uiux-eyebrow">Steps</span>
@@ -382,18 +558,16 @@ export default function UIUXTestPage({
             </div>
           </div>
 
-          <div className="uiux-step-list" aria-live="polite">
-            {UIUXTestSteps.length === 0 && (
-              <EmptyState
-                className="uiux-log-empty"
-                icon={isRunning ? <span className="uiux-loading-ring small" aria-hidden="true" /> : undefined}
-                title={isRunning ? '초기화 중' : '실행 로그가 없습니다.'}
-                description={isRunning ? '첫 번째 탐색 단계를 기다리고 있습니다.' : '테스트를 시작하면 단계별 로그가 표시됩니다.'}
-              />
+          <div className="uiux-step-list">
+            {isRunning && UIUXTestSteps.length === 0 && (
+              <div className="uiux-empty-steps">
+                <span className="uiux-loading-ring small" />
+                <p>초기화 중</p>
+              </div>
             )}
             {UIUXTestSteps.map((step, index) => (
               <article className="uiux-step-item" key={`${step.step}-${index}`}>
-                <div className="uiux-step-marker" aria-hidden="true">
+                <div className="uiux-step-marker">
                   <span className="uiux-step-dot" />
                   <span className="uiux-step-line" />
                 </div>
@@ -405,10 +579,169 @@ export default function UIUXTestPage({
               </article>
             ))}
           </div>
-        </Card>
+        </aside>
       </section>
 
-      {UIUXTestStatus === 'success' && reportData && <UIUXResultView result={reportData} />}
+      {UIUXTestStatus === 'success' && reportData && (
+        <section className="uiux-results">
+          {reportData.scores && (
+            <div className="uiux-summary-grid">
+              <div className="uiux-card uiux-overall-card">
+                <span className="uiux-eyebrow">Overall</span>
+                <div>
+                  <strong>{overallScore ?? '-'}</strong>
+                  <span>점</span>
+                </div>
+                <p>{getScoreGrade(overallScore)} · Lighthouse, axe-core, Playwright 결과를 종합했습니다.</p>
+              </div>
+
+              <div className="uiux-card uiux-engine-card">
+                <span className="uiux-eyebrow">분석 도구 상태</span>
+                <div className="uiux-engine-list">
+                  {engineSummary.map((engine) => (
+                    <div className="uiux-engine-item" key={engine.label}>
+                      <div>
+                        <strong>{engine.label}</strong>
+                        <p>{engine.detail}</p>
+                      </div>
+                      <span>{engine.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {reportData.scores && (
+            <div className="uiux-score-grid">
+              <div className="uiux-card uiux-chart-card">
+                <UIUXScoreRadarChart scores={reportData.scores} />
+              </div>
+              <div className="uiux-card uiux-chart-card">
+                <UIUXScoreBarChart scores={reportData.scores} />
+              </div>
+            </div>
+          )}
+
+          <div className="uiux-report-grid">
+            <div className="uiux-card uiux-report-video-card">
+              <div className="uiux-video-titlebar">
+                <div>
+                  <span className="uiux-eyebrow">Playback</span>
+                  <h3>최종 결과 비디오</h3>
+                </div>
+              </div>
+              <div className="uiux-youtube-frame">
+                {reportData.videoUrl ? (
+                  <CustomVideoPlayer
+                    ref={customVideoRef}
+                    src={reportData.videoUrl}
+                    defects={reportData.defects}
+                    activeDefectId={activeDefectId}
+                    onTimeUpdate={handleVideoTimeUpdate}
+                    onDefectClick={(offset) => {
+                      setActiveDefectId(reportData.defects?.find((defect) => defect.timestampOffset === offset)?.id || null);
+                      customVideoRef.current?.seekTo(offset);
+                    }}
+                  />
+                ) : (
+                  <div className="uiux-player-idle">
+                    <strong>비디오 기록 없음</strong>
+                    <p>테스트가 완료되면 녹화 영상이 표시됩니다.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="uiux-card uiux-defect-card">
+              <div className="uiux-card-header compact">
+                <div>
+                  <span className="uiux-eyebrow">Issues</span>
+                  <h3>결함 타임라인</h3>
+                </div>
+              </div>
+
+              <div className="uiux-defect-list">
+                {reportData.defects && reportData.defects.length > 0 ? (
+                  reportData.defects.map((defect) => (
+                    <button
+                      type="button"
+                      key={defect.id}
+                      className={`uiux-defect-item ${activeDefectId === defect.id ? 'active' : ''}`}
+                      onClick={() => handleDefectClick(defect.timestampOffset)}
+                    >
+                      <div>
+                        <span>{getEngineLabel(defect.source)}</span>
+                        <strong>{getDefectCategoryLabel(defect.category)}</strong>
+                      </div>
+                      <div className="uiux-defect-meta">
+                        <span>{getDefectSeverityLabel(defect.severity)}</span>
+                        {defect.ruleId && <span>{defect.ruleId}</span>}
+                      </div>
+                      <p>{defect.description}</p>
+                      {defect.recommendation && <em>{defect.recommendation}</em>}
+                      <small>{formatTimeForDisplay(defect.timestampOffset)}</small>
+                    </button>
+                  ))
+                ) : (
+                  <div className="uiux-empty-steps">
+                    <p>발견된 결함이 없습니다.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="uiux-card uiux-report-card">
+            <button className="uiux-report-toggle" type="button" onClick={() => setShowHeuristics(!showHeuristics)}>
+              <span>상세 보고서</span>
+              <small>{showHeuristics ? '접기' : '펼치기'}</small>
+            </button>
+
+            {showHeuristics && (
+              <div className="uiux-report-details">
+                {reportData.scoreBreakdown && (
+                  <article className="uiux-report-detail-card">
+                    <div className="uiux-report-detail-index">EV</div>
+                    <div>
+                      <strong>평가 기준 버전 {reportData.evaluationVersion || 'v1'}</strong>
+                      <p>사용성 25%, 접근성 25%, 성능 20%, 탐색 효율 15%, 기술 품질 15% 가중치로 종합 점수를 산정했습니다.</p>
+                    </div>
+                  </article>
+                )}
+                <article className="uiux-report-detail-card">
+                  <div className="uiux-report-detail-index">EN</div>
+                  <div>
+                    <strong>분석 도구 상태</strong>
+                    <ul className="uiux-report-detail-list">
+                      {engineSummary.map((engine) => (
+                        <li key={`engine-${engine.label}`}>{engine.label} {engine.value}: {engine.detail}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </article>
+                {reportCards.length > 0 ? (
+                  reportCards.map((card, index) => (
+                    <article className="uiux-report-detail-card" key={card.id}>
+                      <div className="uiux-report-detail-index">{formatStepNumber(index + 1)}</div>
+                      <div>
+                        <strong>{card.title}</strong>
+                        <ul className="uiux-report-detail-list">
+                          {card.items.map((item, itemIndex) => (
+                            <li key={`${card.id}-${itemIndex}`}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </article>
+                  ))
+                ) : (
+                  <p>상세 보고서가 없습니다.</p>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

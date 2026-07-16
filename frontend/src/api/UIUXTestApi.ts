@@ -55,6 +55,11 @@ export interface UIUXTestStatusResponse {
   defects?: UIUXTestDefect[];
 }
 
+export interface UIUXVncAccessResponse {
+  url: string;
+  expiresAt: number;
+}
+
 /**
  * UI 탐색 테스트를 시작합니다.
  */
@@ -70,5 +75,10 @@ export async function startUIUXTest(targetUrl: string): Promise<StartUIUXTestRes
  */
 export async function getUIUXTestStatus(requestId: string): Promise<UIUXTestStatusResponse> {
   const response = await apiClient.get(`/api/uiux-tests/${requestId}/status`);
+  return response.data;
+}
+
+export async function issueUIUXVncAccess(requestId: string): Promise<UIUXVncAccessResponse> {
+  const response = await apiClient.post(`/api/uiux-tests/${requestId}/vnc-token`);
   return response.data;
 }
