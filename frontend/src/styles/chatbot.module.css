@@ -4,6 +4,28 @@
   background-color: var(--color-bg-canvas);
   color: var(--color-text-primary);
   font-family: var(--font-family-sans);
+  position: relative;
+}
+
+.menuToggleBtn {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 10;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.menuToggleBtn:hover {
+  background-color: var(--color-bg-subtle);
 }
 
 .sidebar {
@@ -13,6 +35,18 @@
   display: flex;
   flex-direction: column;
   padding: 1rem;
+  padding-top: 64px;
+  transition: width 0.3s ease, padding 0.3s ease, opacity 0.3s ease;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.sidebar.collapsed {
+  width: 0;
+  padding-left: 0;
+  padding-right: 0;
+  border-right: none;
+  opacity: 0;
 }
 
 .newChatBtn {
