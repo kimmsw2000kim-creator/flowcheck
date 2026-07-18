@@ -6,6 +6,7 @@ export interface Post {
   title: string;
   content: string;
   writerEmail: string;
+  writerAvatarUrl: string | null;
   promoUrl: string | null;
   createdAt: string;
   updatedAt: string;
@@ -19,6 +20,7 @@ export interface PostComment {
   id: number;
   content: string;
   writerEmail: string;
+  writerAvatarUrl: string | null;
   createdAt: string;
   parentId: number | null;
   replies: PostComment[];

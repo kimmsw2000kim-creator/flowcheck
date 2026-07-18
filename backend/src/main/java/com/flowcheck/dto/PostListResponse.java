@@ -7,6 +7,7 @@ public record PostListResponse(
         String title,
         String content,
         String writerEmail,
+        String writerAvatarUrl,
         LocalDateTime createdAt,
         int likeCount,
         int commentCount) {

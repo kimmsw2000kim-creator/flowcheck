@@ -122,14 +122,20 @@ export default function Header({ activeTab, onOpenAuth }: HeaderProps) {
                     aria-controls="app-header-profile-menu"
                     onClick={() => setProfileMenuOpen((open) => !open)}
                   >
-                    <UserRound size={19} aria-hidden="true" />
+                    <span className="app-header__profile-trigger-avatar" aria-hidden="true">
+                      <UserRound size={19} />
+                      {currentUser.avatarUrl && <img src={currentUser.avatarUrl} alt="" onError={(event) => { event.currentTarget.hidden = true; }} />}
+                    </span>
                     <ChevronDown size={15} aria-hidden="true" />
                   </button>
 
                   {profileMenuOpen && (
                     <div id="app-header-profile-menu" className="app-header__profile-dropdown" aria-labelledby="app-header-profile-trigger">
                       <div className="app-header__profile-summary">
-                        <span className="app-header__profile-avatar" aria-hidden="true"><UserRound size={20} /></span>
+                        <span className="app-header__profile-avatar" aria-hidden="true">
+                          <UserRound size={20} />
+                          {currentUser.avatarUrl && <img src={currentUser.avatarUrl} alt="" onError={(event) => { event.currentTarget.hidden = true; }} />}
+                        </span>
                         <div className="app-header__profile-details">
                           <strong>{currentUser.email}</strong>
                           <Badge tone={currentUser.role === 'ADMIN' ? 'warning' : 'neutral'}>

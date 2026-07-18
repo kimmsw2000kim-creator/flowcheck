@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { fetchCommunityPost } from '../../api/communityPostApi';
 import EmptyState from '../../components/common/EmptyState';
 import CommunityPostActions from '../../components/community/CommunityPostActions';
+import { CommunityAuthor } from '../../components/community/CommunityPostList';
 import CommunityTestResultSection from '../../components/community/CommunityTestResultSection';
 import type { Post } from '../../types/post';
 
@@ -152,11 +153,14 @@ export default function CommunityPostDetailPage() {
                 >
                     <h1>{post.title}</h1>
 
-                    <small
-                        style={{ color: 'var(--text-secondary)' }}
-                    >
-                        {post.writerEmail} ·{' '}
-                        {formatDate(post.createdAt)}
+                    <small className="community-post-meta">
+                        <CommunityAuthor
+                            email={post.writerEmail}
+                            avatarUrl={post.writerAvatarUrl}
+                        />
+                        <time dateTime={post.createdAt}>
+                            {formatDate(post.createdAt)}
+                        </time>
                     </small>
                 </header>
 

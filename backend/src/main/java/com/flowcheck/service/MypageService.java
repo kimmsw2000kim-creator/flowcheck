@@ -22,8 +22,11 @@ import com.flowcheck.repository.UIUXTestReportRepository;
 import com.flowcheck.repository.UserCouponRepository;
 import com.flowcheck.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -43,6 +46,9 @@ public class MypageService {
         private final UIUXTestService uiuxTestService;
         private final LoadTestReportRepository loadTestReportRepository;
         private final UIUXTestReportRepository uiuxTestReportRepository;
+
+        @Value("${supabase.url}")
+        private String supabaseUrl;
 
         public MypageResponseDTO getMyPage(UUID userId) {
                 User user = userRepository.findById(userId)
@@ -68,6 +74,9 @@ public class MypageService {
 
                 return new MypageResponseDTO(
                                 user.getEmail(),
+                                user.getRole(),
+                                user.getStatus().name(),
+                                user.getAvatarUrl(),
                                 user.getBalance(),
                                 couponCount,
                                 loadTestCouponCount,
@@ -75,6 +84,38 @@ public class MypageService {
                                 registeredSiteCount,
                                 testRunCount,
                                 sites);
+        }
+
+        @Transactional
+        public String updateAvatarUrl(UUID userId, String avatarUrl) {
+                User user = userRepository.findById(userId)
+                                .orElseThrow(() -> new ResponseStatusException(
+                                                HttpStatus.NOT_FOUND,
+                                                "사용자를 찾을 수 없습니다."));
+
+                // 프로필 URL 검증
+                String normalizedAvatarUrl = normalizeAvatarUrl(avatarUrl);
+                user.updateAvatarUrl(normalizedAvatarUrl);
+                userRepository.save(user);
+                return normalizedAvatarUrl;
+        }
+
+        private String normalizeAvatarUrl(String avatarUrl) {
+                if (avatarUrl == null || avatarUrl.isBlank()) {
+                        return null;
+                }
+
+                String normalized = avatarUrl.trim();
+                String storagePrefix = supabaseUrl.replaceAll("/+$", "")
+                                + "/storage/v1/object/public/avatars/";
+
+                if (normalized.length() > 2048 || !normalized.startsWith(storagePrefix)) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.BAD_REQUEST,
+                                        "허용되지 않은 프로필 사진 URL입니다.");
+                }
+
+                return normalized;
         }
 
         public List<MypageTestHistoryResponseDTO> getTestHistory(UUID userId) {

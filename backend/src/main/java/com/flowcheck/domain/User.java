@@ -54,6 +54,9 @@ public class User {
     @Column(name = "suspended_until")
     private OffsetDateTime suspendedUntil;
 
+    @Column(name = "avatar_url", columnDefinition = "TEXT")
+    private String avatarUrl;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
@@ -99,6 +102,11 @@ public class User {
      */
     public void changeRole(Role newRole) {
         this.role = newRole;
+    }
+
+    // 프로필 URL 저장
+    public void updateAvatarUrl(String avatarUrl) {
+        this.avatarUrl = avatarUrl;
     }
 
     /*

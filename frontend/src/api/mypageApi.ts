@@ -1,13 +1,14 @@
 import type { MypageData, MypagePointHistoryItem, MypageTestHistoryItem, MypageCouponHistoryItem } from '../types/mypage';
 import type { UIUXTestStatusResponse } from './UIUXTestApi';
 import type { AxiosRequestConfig } from 'axios';
-import apiClient from './client';
+import apiClient, { getAccountAccessMessage } from './client';
 
 export async function fetchMypage(config?: AxiosRequestConfig): Promise<MypageData> {
     try {
         const response = await apiClient.get<MypageData>('/api/mypage', config);
         return response.data;
     } catch (error: any) {
+        if (getAccountAccessMessage(error)) throw error;
         const message =
             error.response?.data?.message ||
             error.response?.data?.error ||

@@ -7,6 +7,7 @@ export type AuthStatus = 'checking' | 'authenticated' | 'anonymous';
 export interface CurrentUser {
   id: string;
   email: string;
+  avatarUrl: string;
   role: 'USER' | 'ADMIN' | string;
   balance: number;
   status: string;
@@ -37,6 +38,7 @@ interface UserState {
 const createInitialUser = (): CurrentUser => ({
   id: '',
   email: '',
+  avatarUrl: '',
   role: 'USER',
   balance: 0,
   status: 'ACTIVE',

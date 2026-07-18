@@ -38,6 +38,7 @@ import {
     getForumLikeCount,
     getForumWriter,
 } from '../components/community';
+import { CommunityAuthor } from '../components/community/CommunityPostList';
 
 import { COMMUNITY_LIMITS } from '../constants/communityLimits';
 
@@ -1247,7 +1248,10 @@ export default function CommentPage({
                                             </td>
 
                                             <td>
-                                                {getForumWriter(post)}
+                                                <CommunityAuthor
+                                                    email={getForumWriter(post)}
+                                                    avatarUrl={post.writerAvatarUrl}
+                                                />
                                             </td>
 
                                             <td>

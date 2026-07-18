@@ -12,6 +12,20 @@ interface CommunityPostListProps {
   emptyDescription: string;
 }
 
+export function CommunityAuthor({ email, avatarUrl }: { email: string; avatarUrl?: string | null }) {
+  // 기본 아바타 처리
+  const initial = email.charAt(0).toUpperCase() || 'F';
+  return (
+    <span className="community-author">
+      <span className="community-author__avatar" aria-hidden="true">
+        {initial}
+        {avatarUrl && <img src={avatarUrl} alt="" onError={(event) => { event.currentTarget.hidden = true; }} />}
+      </span>
+      <span className="community-author__name">{email}</span>
+    </span>
+  );
+}
+
 export default function CommunityPostList({ category, refreshKey, title, emptyTitle, emptyDescription }: CommunityPostListProps) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,7 +59,7 @@ export default function CommunityPostList({ category, refreshKey, title, emptyTi
       <div className="community-feed__list">
         {posts.map((post) => (
           <Card as="article" key={post.id} variant="outlined">
-            <div className="community-post-meta"><span>{post.writerEmail}</span><time dateTime={post.createdAt}>{new Date(post.createdAt).toLocaleString('ko-KR')}</time></div>
+            <div className="community-post-meta"><CommunityAuthor email={post.writerEmail} avatarUrl={post.writerAvatarUrl} /><time dateTime={post.createdAt}>{new Date(post.createdAt).toLocaleString('ko-KR')}</time></div>
             <h3>{post.title}</h3>
             <p className="community-feed__content">{post.content}</p>
             <div className="community-feed__footer">

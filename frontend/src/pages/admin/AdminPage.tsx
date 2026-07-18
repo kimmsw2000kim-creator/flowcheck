@@ -13,7 +13,7 @@ const tabs: Array<{ id: AdminTab; label: string }> = [
 ];
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<AdminTab>('users');
+  const [activeTab, setActiveTab] = useState<AdminTab>('inquiries');
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   const handleTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {

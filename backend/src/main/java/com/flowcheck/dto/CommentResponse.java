@@ -7,6 +7,7 @@ public record CommentResponse(
         Long id,
         String content,
         String writerEmail,
+        String writerAvatarUrl,
         LocalDateTime createdAt,
         Long parentId,
         List<CommentResponse> replies) {

@@ -71,6 +71,22 @@ function getWriter(
   );
 }
 
+function CommentAuthor({ comment, reply = false }: { comment: ForumComment; reply?: boolean }) {
+  const writer = getWriter(comment);
+  // 기본 아바타 처리
+  const initial = writer.charAt(0).toUpperCase() || 'F';
+
+  return (
+    <span className="community-author">
+      <span className="community-author__avatar community-author__avatar--sm" aria-hidden="true">
+        {initial}
+        {comment.writerAvatarUrl && <img src={comment.writerAvatarUrl} alt="" onError={(event) => { event.currentTarget.hidden = true; }} />}
+      </span>
+      <strong className="community-author__name">{reply ? '↳ ' : ''}{writer}</strong>
+    </span>
+  );
+}
+
 export default function ForumCommentThread({
   comments,
   commentCount = comments.reduce(
@@ -185,9 +201,7 @@ export default function ForumCommentThread({
             return (
               <div key={comment.id}>
                 <article className="community-comment">
-                  <strong>
-                    {getWriter(comment)}
-                  </strong>
+                  <CommentAuthor comment={comment} />
 
                   <p>{comment.content}</p>
 
@@ -311,9 +325,7 @@ export default function ForumCommentThread({
                         'community-comment--reply'
                       }
                     >
-                      <strong>
-                        ↳ {getWriter(reply)}
-                      </strong>
+                      <CommentAuthor comment={reply} reply />
 
                       <p>{reply.content}</p>
 

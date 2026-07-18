@@ -13,6 +13,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -33,6 +35,15 @@ public class MypageController {
         MypageResponseDTO responseDTO = myPageService.getMyPage(userId);
 
         return ResponseEntity.ok(responseDTO);
+    }
+
+    @PatchMapping("/api/mypage/profile-image")
+    public ResponseEntity<ProfileImageResponse> updateProfileImage(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestBody ProfileImageRequest request) {
+        UUID userId = UUID.fromString(jwt.getSubject());
+        String avatarUrl = myPageService.updateAvatarUrl(userId, request.avatarUrl());
+        return ResponseEntity.ok(new ProfileImageResponse(avatarUrl));
     }
 
     @GetMapping("/api/mypage/tests")
@@ -71,4 +82,8 @@ public class MypageController {
 
         return ResponseEntity.ok(response);
     }
+
+    public record ProfileImageRequest(String avatarUrl) {}
+
+    public record ProfileImageResponse(String avatarUrl) {}
 }

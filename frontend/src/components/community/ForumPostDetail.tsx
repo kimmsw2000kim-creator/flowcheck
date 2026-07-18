@@ -37,6 +37,22 @@ export interface ForumPostDetailProps {
   onShare?: () => void;
 }
 
+function PostAuthor({ post }: { post: ForumPost }) {
+  const writer = getForumWriter(post);
+  // 기본 아바타 처리
+  const initial = writer.charAt(0).toUpperCase() || 'F';
+
+  return (
+    <span className="community-author">
+      <span className="community-author__avatar" aria-hidden="true">
+        {initial}
+        {post.writerAvatarUrl && <img src={post.writerAvatarUrl} alt="" onError={(event) => { event.currentTarget.hidden = true; }} />}
+      </span>
+      <span className="community-author__name">{writer}</span>
+    </span>
+  );
+}
+
 export default function ForumPostDetail({
   post,
   liked,
@@ -53,7 +69,7 @@ export default function ForumPostDetail({
       className="community-detail"
     >
       <div className="community-post-meta">
-        <span>{getForumWriter(post)}</span>
+        <PostAuthor post={post} />
 
         <time dateTime={post.createdAt}>
           {post.createdAt

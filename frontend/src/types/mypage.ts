@@ -8,6 +8,7 @@ export interface SiteSummary {
 
 export interface MypageData {
   email: string;
+  avatarUrl?: string | null;
   role?: string;
   status?: string;
   balance: number;

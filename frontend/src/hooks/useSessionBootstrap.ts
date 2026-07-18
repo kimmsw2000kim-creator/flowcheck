@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { fetchMypage } from '../api/mypageApi';
+import { getAccountAccessMessage } from '../api/client';
+import { getProfileImageUrl, syncPublicProfileImage } from '../api/profileApi';
 import { supabase } from '../lib/supabaseClient';
 import { useAlertStore } from '../store/alertStore';
 import { useLedgerStore } from '../store/ledgerStore';
@@ -48,15 +50,16 @@ export function useSessionBootstrap(): void {
   useEffect(() => {
     let disposed = false;
     let generation = 0;
-    let lastSessionToken: string | null | undefined;
+    let lastSessionFingerprint: string | null | undefined;
     let activeController: AbortController | null = null;
 
     const applySession = async (session: Session | null) => {
       if (disposed) return;
 
-      const sessionToken = session?.access_token ?? null;
-      if (lastSessionToken === sessionToken) return;
-      lastSessionToken = sessionToken;
+      const avatarUrl = getProfileImageUrl(session?.user.user_metadata);
+      const sessionFingerprint = session ? `${session.access_token}:${avatarUrl}` : null;
+      if (lastSessionFingerprint === sessionFingerprint) return;
+      lastSessionFingerprint = sessionFingerprint;
 
       const currentGeneration = ++generation;
       activeController?.abort();
@@ -96,7 +99,7 @@ export function useSessionBootstrap(): void {
         disposed ||
         controller.signal.aborted ||
         generation !== currentGeneration ||
-        lastSessionToken !== session.access_token ||
+        lastSessionFingerprint !== sessionFingerprint ||
         useUserStore.getState().currentUser.id !== userId
       ) {
         return;
@@ -104,9 +107,28 @@ export function useSessionBootstrap(): void {
 
       if (profileResult.status === 'fulfilled') {
         const profile = profileResult.value;
+
+        if (profile.status && profile.status !== 'ACTIVE') {
+          clearLedger();
+          resetAuthState();
+          await supabase.auth.signOut();
+          showAlert('현재 이용할 수 없는 계정입니다.', 'error');
+          return;
+        }
+
+        // 기존 인증 메타데이터를 공개 프로필로 1회 이전
+        if (!profile.avatarUrl && avatarUrl) {
+          try {
+            await syncPublicProfileImage(avatarUrl);
+          } catch (syncError) {
+            console.warn('Failed to migrate profile image URL:', syncError);
+          }
+        }
+
         finishSession(userId, {
           email: profile.email ?? email,
-          role,
+          avatarUrl: profile.avatarUrl || avatarUrl,
+          role: profile.role ?? role,
           status: profile.status ?? 'ACTIVE',
           balance: profile.balance,
           coupons: profile.couponCount,
@@ -114,10 +136,17 @@ export function useSessionBootstrap(): void {
           UIUXTestCoupons: profile.UIUXTestCouponCount,
         });
       } else {
+        if (getAccountAccessMessage(profileResult.reason)) {
+          clearLedger();
+          resetAuthState();
+          return;
+        }
+
         console.error('Failed to hydrate user profile:', profileResult.reason);
-        // 프로필 조회가 실패해도 검증된 Supabase 역할은 유지합니다.
-        finishSession(userId, { role });
-        showAlert('사용자 정보를 불러오지 못했습니다. 기본 상태로 계속합니다.', 'warning');
+        clearLedger();
+        resetAuthState();
+        await supabase.auth.signOut();
+        showAlert('계정 상태를 확인하지 못해 로그아웃되었습니다. 잠시 후 다시 시도해 주세요.', 'error');
       }
     };
 
