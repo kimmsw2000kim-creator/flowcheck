@@ -71,6 +71,6 @@ export async function fetchMypageCommunityActivities(
     return response.data;
 }
 
-export async function withdrawMypageAccount(): Promise<void> {
-    await apiClient.delete('/api/mypage/account');
+export async function deactivateMypageAccount(): Promise<void> {
+    await apiClient.patch('/api/mypage/account/deactivate');
 }

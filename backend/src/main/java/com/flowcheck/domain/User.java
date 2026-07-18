@@ -54,6 +54,9 @@ public class User {
     @Column(name = "suspended_until")
     private OffsetDateTime suspendedUntil;
 
+    @Column(name = "status_changed_at")
+    private OffsetDateTime statusChangedAt;
+
     @Column(name = "avatar_url", columnDefinition = "TEXT")
     private String avatarUrl;
 
@@ -85,16 +88,24 @@ public class User {
      * 계정 정지 처리
      */
     public void suspendAccount(OffsetDateTime until) {
+        if (status != UserStatus.ACTIVE) {
+            throw new IllegalStateException("활성 계정만 정지할 수 있습니다.");
+        }
         this.status = UserStatus.SUSPENDED;
         this.suspendedUntil = until;
+        this.statusChangedAt = OffsetDateTime.now();
     }
 
     /**
      * 계정 정지 해제
      */
-    public void activateAccount() {
+    public void releaseSuspension() {
+        if (status != UserStatus.SUSPENDED) {
+            throw new IllegalStateException("정지 계정만 정지를 해제할 수 있습니다.");
+        }
         this.status = UserStatus.ACTIVE;
         this.suspendedUntil = null;
+        this.statusChangedAt = OffsetDateTime.now();
     }
 
     /**
@@ -107,8 +118,55 @@ public class User {
             return false;
         }
 
-        activateAccount();
+        this.status = UserStatus.ACTIVE;
+        this.suspendedUntil = null;
+        this.statusChangedAt = now;
         return true;
+    }
+
+    /**
+     * 사용자가 계정을 일시 비활성화합니다.
+     */
+    public void deactivateAccount() {
+        if (status != UserStatus.ACTIVE) {
+            throw new IllegalStateException("활성 계정만 비활성화할 수 있습니다.");
+        }
+        this.status = UserStatus.DEACTIVATED;
+        this.statusChangedAt = OffsetDateTime.now();
+    }
+
+    /**
+     * 사용자가 비활성 계정을 다시 활성화합니다.
+     */
+    public void reactivateAccount() {
+        if (status != UserStatus.DEACTIVATED) {
+            throw new IllegalStateException("비활성 계정만 재활성화할 수 있습니다.");
+        }
+        this.status = UserStatus.ACTIVE;
+        this.statusChangedAt = OffsetDateTime.now();
+    }
+
+    /**
+     * 관리자가 활성 또는 정지 계정을 차단합니다.
+     */
+    public void blockAccount() {
+        if (status != UserStatus.ACTIVE && status != UserStatus.SUSPENDED) {
+            throw new IllegalStateException("활성 또는 정지 계정만 차단할 수 있습니다.");
+        }
+        this.status = UserStatus.BLOCKED;
+        this.suspendedUntil = null;
+        this.statusChangedAt = OffsetDateTime.now();
+    }
+
+    /**
+     * 관리자가 차단 계정을 해제합니다.
+     */
+    public void unblockAccount() {
+        if (status != UserStatus.BLOCKED) {
+            throw new IllegalStateException("차단 계정만 차단을 해제할 수 있습니다.");
+        }
+        this.status = UserStatus.ACTIVE;
+        this.statusChangedAt = OffsetDateTime.now();
     }
 
     /*
@@ -123,10 +181,10 @@ public class User {
         this.avatarUrl = avatarUrl;
     }
 
-    /*
-    user 탈퇴 처리 (재회원가입 불가)
-     */
+    // 실제 회원탈퇴는 개인정보 익명화와 인증 계정 삭제 기능에서만 사용합니다.
     public void withdraw() {
         this.status = UserStatus.WITHDRAWN;
+        this.suspendedUntil = null;
+        this.statusChangedAt = OffsetDateTime.now();
     }
 }

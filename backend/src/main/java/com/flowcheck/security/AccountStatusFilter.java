@@ -62,6 +62,17 @@ public class AccountStatusFilter extends OncePerRequestFilter {
             return;
         }
 
+        if (user.getStatus() == UserStatus.BLOCKED) {
+            writeForbidden(response, "ACCOUNT_BLOCKED", "관리자에 의해 차단된 계정입니다.");
+            return;
+        }
+
+        // 비활성 계정은 본인 재활성화 요청만 허용합니다.
+        if (user.getStatus() == UserStatus.DEACTIVATED && !isReactivationRequest(request)) {
+            writeForbidden(response, "ACCOUNT_DEACTIVATED", "비활성화된 계정입니다.");
+            return;
+        }
+
         // 만료된 정지는 첫 인증 요청에서 즉시 해제합니다.
         if (user.activateIfSuspensionExpired(OffsetDateTime.now())) {
             userRepository.save(user);
@@ -84,6 +95,11 @@ public class AccountStatusFilter extends OncePerRequestFilter {
         SecurityContextHolder.getContext().setAuthentication(dbAuthorizedAuthentication);
 
         filterChain.doFilter(request, response);
+    }
+
+    private boolean isReactivationRequest(HttpServletRequest request) {
+        return "POST".equalsIgnoreCase(request.getMethod())
+                && "/api/mypage/account/reactivate".equals(request.getServletPath());
     }
 
     private void writeForbidden(HttpServletResponse response, String code, String message) throws IOException {

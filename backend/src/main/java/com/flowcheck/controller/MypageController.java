@@ -16,9 +16,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -52,11 +52,19 @@ public class MypageController {
         return ResponseEntity.ok(new ProfileImageResponse(avatarUrl));
     }
 
-    @DeleteMapping("/api/mypage/account")
-    public ResponseEntity<Void> withdrawMyAccount(
+    @PatchMapping("/api/mypage/account/deactivate")
+    public ResponseEntity<Void> deactivateMyAccount(
             @AuthenticationPrincipal Jwt jwt) {
         UUID userId = UUID.fromString(jwt.getSubject());
-        myPageService.withdrawAccount(userId);
+        myPageService.deactivateAccount(userId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/api/mypage/account/reactivate")
+    public ResponseEntity<Void> reactivateMyAccount(
+            @AuthenticationPrincipal Jwt jwt) {
+        UUID userId = UUID.fromString(jwt.getSubject());
+        myPageService.reactivateAccount(userId);
         return ResponseEntity.noContent().build();
     }
 

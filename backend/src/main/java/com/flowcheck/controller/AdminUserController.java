@@ -58,17 +58,27 @@ public class AdminUserController {
     public UserSummaryResponse activateUser(@PathVariable UUID userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
-        user.activateAccount();
+        user.releaseSuspension();
         userRepository.save(user);
         return UserSummaryResponse.from(user, userCouponRepository.sumRemainingChancesByUserId(userId));
     }
 
-    @Operation(summary = "회원 탈퇴 처리")
-    @PatchMapping("/{userId}/withdraw")
-    public  UserSummaryResponse withdrawUser(@PathVariable UUID userId) {
+    @Operation(summary = "회원 계정 차단")
+    @PatchMapping("/{userId}/block")
+    public UserSummaryResponse blockUser(@PathVariable UUID userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
-        user.withdraw();
+        user.blockAccount();
+        userRepository.save(user);
+        return UserSummaryResponse.from(user, userCouponRepository.sumRemainingChancesByUserId(userId));
+    }
+
+    @Operation(summary = "회원 계정 차단 해제")
+    @PatchMapping("/{userId}/unblock")
+    public UserSummaryResponse unblockUser(@PathVariable UUID userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
+        user.unblockAccount();
         userRepository.save(user);
         return UserSummaryResponse.from(user, userCouponRepository.sumRemainingChancesByUserId(userId));
     }
@@ -83,6 +93,7 @@ public class AdminUserController {
             Integer balance,
             OffsetDateTime createdAt,
             OffsetDateTime suspendedUntil,
+            OffsetDateTime statusChangedAt,
             Integer couponCount
     ) {
         static UserSummaryResponse from(User user, int couponCount) {
@@ -94,6 +105,7 @@ public class AdminUserController {
                     user.getBalance(),
                     user.getCreatedAt(),
                     user.getSuspendedUntil(),
+                    user.getStatusChangedAt(),
                     couponCount
             );
         }

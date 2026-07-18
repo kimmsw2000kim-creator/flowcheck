@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { withdrawMypageAccount } from '../../api/mypageApi';
+import { deactivateMypageAccount } from '../../api/mypageApi';
 import { Button, Card, PageHeader } from '../../components/common';
 import { useAlertStore } from '../../store/alertStore';
 import { useUserStore } from '../../store/userStore';
@@ -12,35 +12,35 @@ function MypageAccountSecuritySection({ email }: MypageAccountSecuritySectionPro
   const navigate = useNavigate();
   const logout = useUserStore((state) => state.logout);
   const showAlert = useAlertStore((state) => state.showAlert);
-  const [withdrawing, setWithdrawing] = useState(false);
+  const [deactivating, setDeactivating] = useState(false);
 
   const handleLogout = async () => {
     await logout();
     navigate('/login', { replace: true });
   };
 
-  const handleWithdraw = async () => {
+  const handleDeactivate = async () => {
     const confirmed = window.confirm(
-      '탈퇴하면 같은 계정으로 다시 로그인할 수 없습니다. 계속하시겠습니까?',
+      '계정을 비활성화하면 로그아웃됩니다. 다음 로그인 때 다시 활성화할 수 있습니다. 계속하시겠습니까?',
     );
     if (!confirmed) return;
 
-    const verification = window.prompt('탈퇴를 진행하려면 "탈퇴"를 입력해주세요.');
-    if (verification?.trim() !== '탈퇴') {
-      showAlert('탈퇴 확인 문구가 일치하지 않습니다.', 'error');
+    const verification = window.prompt('계정 비활성화를 진행하려면 "비활성화"를 입력해주세요.');
+    if (verification?.trim() !== '비활성화') {
+      showAlert('비활성화 확인 문구가 일치하지 않습니다.', 'error');
       return;
     }
 
     try {
-      setWithdrawing(true);
-      await withdrawMypageAccount();
+      setDeactivating(true);
+      await deactivateMypageAccount();
       await logout();
-      showAlert('회원 탈퇴가 완료되었습니다.', 'success');
+      showAlert('계정이 비활성화되었습니다.', 'success');
       navigate('/login', { replace: true });
     } catch (error: unknown) {
-      showAlert(error instanceof Error ? error.message : '회원 탈퇴를 처리하지 못했습니다.', 'error');
+      showAlert(error instanceof Error ? error.message : '계정을 비활성화하지 못했습니다.', 'error');
     } finally {
-      setWithdrawing(false);
+      setDeactivating(false);
     }
   };
 
@@ -57,17 +57,17 @@ function MypageAccountSecuritySection({ email }: MypageAccountSecuritySectionPro
         </Card>
         <Card className={styles['account-row']} variant="outlined">
           <div>
-            <strong>회원 탈퇴</strong>
-            <p>계정과 이용 이력은 보존되며, 탈퇴 후 같은 계정으로 다시 로그인할 수 없습니다.</p>
+            <strong>계정 비활성화</strong>
+            <p>이용 이력은 보존되며, 다음 로그인 때 본인 확인 후 계정을 다시 활성화할 수 있습니다.</p>
           </div>
           <Button
             type="button"
             variant="danger"
-            isLoading={withdrawing}
-            loadingText="탈퇴 처리 중..."
-            onClick={handleWithdraw}
+            isLoading={deactivating}
+            loadingText="비활성화 중..."
+            onClick={handleDeactivate}
           >
-            회원 탈퇴
+            계정 비활성화
           </Button>
         </Card>
       </div>

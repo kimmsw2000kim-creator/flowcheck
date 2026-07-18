@@ -124,14 +124,26 @@ public class MypageService {
         }
 
         @Transactional
-        public void withdrawAccount(UUID userId) {
+        public void deactivateAccount(UUID userId) {
                 User user = userRepository.findById(userId)
                                 .orElseThrow(() -> new ResponseStatusException(
                                                 HttpStatus.NOT_FOUND,
                                                 "사용자를 찾을 수 없습니다."));
 
-                // 사용자 데이터는 보존하고 계정 접근만 영구 차단합니다.
-                user.withdraw();
+                // 이용 기록은 보존하고 사용자가 다시 활성화할 수 있게 합니다.
+                user.deactivateAccount();
+                userRepository.save(user);
+        }
+
+        @Transactional
+        public void reactivateAccount(UUID userId) {
+                User user = userRepository.findById(userId)
+                                .orElseThrow(() -> new ResponseStatusException(
+                                                HttpStatus.NOT_FOUND,
+                                                "사용자를 찾을 수 없습니다."));
+
+                // 본인이 비활성화한 계정만 로그인 과정에서 복구합니다.
+                user.reactivateAccount();
                 userRepository.save(user);
         }
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent, KeyboardEvent } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { login, signup, validateActiveSession } from '../api/authApi';
+import { AccountDeactivatedError, login, reactivateAccount, signup, validateActiveSession } from '../api/authApi';
 import { supabase } from '../lib/supabaseClient';
 import { Button, Card, PageHeader, TextField } from '../components/common';
 import { useAlertStore } from '../store/alertStore';
@@ -77,7 +77,19 @@ export default function AuthPage({ setActiveTab, initialMode = 'login' }: AuthPa
     googleSessionHandledRef.current = true;
 
     try {
-      await validateActiveSession(session);
+      try {
+        await validateActiveSession(session);
+      } catch (error) {
+        if (!(error instanceof AccountDeactivatedError)) throw error;
+
+        const confirmed = window.confirm('비활성화된 계정입니다. 계정을 다시 활성화하고 로그인하시겠습니까?');
+        if (!confirmed) {
+          await supabase.auth.signOut();
+          showAlert('계정 재활성화를 취소했습니다.', 'info');
+          return;
+        }
+        await reactivateAccount(error.session);
+      }
       localStorage.setItem('accessToken', session.access_token);
       localStorage.setItem('refreshToken', session.refresh_token);
       localStorage.setItem('email', user.email);
@@ -119,7 +131,24 @@ export default function AuthPage({ setActiveTab, initialMode = 'login' }: AuthPa
     setLoadingAction('form');
     try {
       if (mode === 'login') {
-        const data = await login({ email, password });
+        let data;
+        let reactivated = false;
+        try {
+          data = await login({ email, password });
+        } catch (error) {
+          if (!(error instanceof AccountDeactivatedError)) throw error;
+
+          const confirmed = window.confirm('비활성화된 계정입니다. 계정을 다시 활성화하고 로그인하시겠습니까?');
+          if (!confirmed) {
+            await supabase.auth.signOut();
+            showAlert('계정 재활성화를 취소했습니다.', 'info');
+            return;
+          }
+
+          await reactivateAccount(error.session);
+          data = { session: error.session, user: error.session.user };
+          reactivated = true;
+        }
         if (data.session && data.user) {
           if (rememberEmail) {
             localStorage.setItem(REMEMBERED_EMAIL_STORAGE_KEY, email.trim());
@@ -127,7 +156,7 @@ export default function AuthPage({ setActiveTab, initialMode = 'login' }: AuthPa
             localStorage.removeItem(REMEMBERED_EMAIL_STORAGE_KEY);
           }
           loginSuccess(data.user.email, data.session.access_token, data.user.id);
-          showAlert('로그인에 성공했습니다.', 'success');
+          showAlert(reactivated ? '계정을 재활성화하고 로그인했습니다.' : '로그인에 성공했습니다.', 'success');
           setActiveTab('dashboard');
         }
       } else {
