@@ -11,6 +11,8 @@ import java.util.List;
 
 public interface CommentRepository extends JpaRepository<Comment, Long> {
 
+    List<Comment> findByWriterEmailIgnoreCaseOrderByCreatedAtDesc(String writerEmail);
+
     List<Comment> findByPostIdOrderByCreatedAtAsc(Long postId);
 
     Page<Comment> findByPostIdAndParentIdIsNullOrderByCreatedAtAsc(

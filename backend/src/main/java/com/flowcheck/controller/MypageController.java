@@ -2,12 +2,16 @@ package com.flowcheck.controller;
 
 
 import com.flowcheck.dto.mypage.MypageCouponHistoryResponseDTO;
+import com.flowcheck.dto.mypage.MypageCommunityActivityResponseDTO;
 import com.flowcheck.dto.mypage.MypagePointHistoryResponseDTO;
 import com.flowcheck.dto.mypage.MypageResponseDTO;
 import com.flowcheck.dto.mypage.MypageTestHistoryResponseDTO;
 import com.flowcheck.dto.uiuxtest.UIUXTestStatusResponse;
 import com.flowcheck.service.MypageService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -15,6 +19,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -79,6 +84,18 @@ public class MypageController {
             @AuthenticationPrincipal Jwt jwt) {
         UUID userId = UUID.fromString(jwt.getSubject());
         List<MypageCouponHistoryResponseDTO> response = myPageService.getCouponUsageHistory(userId);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/api/mypage/community/activities")
+    public ResponseEntity<Page<MypageCommunityActivityResponseDTO>> getMyCommunityActivities(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam(defaultValue = "ALL") String type,
+            @PageableDefault(size = 10) Pageable pageable) {
+        UUID userId = UUID.fromString(jwt.getSubject());
+        Page<MypageCommunityActivityResponseDTO> response =
+                myPageService.getCommunityActivities(userId, type, pageable);
 
         return ResponseEntity.ok(response);
     }

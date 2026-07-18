@@ -2,20 +2,27 @@ package com.flowcheck.service;
 
 import com.flowcheck.domain.CouponType;
 import com.flowcheck.domain.CouponUsageLog;
+import com.flowcheck.domain.Comment;
+import com.flowcheck.domain.CommunityPost;
 import com.flowcheck.domain.CreditsLedger;
 import com.flowcheck.domain.LoadTestReport;
+import com.flowcheck.domain.Post;
 import com.flowcheck.domain.RegisteredSite;
 import com.flowcheck.domain.TestRequest;
 import com.flowcheck.domain.User;
 import com.flowcheck.dto.mypage.MypageCouponHistoryResponseDTO;
+import com.flowcheck.dto.mypage.MypageCommunityActivityResponseDTO;
 import com.flowcheck.dto.mypage.MypagePointHistoryResponseDTO;
 import com.flowcheck.dto.mypage.MypageResponseDTO;
 import com.flowcheck.dto.mypage.MypageTestHistoryResponseDTO;
 import com.flowcheck.dto.mypage.SiteSummaryResponseDTO;
 import com.flowcheck.dto.uiuxtest.UIUXTestStatusResponse;
 import com.flowcheck.repository.CouponUsageLogRepository;
+import com.flowcheck.repository.CommentRepository;
+import com.flowcheck.repository.CommunityPostRepository;
 import com.flowcheck.repository.CreditsLedgerRepository;
 import com.flowcheck.repository.LoadTestReportRepository;
+import com.flowcheck.repository.PostRepository;
 import com.flowcheck.repository.RegisteredSiteRepository;
 import com.flowcheck.repository.TestRequestRepository;
 import com.flowcheck.repository.UIUXTestReportRepository;
@@ -23,6 +30,10 @@ import com.flowcheck.repository.UserCouponRepository;
 import com.flowcheck.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,7 +41,13 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.UUID;
 
 @Service
@@ -46,6 +63,9 @@ public class MypageService {
         private final UIUXTestService uiuxTestService;
         private final LoadTestReportRepository loadTestReportRepository;
         private final UIUXTestReportRepository uiuxTestReportRepository;
+        private final CommunityPostRepository communityPostRepository;
+        private final PostRepository postRepository;
+        private final CommentRepository commentRepository;
 
         @Value("${supabase.url}")
         private String supabaseUrl;
@@ -185,6 +205,112 @@ public class MypageService {
                                 Comparator.nullsLast(Comparator.reverseOrder())));
 
                 return histories;
+        }
+
+        public Page<MypageCommunityActivityResponseDTO> getCommunityActivities(
+                        UUID userId,
+                        String activityType,
+                        Pageable pageable) {
+                User user = userRepository.findById(userId)
+                                .orElseThrow(() -> new ResponseStatusException(
+                                                HttpStatus.NOT_FOUND,
+                                                "사용자를 찾을 수 없습니다."));
+
+                String normalizedType = normalizeActivityType(activityType);
+                List<CommunityPost> communityPosts = communityPostRepository
+                                .findByUser_UserId(userId, Pageable.unpaged())
+                                .getContent();
+                List<Post> freeBoardPosts = postRepository
+                                .findByUserIdOrderByCreatedAtDesc(userId.toString());
+                List<Comment> comments = commentRepository
+                                .findByWriterEmailIgnoreCaseOrderByCreatedAtDesc(user.getEmail());
+
+                // 댓글 대상 게시글 일괄 조회
+                Map<Long, Post> commentPosts = new HashMap<>();
+                postRepository.findAllById(comments.stream().map(Comment::getPostId).distinct().toList())
+                                .forEach(post -> commentPosts.put(post.getId(), post));
+
+                // 두 게시판 활동 통합
+                List<MypageCommunityActivityResponseDTO> activities = new ArrayList<>();
+                if (!"COMMENT".equals(normalizedType)) {
+                        communityPosts.stream()
+                                        .map(this::toCommunityPostActivity)
+                                        .forEach(activities::add);
+                        freeBoardPosts.stream()
+                                        .map(this::toFreeBoardPostActivity)
+                                        .forEach(activities::add);
+                }
+                if (!"POST".equals(normalizedType)) {
+                        comments.stream()
+                                        .map(comment -> toCommentActivity(comment, commentPosts.get(comment.getPostId())))
+                                        .forEach(activities::add);
+                }
+
+                activities.sort(Comparator.comparing(
+                                MypageCommunityActivityResponseDTO::createdAt,
+                                Comparator.nullsLast(Comparator.reverseOrder())));
+
+                int pageSize = Math.min(Math.max(pageable.getPageSize(), 1), 50);
+                int pageNumber = pageable.getPageNumber();
+                int fromIndex = Math.min(pageNumber * pageSize, activities.size());
+                int toIndex = Math.min(fromIndex + pageSize, activities.size());
+                Pageable normalizedPageable = PageRequest.of(pageNumber, pageSize);
+
+                return new PageImpl<>(activities.subList(fromIndex, toIndex), normalizedPageable, activities.size());
+        }
+
+        private String normalizeActivityType(String activityType) {
+                String normalized = activityType == null
+                                ? "ALL"
+                                : activityType.trim().toUpperCase(Locale.ROOT);
+                if (!List.of("ALL", "POST", "COMMENT").contains(normalized)) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.BAD_REQUEST,
+                                        "활동 유형은 ALL, POST, COMMENT 중 하나여야 합니다.");
+                }
+                return normalized;
+        }
+
+        private MypageCommunityActivityResponseDTO toCommunityPostActivity(CommunityPost post) {
+                return new MypageCommunityActivityResponseDTO(
+                                "POST",
+                                "COMMUNITY",
+                                post.getCategory().name(),
+                                post.getPostId(),
+                                post.getPostId(),
+                                post.getTitle(),
+                                post.getContent(),
+                                post.getCreatedAt());
+        }
+
+        private MypageCommunityActivityResponseDTO toFreeBoardPostActivity(Post post) {
+                return new MypageCommunityActivityResponseDTO(
+                                "POST",
+                                "FREE_BOARD",
+                                "FREE_BOARD",
+                                post.getId(),
+                                post.getId(),
+                                post.getTitle(),
+                                post.getContent(),
+                                toOffsetDateTime(post.getCreatedAt()));
+        }
+
+        private MypageCommunityActivityResponseDTO toCommentActivity(Comment comment, Post post) {
+                return new MypageCommunityActivityResponseDTO(
+                                comment.getParentId() == null ? "COMMENT" : "REPLY",
+                                "FREE_BOARD",
+                                "FREE_BOARD",
+                                comment.getId(),
+                                comment.getPostId(),
+                                post == null ? "삭제된 게시글" : post.getTitle(),
+                                comment.getContent(),
+                                toOffsetDateTime(comment.getCreatedAt()));
+        }
+
+        private OffsetDateTime toOffsetDateTime(LocalDateTime dateTime) {
+                return dateTime == null
+                                ? null
+                                : dateTime.atZone(ZoneId.of("Asia/Seoul")).toOffsetDateTime();
         }
 
         private Integer extractLoadPerformanceScore(LoadTestReport report) {
