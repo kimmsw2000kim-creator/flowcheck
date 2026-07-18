@@ -62,6 +62,11 @@ public class AccountStatusFilter extends OncePerRequestFilter {
             return;
         }
 
+        // 만료된 정지는 첫 인증 요청에서 즉시 해제합니다.
+        if (user.activateIfSuspensionExpired(OffsetDateTime.now())) {
+            userRepository.save(user);
+        }
+
         if (user.getStatus() == UserStatus.SUSPENDED) {
             writeForbidden(response, "ACCOUNT_SUSPENDED", "이용이 정지된 계정입니다.");
             return;

@@ -97,6 +97,20 @@ public class User {
         this.suspendedUntil = null;
     }
 
+    /**
+     * 정지 만료 시 계정을 자동 활성화합니다.
+     */
+    public boolean activateIfSuspensionExpired(OffsetDateTime now) {
+        if (status != UserStatus.SUSPENDED
+                || suspendedUntil == null
+                || suspendedUntil.isAfter(now)) {
+            return false;
+        }
+
+        activateAccount();
+        return true;
+    }
+
     /*
     user 룰 변경
      */

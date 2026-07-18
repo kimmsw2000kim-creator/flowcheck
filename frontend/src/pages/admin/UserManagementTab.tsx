@@ -61,6 +61,9 @@ export default function UserManagementTab() {
             <dt>잔액</dt><dd>{selectedUser.balance.toLocaleString()}P</dd>
             <dt>쿠폰</dt><dd>{selectedUser.couponCount}개</dd>
             <dt>상태</dt><dd><Badge tone={statusTone[selectedUser.status] || 'neutral'}>{statusLabel[selectedUser.status] || selectedUser.status}</Badge></dd>
+            {selectedUser.status === 'SUSPENDED' && selectedUser.suspendedUntil && <>
+              <dt>정지 해제 예정</dt><dd>{new Date(selectedUser.suspendedUntil).toLocaleString('ko-KR')}</dd>
+            </>}
           </dl>
           <Select label="권한" value={selectedUser.role} disabled={Boolean(pendingAction)} onChange={(event) => updateUser('role', () => changeUserRole(selectedUser.userId, event.target.value as 'USER' | 'ADMIN'))}>
             <option value="USER">USER</option><option value="ADMIN">ADMIN</option>
