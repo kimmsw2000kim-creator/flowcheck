@@ -26,6 +26,26 @@ export interface PostComment {
   replies: PostComment[];
 }
 
+export interface PostCommentPage {
+  content: PostComment[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+}
+
+export interface CommunityPostLikeStatus {
+  postId: number;
+  likeCount: number;
+  liked: boolean;
+  message: string;
+}
+
+export interface CreatePostCommentRequest {
+  content: string;
+  parentId?: number | null;
+}
+
 export interface PostPage {
   content: Post[];
   totalElements: number;

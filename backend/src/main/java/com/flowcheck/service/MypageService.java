@@ -4,6 +4,7 @@ import com.flowcheck.domain.CouponType;
 import com.flowcheck.domain.CouponUsageLog;
 import com.flowcheck.domain.Comment;
 import com.flowcheck.domain.CommunityPost;
+import com.flowcheck.domain.CommunityPostComment;
 import com.flowcheck.domain.CreditsLedger;
 import com.flowcheck.domain.LoadTestReport;
 import com.flowcheck.domain.Post;
@@ -20,6 +21,7 @@ import com.flowcheck.dto.uiuxtest.UIUXTestStatusResponse;
 import com.flowcheck.repository.CouponUsageLogRepository;
 import com.flowcheck.repository.CommentRepository;
 import com.flowcheck.repository.CommunityPostRepository;
+import com.flowcheck.repository.CommunityPostCommentRepository;
 import com.flowcheck.repository.CreditsLedgerRepository;
 import com.flowcheck.repository.LoadTestReportRepository;
 import com.flowcheck.repository.PostRepository;
@@ -64,6 +66,7 @@ public class MypageService {
         private final LoadTestReportRepository loadTestReportRepository;
         private final UIUXTestReportRepository uiuxTestReportRepository;
         private final CommunityPostRepository communityPostRepository;
+        private final CommunityPostCommentRepository communityPostCommentRepository;
         private final PostRepository postRepository;
         private final CommentRepository commentRepository;
 
@@ -224,6 +227,8 @@ public class MypageService {
                                 .findByUserIdOrderByCreatedAtDesc(userId.toString());
                 List<Comment> comments = commentRepository
                                 .findByWriterEmailIgnoreCaseOrderByCreatedAtDesc(user.getEmail());
+                List<CommunityPostComment> communityComments = communityPostCommentRepository
+                                .findByUser_UserIdOrderByCreatedAtDesc(userId);
 
                 // 댓글 대상 게시글 일괄 조회
                 Map<Long, Post> commentPosts = new HashMap<>();
@@ -241,6 +246,9 @@ public class MypageService {
                                         .forEach(activities::add);
                 }
                 if (!"POST".equals(normalizedType)) {
+                        communityComments.stream()
+                                        .map(this::toCommunityCommentActivity)
+                                        .forEach(activities::add);
                         comments.stream()
                                         .map(comment -> toCommentActivity(comment, commentPosts.get(comment.getPostId())))
                                         .forEach(activities::add);
@@ -305,6 +313,20 @@ public class MypageService {
                                 post == null ? "삭제된 게시글" : post.getTitle(),
                                 comment.getContent(),
                                 toOffsetDateTime(comment.getCreatedAt()));
+        }
+
+        private MypageCommunityActivityResponseDTO toCommunityCommentActivity(
+                        CommunityPostComment comment) {
+                CommunityPost post = comment.getPost();
+                return new MypageCommunityActivityResponseDTO(
+                                comment.getParent() == null ? "COMMENT" : "REPLY",
+                                "COMMUNITY",
+                                post.getCategory().name(),
+                                comment.getId(),
+                                post.getPostId(),
+                                post.getTitle(),
+                                comment.getContent(),
+                                comment.getCreatedAt());
         }
 
         private OffsetDateTime toOffsetDateTime(LocalDateTime dateTime) {

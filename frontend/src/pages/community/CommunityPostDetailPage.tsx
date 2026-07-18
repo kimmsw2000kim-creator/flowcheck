@@ -1,16 +1,26 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
+import { ThumbsUp } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 
-import { fetchCommunityPost } from '../../api/communityPostApi';
-import EmptyState from '../../components/common/EmptyState';
+import {
+    createCommunityPostComment,
+    deleteCommunityPostComment,
+    fetchCommunityPost,
+    fetchCommunityPostComments,
+    fetchCommunityPostLikeStatus,
+    toggleCommunityPostLike,
+} from '../../api/communityPostApi';
+import { Button, EmptyState } from '../../components/common';
 import CommunityPostActions from '../../components/community/CommunityPostActions';
 import { CommunityAuthor } from '../../components/community/CommunityPostList';
 import CommunityTestResultSection from '../../components/community/CommunityTestResultSection';
-import type { Post } from '../../types/post';
+import { CommentPagination, ForumCommentThread } from '../../components/community';
+import { COMMENTS_PER_PAGE } from '../../components/community/CommentPagination';
+import { COMMUNITY_LIMITS } from '../../constants/communityLimits';
+import { useAlertStore } from '../../store/alertStore';
+import { useUserStore } from '../../store/userStore';
+import type { Post, PostComment, PostCommentPage } from '../../types/post';
 
-/*
- * 백엔드 날짜를 한국 날짜 형식으로 표시합니다.
- */
 function formatDate(value: string): string {
     return new Date(value).toLocaleString('ko-KR', {
         year: 'numeric',
@@ -21,33 +31,41 @@ function formatDate(value: string): string {
     });
 }
 
+function getErrorMessage(error: unknown, fallback: string): string {
+    return error instanceof Error ? error.message : fallback;
+}
+
 export default function CommunityPostDetailPage() {
     const { postId } = useParams();
     const navigate = useNavigate();
+    const showAlert = useAlertStore((state) => state.showAlert);
+    const currentUserEmail = useUserStore((state) => state.currentUser.email);
+    const numericPostId = Number(postId);
 
     const [post, setPost] = useState<Post | null>(null);
+    const [liked, setLiked] = useState(false);
+    const [comments, setComments] = useState<PostComment[]>([]);
+    const [commentPage, setCommentPage] = useState(1);
+    const [totalCommentPages, setTotalCommentPages] = useState(1);
+    const [commentValue, setCommentValue] = useState('');
+    const [replyValue, setReplyValue] = useState('');
+    const [replyParentId, setReplyParentId] = useState<number | null>(null);
     const [loading, setLoading] = useState(true);
+    const [submitting, setSubmitting] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
 
+    const applyCommentPage = (response: PostCommentPage) => {
+        setComments(response.content ?? []);
+        setCommentPage((response.number ?? 0) + 1);
+        setTotalCommentPages(Math.max(response.totalPages ?? 1, 1));
+    };
+
     useEffect(() => {
-        /*
-         * 페이지를 벗어난 뒤 API 응답이 도착해도
-         * 상태가 변경되지 않도록 확인합니다.
-         */
         let cancelled = false;
 
-        const numericPostId = Number(postId);
-
-        /*
-         * 주소에 올바른 게시글 번호가 들어왔는지 검사합니다.
-         */
-        if (
-            !Number.isInteger(numericPostId) ||
-            numericPostId <= 0
-        ) {
+        if (!Number.isInteger(numericPostId) || numericPostId <= 0) {
             setErrorMessage('올바르지 않은 게시글 번호입니다.');
             setLoading(false);
-
             return () => {
                 cancelled = true;
             };
@@ -58,43 +76,147 @@ export default function CommunityPostDetailPage() {
                 setLoading(true);
                 setErrorMessage('');
 
-                const response = await fetchCommunityPost(
-                    numericPostId
-                );
+                const [postResponse, likeResponse, commentResponse] = await Promise.all([
+                    fetchCommunityPost(numericPostId),
+                    fetchCommunityPostLikeStatus(numericPostId),
+                    fetchCommunityPostComments(numericPostId, 0, COMMENTS_PER_PAGE),
+                ]);
 
                 if (!cancelled) {
-                    setPost(response);
+                    setPost(postResponse);
+                    setLiked(likeResponse.liked);
+                    applyCommentPage(commentResponse);
                 }
             } catch (error: unknown) {
                 if (!cancelled) {
-                    const message =
-                        error instanceof Error
-                            ? error.message
-                            : '게시글을 불러오지 못했습니다.';
-
-                    setErrorMessage(message);
+                    setErrorMessage(getErrorMessage(error, '게시글을 불러오지 못했습니다.'));
                 }
             } finally {
-                if (!cancelled) {
-                    setLoading(false);
-                }
+                if (!cancelled) setLoading(false);
             }
         };
 
-        loadPost();
-
+        void loadPost();
         return () => {
             cancelled = true;
         };
-    }, [postId]);
+    }, [numericPostId]);
+
+    const refreshPost = async () => {
+        const response = await fetchCommunityPost(numericPostId);
+        setPost(response);
+    };
+
+    const loadCommentPage = async (page: number) => {
+        const response = await fetchCommunityPostComments(
+            numericPostId,
+            Math.max(page - 1, 0),
+            COMMENTS_PER_PAGE,
+        );
+        applyCommentPage(response);
+    };
+
+    const toggleLike = async () => {
+        try {
+            setSubmitting(true);
+            const response = await toggleCommunityPostLike(numericPostId);
+            setLiked(response.liked);
+            setPost((current) => current ? { ...current, likeCount: response.likeCount } : current);
+            showAlert(response.message, 'success');
+        } catch (error: unknown) {
+            showAlert(getErrorMessage(error, '좋아요 처리에 실패했습니다.'), 'error');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const validateContent = (value: string): boolean => {
+        const content = value.trim();
+        if (!content) {
+            showAlert('댓글 내용을 입력해주세요.', 'error');
+            return false;
+        }
+        if (content.length > COMMUNITY_LIMITS.COMMENT) {
+            showAlert(`댓글은 최대 ${COMMUNITY_LIMITS.COMMENT}자까지 입력할 수 있습니다.`, 'error');
+            return false;
+        }
+        return true;
+    };
+
+    const submitComment = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        if (!validateContent(commentValue)) return;
+
+        try {
+            setSubmitting(true);
+            await createCommunityPostComment(numericPostId, { content: commentValue.trim() });
+            setCommentValue('');
+
+            // 새 부모 댓글이 표시되는 마지막 페이지로 이동합니다.
+            const firstPage = await fetchCommunityPostComments(numericPostId, 0, COMMENTS_PER_PAGE);
+            const lastPage = Math.max(firstPage.totalPages, 1);
+            if (lastPage === 1) {
+                applyCommentPage(firstPage);
+            } else {
+                await loadCommentPage(lastPage);
+            }
+            await refreshPost();
+            showAlert('댓글을 등록했습니다.', 'success');
+        } catch (error: unknown) {
+            showAlert(getErrorMessage(error, '댓글 작성에 실패했습니다.'), 'error');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const submitReply = async (event: FormEvent<HTMLFormElement>, parentId: number) => {
+        event.preventDefault();
+        if (!validateContent(replyValue)) return;
+
+        try {
+            setSubmitting(true);
+            await createCommunityPostComment(numericPostId, {
+                content: replyValue.trim(),
+                parentId,
+            });
+            setReplyValue('');
+            setReplyParentId(null);
+            await Promise.all([loadCommentPage(commentPage), refreshPost()]);
+            showAlert('답글을 등록했습니다.', 'success');
+        } catch (error: unknown) {
+            showAlert(getErrorMessage(error, '답글 작성에 실패했습니다.'), 'error');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const removeComment = async (commentId: number, isReply = false) => {
+        if (!window.confirm(`${isReply ? '답글' : '댓글'}을 삭제하시겠습니까?`)) return;
+
+        try {
+            setSubmitting(true);
+            await deleteCommunityPostComment(commentId);
+            const response = await fetchCommunityPostComments(
+                numericPostId,
+                Math.max(commentPage - 1, 0),
+                COMMENTS_PER_PAGE,
+            );
+            if (response.content.length === 0 && commentPage > 1) {
+                await loadCommentPage(commentPage - 1);
+            } else {
+                applyCommentPage(response);
+            }
+            await refreshPost();
+            showAlert(`${isReply ? '답글' : '댓글'}을 삭제했습니다.`, 'success');
+        } catch (error: unknown) {
+            showAlert(getErrorMessage(error, '댓글 삭제에 실패했습니다.'), 'error');
+        } finally {
+            setSubmitting(false);
+        }
+    };
 
     if (loading) {
-        return (
-            <EmptyState
-                title="게시글을 불러오는 중입니다."
-                description="잠시만 기다려 주세요."
-            />
-        );
+        return <EmptyState title="게시글을 불러오는 중입니다." description="잠시만 기다려주세요." />;
     }
 
     if (errorMessage || !post) {
@@ -104,101 +226,85 @@ export default function CommunityPostDetailPage() {
                     title={errorMessage || '게시글이 없습니다.'}
                     description="삭제됐거나 존재하지 않는 게시글입니다."
                 />
-
-                <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => navigate('/community')}
-                >
+                <Button type="button" variant="secondary" onClick={() => navigate('/community')}>
                     커뮤니티로 돌아가기
-                </button>
+                </Button>
             </div>
         );
     }
 
-    /*
-     * 게시글 종류에 따라 돌아갈 탭을 결정합니다.
-     */
-    const listPath =
-        post.category === 'SITE_PROMOTION'
-            ? '/community?tab=promotion'
-            : '/community?tab=tests';
+    const listPath = post.category === 'SITE_PROMOTION'
+        ? '/community?tab=promotion'
+        : '/community?tab=tests';
 
     return (
-        <div
-            style={{
-                maxWidth: '900px',
-                margin: '0 auto',
-                textAlign: 'left',
-            }}
-        >
-            <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => navigate(listPath)}
-            >
+        <div style={{ maxWidth: '900px', margin: '0 auto', textAlign: 'left' }}>
+            <Button type="button" variant="secondary" onClick={() => navigate(listPath)}>
                 목록으로
-            </button>
+            </Button>
 
-            <article
-                className="card"
-                style={{ marginTop: '1.5rem' }}
-            >
-                <header
-                    style={{
-                        borderBottom: '1px solid var(--border)',
-                        paddingBottom: '1rem',
-                        marginBottom: '1.5rem',
-                    }}
-                >
+            <article className="card" style={{ marginTop: '1.5rem' }}>
+                <header style={{ borderBottom: '1px solid var(--border)', paddingBottom: '1rem', marginBottom: '1.5rem' }}>
                     <h1>{post.title}</h1>
-
                     <small className="community-post-meta">
-                        <CommunityAuthor
-                            email={post.writerEmail}
-                            avatarUrl={post.writerAvatarUrl}
-                        />
-                        <time dateTime={post.createdAt}>
-                            {formatDate(post.createdAt)}
-                        </time>
+                        <CommunityAuthor email={post.writerEmail} avatarUrl={post.writerAvatarUrl} />
+                        <time dateTime={post.createdAt}>{formatDate(post.createdAt)}</time>
                     </small>
                 </header>
 
-                {/* 소개글을 작성한 경우에만 본문 영역을 표시합니다. */}
                 {post.content.trim() && (
-                    <p
-                        style={{
-                            minHeight: '160px',
-                            whiteSpace: 'pre-wrap',
-                            lineHeight: 1.7,
-                        }}
-                    >
+                    <p style={{ minHeight: '160px', whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>
                         {post.content}
                     </p>
                 )}
-                {/*
- * 테스트 공유 게시글이고 실제 테스트 요청이 연결된 경우에만
- * 부하 테스트 또는 UI/UX 테스트 결과를 조회합니다.
- */}
-                {post.category === 'TEST_SHARE' &&
-                    post.testRequestId && (
-                        <CommunityTestResultSection
-                            postId={post.id}
-                        />
-                    )}
+                {post.category === 'TEST_SHARE' && post.testRequestId && (
+                    <CommunityTestResultSection postId={post.id} />
+                )}
+
+                <div className="community-actions" style={{ marginTop: '1rem' }}>
+                    <Button
+                        type="button"
+                        variant={liked ? 'primary' : 'secondary'}
+                        size="sm"
+                        icon={ThumbsUp}
+                        aria-pressed={liked}
+                        disabled={submitting}
+                        onClick={() => void toggleLike()}
+                    >
+                        좋아요 {post.likeCount}
+                    </Button>
+                </div>
 
                 <CommunityPostActions
                     post={post}
-                    onUpdated={(updatedPost) => {
-                        // 수정 API 응답을 상세 화면에 즉시 반영합니다.
-                        setPost(updatedPost);
-                    }}
-                    onDeleted={() => {
-                        // 삭제된 게시글 화면에 남지 않도록 목록으로 이동합니다.
-                        navigate(listPath, { replace: true });
-                    }}
+                    onUpdated={setPost}
+                    onDeleted={() => navigate(listPath, { replace: true })}
                 />
             </article>
+
+            <ForumCommentThread
+                comments={comments}
+                commentCount={post.commentCount}
+                currentUserEmail={currentUserEmail}
+                value={commentValue}
+                replyValue={replyValue}
+                replyParentId={replyParentId}
+                label="댓글"
+                onValueChange={setCommentValue}
+                onReplyValueChange={setReplyValue}
+                onSubmit={submitComment}
+                onSubmitReply={submitReply}
+                onToggleReply={(commentId) => {
+                    setReplyParentId(commentId);
+                    setReplyValue('');
+                }}
+                onDelete={(commentId, isReply) => void removeComment(commentId, isReply)}
+            />
+            <CommentPagination
+                currentPage={commentPage}
+                totalPages={totalCommentPages}
+                onPageChange={(page) => void loadCommentPage(page)}
+            />
         </div>
     );
 }

@@ -2,7 +2,11 @@ import axios from 'axios';
 import apiClient from './client';
 import type {
     CreatePostRequest,
+    CreatePostCommentRequest,
+    CommunityPostLikeStatus,
     Post,
+    PostComment,
+    PostCommentPage,
     PostCategory,
     PostPage,
     UpdatePostRequest,
@@ -175,5 +179,70 @@ export async function deleteCommunityPost(
                 '커뮤니티 게시글을 삭제하지 못했습니다.'
             )
         );
+    }
+}
+
+export async function fetchCommunityPostLikeStatus(
+    postId: number
+): Promise<CommunityPostLikeStatus> {
+    try {
+        const response = await apiClient.get<CommunityPostLikeStatus>(
+            `/api/community/posts/${postId}/like-status`
+        );
+        return response.data;
+    } catch (error: unknown) {
+        throw new Error(getErrorMessage(error, '좋아요 상태를 불러오지 못했습니다.'));
+    }
+}
+
+export async function toggleCommunityPostLike(
+    postId: number
+): Promise<CommunityPostLikeStatus> {
+    try {
+        const response = await apiClient.post<CommunityPostLikeStatus>(
+            `/api/community/posts/${postId}/like`
+        );
+        return response.data;
+    } catch (error: unknown) {
+        throw new Error(getErrorMessage(error, '좋아요 처리에 실패했습니다.'));
+    }
+}
+
+export async function fetchCommunityPostComments(
+    postId: number,
+    page = 0,
+    size = 20
+): Promise<PostCommentPage> {
+    try {
+        const response = await apiClient.get<PostCommentPage>(
+            `/api/community/posts/${postId}/comments`,
+            { params: { page, size } }
+        );
+        return response.data;
+    } catch (error: unknown) {
+        throw new Error(getErrorMessage(error, '댓글을 불러오지 못했습니다.'));
+    }
+}
+
+export async function createCommunityPostComment(
+    postId: number,
+    request: CreatePostCommentRequest
+): Promise<PostComment> {
+    try {
+        const response = await apiClient.post<PostComment>(
+            `/api/community/posts/${postId}/comments`,
+            request
+        );
+        return response.data;
+    } catch (error: unknown) {
+        throw new Error(getErrorMessage(error, '댓글 작성에 실패했습니다.'));
+    }
+}
+
+export async function deleteCommunityPostComment(commentId: number): Promise<void> {
+    try {
+        await apiClient.delete(`/api/community/posts/comments/${commentId}`);
+    } catch (error: unknown) {
+        throw new Error(getErrorMessage(error, '댓글 삭제에 실패했습니다.'));
     }
 }

@@ -7,6 +7,8 @@ import com.flowcheck.dto.community.CommunityPostResponse;
 import com.flowcheck.dto.community.CommunityPostUpdateRequest;
 import com.flowcheck.dto.community.CommunitySharedTestResultResponse;
 import com.flowcheck.dto.uiuxtest.UIUXTestStatusResponse;
+import com.flowcheck.repository.CommunityPostCommentRepository;
+import com.flowcheck.repository.CommunityPostLikeRepository;
 import com.flowcheck.repository.CommunityPostRepository;
 import com.flowcheck.repository.RegisteredSiteRepository;
 import com.flowcheck.repository.TestRequestRepository;
@@ -32,6 +34,8 @@ public class CommunityPostService {
     private final UserRepository userRepository;
     private final RegisteredSiteRepository registeredSiteRepository;
     private final TestRequestRepository testRequestRepository;
+    private final CommunityPostLikeRepository communityPostLikeRepository;
+    private final CommunityPostCommentRepository communityPostCommentRepository;
 
     /*
      * 기존 테스트 결과 생성 로직을 재사용합니다.
@@ -348,10 +352,7 @@ public class CommunityPostService {
             testRequestRepository.save(testRequest);
         }
 
-        /*
-         * 댓글과 좋아요 기능은 아직 새 테이블에 연결하지 않았으므로
-         * 현재 단계에서는 두 개수를 0으로 반환합니다.
-         */
+        // 새 게시글은 좋아요와 댓글 개수가 0입니다.
         return CommunityPostResponse.from(
                 savedPost,
                 0L,
@@ -519,13 +520,14 @@ public class CommunityPostService {
                     .orElse(null);
         }
 
-        /*
-         * 댓글과 좋아요 Repository 연결 전까지는 0을 반환합니다.
-         */
+        // 좋아요와 댓글 개수를 실제 상호작용 테이블에서 집계합니다.
+        long likeCount = communityPostLikeRepository.countByPost_PostId(post.getPostId());
+        long commentCount = communityPostCommentRepository.countByPost_PostId(post.getPostId());
+
         return CommunityPostResponse.from(
                 post,
-                0L,
-                0L,
+                likeCount,
+                commentCount,
                 testRequestId
         );
     }
