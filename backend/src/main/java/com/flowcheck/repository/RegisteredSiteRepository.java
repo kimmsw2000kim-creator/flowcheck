@@ -16,4 +16,6 @@ public interface RegisteredSiteRepository extends JpaRepository<RegisteredSite, 
     long countByUser(User user);
 
     long countByUser_UserId(UUID userId);
+
+    long countByIsVerifiedTrue();
 }

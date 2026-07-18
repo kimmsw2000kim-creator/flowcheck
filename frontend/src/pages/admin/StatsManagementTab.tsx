@@ -1,38 +1,88 @@
+import { useCallback, useEffect, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { Button, Card } from '../../components/common';
-import { useAlertStore } from '../../store/alertStore';
+import { fetchAdminStats } from '../../api/adminStatsApi';
+import { Button, Card, EmptyState } from '../../components/common';
+import type { AdminStats } from '../../types/adminStats';
 
-interface DailyStat { date: string; totalUsers: number; newUsers: number; totalVerifiedDomains: number; totalTestsRun: number; totalCreditsConsumed: number; retentionRate7d: number; }
-
-const dailyStats: DailyStat[] = [
-  { date: '2026-06-24', totalUsers: 142, newUsers: 12, totalVerifiedDomains: 23, totalTestsRun: 110, totalCreditsConsumed: 450000, retentionRate7d: 38.5 },
-  { date: '2026-06-25', totalUsers: 154, newUsers: 12, totalVerifiedDomains: 25, totalTestsRun: 125, totalCreditsConsumed: 520000, retentionRate7d: 41.2 },
-  { date: '2026-06-26', totalUsers: 168, newUsers: 14, totalVerifiedDomains: 28, totalTestsRun: 140, totalCreditsConsumed: 600000, retentionRate7d: 40.8 },
-  { date: '2026-06-27', totalUsers: 180, newUsers: 12, totalVerifiedDomains: 31, totalTestsRun: 165, totalCreditsConsumed: 580000, retentionRate7d: 42.5 },
-  { date: '2026-06-28', totalUsers: 195, newUsers: 15, totalVerifiedDomains: 33, totalTestsRun: 190, totalCreditsConsumed: 700000, retentionRate7d: 44.1 },
-  { date: '2026-06-29', totalUsers: 210, newUsers: 15, totalVerifiedDomains: 36, totalTestsRun: 210, totalCreditsConsumed: 850000, retentionRate7d: 45 },
-];
+const numberFormatter = new Intl.NumberFormat('ko-KR');
 
 export default function StatsManagementTab() {
-  const showAlert = useAlertStore((state) => state.showAlert);
+  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const loadStats = useCallback(async () => {
+    try {
+      setLoading(true);
+      setErrorMessage('');
+      setStats(await fetchAdminStats());
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : '관리자 통계를 불러오지 못했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadStats();
+  }, [loadStats]);
+
+  const summaryItems = stats ? [
+    { label: '전체 회원', value: `${numberFormatter.format(stats.totalUsers)}명` },
+    { label: '활성 회원', value: `${numberFormatter.format(stats.activeUsers)}명` },
+    { label: '인증 도메인', value: `${numberFormatter.format(stats.verifiedDomains)}개` },
+    { label: '전체 테스트', value: `${numberFormatter.format(stats.totalTests)}회` },
+    { label: '완료 테스트', value: `${numberFormatter.format(stats.completedTests)}회` },
+    { label: '사용 크레딧', value: `${numberFormatter.format(stats.creditsConsumed)}P` },
+  ] : [];
+
   return (
     <Card as="section">
-      <h2 className="utility-card-title">일일 플랫폼 운영 성능</h2>
-      <p className="utility-card-description">정적 데모 데이터를 기준으로 7일 리텐션과 테스트 실행량을 표시합니다.</p>
-      <Button type="button" onClick={() => showAlert('금일 플랫폼 운영 지표 및 데일리 집계가 업데이트되었습니다.', 'success')}>배치 통계 집계 실행</Button>
-      <div className="admin-chart" aria-label="일일 플랫폼 운영 성능 차트">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={dailyStats}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-default)" />
-            <XAxis dataKey="date" stroke="var(--color-text-muted)" />
-            <YAxis stroke="var(--color-action-primary)" />
-            <Tooltip contentStyle={{ backgroundColor: 'var(--color-bg-surface)', borderColor: 'var(--color-border-default)', borderRadius: 'var(--radius-md)' }} />
-            <Legend />
-            <Line type="monotone" dataKey="retentionRate7d" name="7일 리텐션 비율 (%)" stroke="var(--color-status-success)" activeDot={{ r: 8 }} />
-            <Line type="monotone" dataKey="totalTestsRun" name="일일 누적 테스트 횟수" stroke="var(--color-action-primary)" />
-          </LineChart>
-        </ResponsiveContainer>
+      <div className="admin-stats-toolbar">
+        <div>
+          <h2 className="utility-card-title">플랫폼 운영 통계</h2>
+          <p className="utility-card-description">현재 누적 지표와 최근 7일 활동을 실제 데이터로 집계합니다.</p>
+        </div>
+        <Button type="button" variant="secondary" icon={RefreshCw} isLoading={loading && stats !== null} loadingText="갱신 중..." onClick={() => { void loadStats(); }}>
+          새로고침
+        </Button>
       </div>
+
+      {loading && !stats ? (
+        <EmptyState title="운영 통계를 집계하는 중입니다." description="잠시만 기다려 주세요." />
+      ) : errorMessage && !stats ? (
+        <EmptyState title={errorMessage} description="서버 상태와 관리자 권한을 확인해 주세요." action={<Button type="button" onClick={() => { void loadStats(); }}>다시 시도</Button>} />
+      ) : stats ? (
+        <>
+          <div className="admin-stats-grid">
+            {summaryItems.map((item) => (
+              <Card key={item.label} variant="subtle" padding="sm" className="admin-stat-card">
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+              </Card>
+            ))}
+          </div>
+
+          <div className="admin-chart" aria-label="최근 7일 신규 회원과 테스트 실행 추이 차트">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={stats.dailyStats}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-default)" />
+                <XAxis dataKey="date" tickFormatter={(value: string) => value.slice(5)} stroke="var(--color-text-muted)" />
+                <YAxis allowDecimals={false} stroke="var(--color-action-primary)" />
+                <Tooltip contentStyle={{ backgroundColor: 'var(--color-bg-surface)', borderColor: 'var(--color-border-default)', borderRadius: 'var(--radius-md)' }} />
+                <Legend />
+                <Line type="monotone" dataKey="newUsers" name="신규 회원" stroke="var(--color-status-success)" activeDot={{ r: 7 }} />
+                <Line type="monotone" dataKey="testsRun" name="테스트 실행" stroke="var(--color-action-primary)" />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          <p className="admin-stats-updated">
+            마지막 집계: {new Date(stats.generatedAt).toLocaleString('ko-KR')}
+          </p>
+        </>
+      ) : null}
     </Card>
   );
 }
