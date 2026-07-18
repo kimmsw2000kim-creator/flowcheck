@@ -16,6 +16,7 @@ import MypagePointHistorySection from './mypage/MypagePointHistorySection';
 import MypageCouponHistorySection from './mypage/MypageCouponHistorySection';
 import MypageMyPostsSection from './mypage/MypageMyPostsSection';
 import MypageTestDetailSection from './mypage/MypageTestDetailSection';
+import MypageAccountSecuritySection from './mypage/MypageAccountSecuritySection';
 
 import { fetchMypage } from '../api/mypageApi';
 import { getProfileImageUrl } from '../api/profileApi';
@@ -139,6 +140,11 @@ function Mypage() {
             <Route
               path="posts"
               element={<MypageMyPostsSection />}
+            />
+
+            <Route
+              path="account"
+              element={<MypageAccountSecuritySection email={data.email} />}
             />
 
             <Route path="*" element={<Navigate to="profile" replace />} />

@@ -123,6 +123,18 @@ public class MypageService {
                 return normalizedAvatarUrl;
         }
 
+        @Transactional
+        public void withdrawAccount(UUID userId) {
+                User user = userRepository.findById(userId)
+                                .orElseThrow(() -> new ResponseStatusException(
+                                                HttpStatus.NOT_FOUND,
+                                                "사용자를 찾을 수 없습니다."));
+
+                // 사용자 데이터는 보존하고 계정 접근만 영구 차단합니다.
+                user.withdraw();
+                userRepository.save(user);
+        }
+
         private String normalizeAvatarUrl(String avatarUrl) {
                 if (avatarUrl == null || avatarUrl.isBlank()) {
                         return null;

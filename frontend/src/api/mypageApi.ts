@@ -70,3 +70,7 @@ export async function fetchMypageCommunityActivities(
     });
     return response.data;
 }
+
+export async function withdrawMypageAccount(): Promise<void> {
+    await apiClient.delete('/api/mypage/account');
+}

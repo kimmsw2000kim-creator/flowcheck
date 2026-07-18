@@ -36,6 +36,12 @@ const navigationGroups: NavigationGroup[] = [
       { to: '/mypage/posts', label: '내 글 · 댓글' },
     ],
   },
+  {
+    label: '계정',
+    items: [
+      { to: '/mypage/account', label: '계정 · 보안' },
+    ],
+  },
 ];
 
 const navigationItems = navigationGroups.flatMap((group) => group.items);
