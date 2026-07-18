@@ -14,6 +14,7 @@ public record InquiryResponse(
         String status,
         String answer,
         OffsetDateTime createdAt,
+        OffsetDateTime updatedAt,
         OffsetDateTime answeredAt
 ) {
     public static InquiryResponse from(Inquiry inquiry) {
@@ -26,6 +27,7 @@ public record InquiryResponse(
                 inquiry.getStatus(),
                 inquiry.getAnswer(),
                 inquiry.getCreatedAt(),
+                inquiry.getUpdatedAt(),
                 inquiry.getAnsweredAt()
         );
     }

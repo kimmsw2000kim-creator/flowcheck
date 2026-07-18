@@ -91,6 +91,11 @@
 .inquiry-content, .inquiry-answer p { margin: 0; color: var(--color-text-secondary); font-size: var(--font-size-md); line-height: var(--line-height-normal); white-space: pre-wrap; }
 .inquiry-answer { padding: var(--space-3); border-left: 2px solid var(--color-status-success); border-radius: var(--radius-sm); background: var(--color-status-success-subtle); }
 .inquiry-answer strong { display: block; margin-bottom: var(--space-1); color: var(--color-status-success); font-size: var(--font-size-xs); }
+.inquiry-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: var(--space-3); margin-bottom: var(--space-5); }
+.inquiry-toolbar--admin { grid-template-columns: minmax(14rem, 1fr) minmax(9rem, 0.35fr) auto; }
+.inquiry-toolbar > .fc-field { margin-bottom: 0; }
+.inquiry-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.inquiry-pagination { display: flex; align-items: center; justify-content: center; gap: var(--space-3); margin-top: var(--space-5); color: var(--color-text-secondary); font-size: var(--font-size-sm); }
 
 .admin-tab { flex: 0 1 auto; }
 .admin-panel:focus { outline: none; }
@@ -118,6 +123,7 @@
   .utility-page { padding: var(--space-5) var(--layout-page-padding-mobile) var(--space-10); }
   .admin-tabs { overflow-x: auto; }
   .admin-tab { flex: 0 0 auto; }
+  .inquiry-toolbar, .inquiry-toolbar--admin { grid-template-columns: 1fr; align-items: stretch; }
 }
 
 @media (max-width: 560px) {

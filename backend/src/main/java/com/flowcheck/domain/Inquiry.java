@@ -64,6 +64,15 @@ public class Inquiry {
         this.content = content;
     }
 
+    // 답변 전 문의 내용 수정
+    public void update(String title, String content) {
+        if (!"PENDING".equals(status)) {
+            throw new IllegalStateException("답변 완료된 문의는 수정할 수 없습니다.");
+        }
+        this.title = title;
+        this.content = content;
+    }
+
     // 관리자 답변 저장
     public void answer(String answer) {
         this.answer = answer;
