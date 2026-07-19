@@ -8,6 +8,7 @@ export interface AdminUser {
     balance: number;
     createdAt: string;
     suspendedUntil: string | null;
+    statusChangedAt: string | null;
     couponCount: number;
 }
 
@@ -26,8 +27,13 @@ export const suspendUser = async (userId: string): Promise<AdminUser> => {
     return response.data;
 };
 
-export const withdrawUser = async (userId: string): Promise<AdminUser> => {
-    const response = await apiClient.patch<AdminUser>(`/api/admin/users/${userId}/withdraw`);
+export const blockUser = async (userId: string): Promise<AdminUser> => {
+    const response = await apiClient.patch<AdminUser>(`/api/admin/users/${userId}/block`);
+    return response.data;
+};
+
+export const unblockUser = async (userId: string): Promise<AdminUser> => {
+    const response = await apiClient.patch<AdminUser>(`/api/admin/users/${userId}/unblock`);
     return response.data;
 };
 

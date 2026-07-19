@@ -14,6 +14,13 @@ public interface TestRequestRepository extends JpaRepository<TestRequest, UUID> 
 
     long countByUser_UserId(UUID userId);
 
+    long countByTestStatusIgnoreCase(String testStatus);
+
+    long countByCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+            OffsetDateTime start,
+            OffsetDateTime end
+    );
+
     List<TestRequest> findByUser_UserIdOrderByCreatedAtDesc(UUID userId);
 
     Optional<TestRequest> findByIdAndUser_UserIdAndTestType(UUID requestId, UUID userId, String testType);

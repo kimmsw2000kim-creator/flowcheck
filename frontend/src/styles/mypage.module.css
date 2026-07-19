@@ -47,7 +47,12 @@
 .mypage-main { min-width: 0; }
 .mypage-section { display: flex; min-width: 0; flex-direction: column; gap: var(--space-6); }
 .mypage-profile-card { display: flex; align-items: center; gap: var(--space-4); }
-.profile-avatar { display: grid; width: 3.25rem; height: 3.25rem; flex: 0 0 auto; place-items: center; border-radius: var(--radius-full); background: var(--color-action-primary-subtle); color: var(--color-action-primary); font-size: var(--font-size-xl); font-weight: var(--font-weight-extrabold); }
+.profile-avatar-editor { display: flex; flex: 0 0 auto; align-items: center; gap: var(--space-3); }
+.profile-avatar { position: relative; display: grid; width: 5rem; height: 5rem; flex: 0 0 auto; overflow: hidden; place-items: center; border: 1px solid var(--color-border-default); border-radius: var(--radius-full); background: var(--color-action-primary-subtle); color: var(--color-action-primary); font-size: var(--font-size-xl); font-weight: var(--font-weight-extrabold); }
+.profile-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.profile-avatar-actions { display: flex; max-width: 10rem; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.profile-avatar-actions small { flex-basis: 100%; color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.profile-avatar-input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 
 .mypage-stats, .mypage-summary-grid { display: grid; gap: var(--space-4); }
 .mypage-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -82,6 +87,19 @@
 .test-history-actions, .pagination { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .test-history-actions { margin-top: var(--space-4); }
 .pagination { justify-content: center; margin-top: var(--space-3); }
+
+.activity-toolbar, .activity-header, .activity-footer { display: flex; align-items: center; }
+.activity-toolbar, .activity-header { justify-content: space-between; }
+.activity-toolbar { gap: var(--space-4); }
+.activity-filter, .activity-badges { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.activity-summary, .activity-header time { color: var(--color-text-muted); font-size: var(--font-size-sm); }
+.activity-list { display: flex; flex-direction: column; gap: var(--space-3); }
+.activity-card { display: flex; min-width: 0; flex-direction: column; gap: var(--space-3); }
+.activity-header { align-items: flex-start; gap: var(--space-4); }
+.activity-header time { flex: 0 0 auto; }
+.activity-title { color: var(--color-text-primary); font-size: var(--font-size-lg); overflow-wrap: anywhere; }
+.activity-content { display: -webkit-box; overflow: hidden; margin: 0; color: var(--color-text-secondary); font-size: var(--font-size-md); line-height: var(--line-height-relaxed); overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.activity-footer { justify-content: flex-end; }
 
 .setting-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--space-5); border: 1px solid var(--color-border-default); border-radius: var(--radius-md); background: var(--color-bg-surface); cursor: pointer; }
 .setting-row > span { display: flex; min-width: 0; flex-direction: column; gap: var(--space-1); }
@@ -123,6 +141,9 @@
 @media (max-width: 560px) {
   .mypage-stats { grid-template-columns: 1fr; }
   .mypage-profile-card, .setting-row { align-items: flex-start; }
+  .mypage-profile-card { flex-direction: column; }
   .test-history-item { grid-template-columns: 1fr; }
   .test-history-actions > *, .account-row > button { width: 100%; }
+  .activity-toolbar, .activity-header { align-items: flex-start; flex-direction: column; }
+  .activity-footer > button { width: 100%; }
 }

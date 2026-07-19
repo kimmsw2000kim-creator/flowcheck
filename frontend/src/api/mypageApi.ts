@@ -1,13 +1,21 @@
-import type { MypageData, MypagePointHistoryItem, MypageTestHistoryItem, MypageCouponHistoryItem } from '../types/mypage';
+import type {
+    MypageActivityFilter,
+    MypageCommunityActivityPage,
+    MypageCouponHistoryItem,
+    MypageData,
+    MypagePointHistoryItem,
+    MypageTestHistoryItem,
+} from '../types/mypage';
 import type { UIUXTestStatusResponse } from './UIUXTestApi';
 import type { AxiosRequestConfig } from 'axios';
-import apiClient from './client';
+import apiClient, { getAccountAccessMessage } from './client';
 
 export async function fetchMypage(config?: AxiosRequestConfig): Promise<MypageData> {
     try {
         const response = await apiClient.get<MypageData>('/api/mypage', config);
         return response.data;
     } catch (error: any) {
+        if (getAccountAccessMessage(error)) throw error;
         const message =
             error.response?.data?.message ||
             error.response?.data?.error ||
@@ -50,4 +58,19 @@ export async function fetchMypagePointHistory(): Promise<MypagePointHistoryItem[
 export async function fetchMypageCouponHistory(): Promise<MypageCouponHistoryItem[]> {
     const response = await apiClient.get<MypageCouponHistoryItem[]>('/api/mypage/coupons/history');
     return response.data;
+}
+
+export async function fetchMypageCommunityActivities(
+    type: MypageActivityFilter,
+    page = 0,
+    size = 10,
+): Promise<MypageCommunityActivityPage> {
+    const response = await apiClient.get<MypageCommunityActivityPage>('/api/mypage/community/activities', {
+        params: { type, page, size },
+    });
+    return response.data;
+}
+
+export async function deactivateMypageAccount(): Promise<void> {
+    await apiClient.patch('/api/mypage/account/deactivate');
 }

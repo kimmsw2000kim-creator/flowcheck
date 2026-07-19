@@ -6,6 +6,7 @@ import com.flowcheck.dto.PostRequest;
 import com.flowcheck.repository.CommentRepository;
 import com.flowcheck.repository.PostLikeRepository;
 import com.flowcheck.repository.PostRepository;
+import com.flowcheck.repository.UserRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Locale;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -28,6 +30,7 @@ public class PostService {
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
     private final PostLikeRepository postLikeRepository;
+    private final UserRepository userRepository;
 
     /**
      * 게시글 목록 조회
@@ -204,9 +207,35 @@ public class PostService {
                 post.getTitle(),
                 post.getContent(),
                 post.getWriterEmail(),
+                findWriterAvatarUrl(post),
                 post.getCreatedAt(),
                 Math.toIntExact(likeCount),
                 Math.toIntExact(commentCount));
+    }
+
+    // 작성자 프로필 조회
+    private String findWriterAvatarUrl(Post post) {
+        if (post.getUserId() != null && !post.getUserId().isBlank()) {
+            try {
+                return userRepository.findById(UUID.fromString(post.getUserId().trim()))
+                        .map(user -> user.getAvatarUrl())
+                        .orElseGet(() -> findAvatarByEmail(post.getWriterEmail()));
+            } catch (IllegalArgumentException ignored) {
+                // 기존 게시글의 비 UUID 사용자 ID는 이메일로 보완합니다.
+            }
+        }
+
+        return findAvatarByEmail(post.getWriterEmail());
+    }
+
+    private String findAvatarByEmail(String email) {
+        if (email == null || email.isBlank()) {
+            return null;
+        }
+
+        return userRepository.findByEmail(email.trim())
+                .map(user -> user.getAvatarUrl())
+                .orElse(null);
     }
 
     /**

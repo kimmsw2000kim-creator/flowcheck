@@ -33,7 +33,13 @@ const navigationGroups: NavigationGroup[] = [
   {
     label: '커뮤니티',
     items: [
-      { to: '/mypage/posts', label: '내 글 · 리뷰' },
+      { to: '/mypage/posts', label: '내 글 · 댓글' },
+    ],
+  },
+  {
+    label: '계정',
+    items: [
+      { to: '/mypage/account', label: '계정 · 보안' },
     ],
   },
 ];

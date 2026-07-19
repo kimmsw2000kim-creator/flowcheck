@@ -1,12 +1,24 @@
 import { useEffect, useState } from 'react';
-import { activateUser, changeUserRole, fetchAdminUsers, suspendUser, withdrawUser } from '../../api/adminApi';
+import { activateUser, blockUser, changeUserRole, fetchAdminUsers, suspendUser, unblockUser } from '../../api/adminApi';
 import type { AdminUser } from '../../api/adminApi';
 import { Badge, Button, Card, EmptyState, Select, Table, TableContainer } from '../../components/common';
 import type { BadgeTone } from '../../components/common';
 import { useAlertStore } from '../../store/alertStore';
 
-const statusTone: Record<string, BadgeTone> = { ACTIVE: 'success', SUSPENDED: 'warning', WITHDRAWN: 'danger' };
-const statusLabel: Record<string, string> = { ACTIVE: '활성', SUSPENDED: '정지', WITHDRAWN: '탈퇴' };
+const statusTone: Record<string, BadgeTone> = {
+  ACTIVE: 'success',
+  SUSPENDED: 'warning',
+  DEACTIVATED: 'neutral',
+  BLOCKED: 'danger',
+  WITHDRAWN: 'danger',
+};
+const statusLabel: Record<string, string> = {
+  ACTIVE: '활성',
+  SUSPENDED: '정지',
+  DEACTIVATED: '비활성',
+  BLOCKED: '차단',
+  WITHDRAWN: '탈퇴',
+};
 
 export default function UserManagementTab() {
   const showAlert = useAlertStore((state) => state.showAlert);
@@ -61,6 +73,10 @@ export default function UserManagementTab() {
             <dt>잔액</dt><dd>{selectedUser.balance.toLocaleString()}P</dd>
             <dt>쿠폰</dt><dd>{selectedUser.couponCount}개</dd>
             <dt>상태</dt><dd><Badge tone={statusTone[selectedUser.status] || 'neutral'}>{statusLabel[selectedUser.status] || selectedUser.status}</Badge></dd>
+            {selectedUser.statusChangedAt && <><dt>상태 변경일</dt><dd>{new Date(selectedUser.statusChangedAt).toLocaleString('ko-KR')}</dd></>}
+            {selectedUser.status === 'SUSPENDED' && selectedUser.suspendedUntil && <>
+              <dt>정지 해제 예정</dt><dd>{new Date(selectedUser.suspendedUntil).toLocaleString('ko-KR')}</dd>
+            </>}
           </dl>
           <Select label="권한" value={selectedUser.role} disabled={Boolean(pendingAction)} onChange={(event) => updateUser('role', () => changeUserRole(selectedUser.userId, event.target.value as 'USER' | 'ADMIN'))}>
             <option value="USER">USER</option><option value="ADMIN">ADMIN</option>
@@ -68,8 +84,8 @@ export default function UserManagementTab() {
           <div className="admin-actions">
             {selectedUser.status === 'ACTIVE' && <Button variant="secondary" isLoading={pendingAction === 'suspend'} loadingText="처리 중..." disabled={Boolean(pendingAction)} onClick={() => updateUser('suspend', () => suspendUser(selectedUser.userId))}>정지 처리</Button>}
             {selectedUser.status === 'SUSPENDED' && <Button variant="secondary" isLoading={pendingAction === 'activate'} loadingText="처리 중..." disabled={Boolean(pendingAction)} onClick={() => updateUser('activate', () => activateUser(selectedUser.userId))}>정지 해제</Button>}
-            {selectedUser.status !== 'WITHDRAWN' && <Button variant="danger" isLoading={pendingAction === 'withdraw'} loadingText="처리 중..." disabled={Boolean(pendingAction)} onClick={() => updateUser('withdraw', () => withdrawUser(selectedUser.userId))}>탈퇴 처리</Button>}
-            {selectedUser.status === 'WITHDRAWN' && <Button variant="secondary" isLoading={pendingAction === 'activate'} loadingText="처리 중..." disabled={Boolean(pendingAction)} onClick={() => updateUser('activate', () => activateUser(selectedUser.userId))}>탈퇴 해제</Button>}
+            {(selectedUser.status === 'ACTIVE' || selectedUser.status === 'SUSPENDED') && <Button variant="danger" isLoading={pendingAction === 'block'} loadingText="처리 중..." disabled={Boolean(pendingAction)} onClick={() => updateUser('block', () => blockUser(selectedUser.userId))}>계정 차단</Button>}
+            {selectedUser.status === 'BLOCKED' && <Button variant="secondary" isLoading={pendingAction === 'unblock'} loadingText="처리 중..." disabled={Boolean(pendingAction)} onClick={() => updateUser('unblock', () => unblockUser(selectedUser.userId))}>차단 해제</Button>}
             <Button variant="ghost" disabled={Boolean(pendingAction)} onClick={() => setSelectedUserId(null)}>닫기</Button>
           </div>
         </>}

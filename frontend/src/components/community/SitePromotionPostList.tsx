@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { fetchCommunityPosts } from '../../api/communityPostApi';
 import type { Post } from '../../types/post';
 import EmptyState from '../common/EmptyState';
+import { CommunityAuthor } from './CommunityPostList';
 
 // 작성자에게만 수정·삭제 기능을 제공합니다.
 import CommunityPostActions from './CommunityPostActions';
@@ -206,13 +207,14 @@ export default function SitePromotionPostList({
                                 gap: '1rem',
                             }}
                         >
-                            <small
-                                style={{
-                                    color: 'var(--text-secondary)',
-                                }}
-                            >
-                                {post.writerEmail} ·{' '}
-                                {formatDate(post.createdAt)}
+                            <small className="community-post-meta">
+                                <CommunityAuthor
+                                    email={post.writerEmail}
+                                    avatarUrl={post.writerAvatarUrl}
+                                />
+                                <time dateTime={post.createdAt}>
+                                    {formatDate(post.createdAt)}
+                                </time>
                             </small>
 
                             {/* 홍보 URL이 있는 게시글에만 이동 버튼을 표시합니다. */}

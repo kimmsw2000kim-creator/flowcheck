@@ -16,12 +16,16 @@ import MypagePointHistorySection from './mypage/MypagePointHistorySection';
 import MypageCouponHistorySection from './mypage/MypageCouponHistorySection';
 import MypageMyPostsSection from './mypage/MypageMyPostsSection';
 import MypageTestDetailSection from './mypage/MypageTestDetailSection';
+import MypageAccountSecuritySection from './mypage/MypageAccountSecuritySection';
 
 import { fetchMypage } from '../api/mypageApi';
+import { getProfileImageUrl } from '../api/profileApi';
 import { supabase } from '../lib/supabaseClient';
+import { useUserStore } from '../store/userStore';
 
 const emptyData: MypageData = {
   email: '',
+  avatarUrl: '',
   balance: 0,
   couponCount: 0,
   loadTestCouponCount: 0,
@@ -33,6 +37,7 @@ const emptyData: MypageData = {
 
 function Mypage() {
   const navigate = useNavigate();
+  const setCurrentUser = useUserStore((state) => state.setCurrentUser);
 
   const [data, setData] = useState<MypageData>(emptyData);
   const [loading, setLoading] = useState(true);
@@ -55,6 +60,7 @@ function Mypage() {
         setData({
           ...mypageData,
           email: userEmail,
+          avatarUrl: mypageData.avatarUrl || getProfileImageUrl(session.user.user_metadata),
         });
 
       } catch {
@@ -66,6 +72,11 @@ function Mypage() {
 
     checkAuthAndFetch();
   }, []);
+
+  const handleAvatarChange = (avatarUrl: string) => {
+    setData((current) => ({ ...current, avatarUrl }));
+    setCurrentUser({ avatarUrl });
+  };
 
   return (
     <div className={styles['mypage-layout']}>
@@ -97,7 +108,7 @@ function Mypage() {
 
             <Route
               path="profile"
-              element={<MypageProfileSection data={data} />}
+              element={<MypageProfileSection data={data} onAvatarChange={handleAvatarChange} />}
             />
 
             <Route
@@ -129,6 +140,11 @@ function Mypage() {
             <Route
               path="posts"
               element={<MypageMyPostsSection />}
+            />
+
+            <Route
+              path="account"
+              element={<MypageAccountSecuritySection email={data.email} />}
             />
 
             <Route path="*" element={<Navigate to="profile" replace />} />

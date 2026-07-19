@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent, KeyboardEvent } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { login, signup } from '../api/authApi';
+import { AccountDeactivatedError, login, reactivateAccount, signup, validateActiveSession } from '../api/authApi';
 import { supabase } from '../lib/supabaseClient';
 import { Button, Card, PageHeader, TextField } from '../components/common';
 import { useAlertStore } from '../store/alertStore';
@@ -14,12 +14,19 @@ export interface AuthPageProps {
 
 type AuthMode = 'login' | 'signup';
 const modes: AuthMode[] = ['login', 'signup'];
+const REMEMBERED_EMAIL_STORAGE_KEY = 'flowcheck.rememberedEmail';
+
+function getRememberedEmail(): string {
+  if (typeof window === 'undefined') return '';
+  return localStorage.getItem(REMEMBERED_EMAIL_STORAGE_KEY) ?? '';
+}
 
 export default function AuthPage({ setActiveTab, initialMode = 'login' }: AuthPageProps) {
   const showAlert = useAlertStore((state) => state.showAlert);
   const loginSuccess = useUserStore((state) => state.loginSuccess);
   const [mode, setMode] = useState<AuthMode>(initialMode);
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(getRememberedEmail);
+  const [rememberEmail, setRememberEmail] = useState(() => Boolean(getRememberedEmail()));
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [nickname, setNickname] = useState('');
@@ -59,31 +66,58 @@ export default function AuthPage({ setActiveTab, initialMode = 'login' }: AuthPa
     }
   };
 
-  const completeGoogleLogin = useCallback((session: Session) => {
+  const completeGoogleLogin = useCallback(async (session: Session) => {
     if (googleSessionHandledRef.current) return;
     const user = session.user;
+    if (user.app_metadata?.provider !== 'google') return;
     if (!user.email) {
       showAlert('Google 계정에서 이메일 정보를 가져오지 못했습니다.', 'error');
       return;
     }
     googleSessionHandledRef.current = true;
-    localStorage.setItem('accessToken', session.access_token);
-    localStorage.setItem('refreshToken', session.refresh_token);
-    localStorage.setItem('email', user.email);
-    localStorage.setItem('userId', user.id);
-    loginSuccess(user.email, session.access_token, user.id);
-    showAlert('Google 계정으로 로그인되었습니다.', 'success');
-    setActiveTab('dashboard');
-    window.history.replaceState({}, document.title, window.location.origin);
+
+    try {
+      try {
+        await validateActiveSession(session);
+      } catch (error) {
+        if (!(error instanceof AccountDeactivatedError)) throw error;
+
+        const confirmed = window.confirm('비활성화된 계정입니다. 계정을 다시 활성화하고 로그인하시겠습니까?');
+        if (!confirmed) {
+          await supabase.auth.signOut();
+          showAlert('계정 재활성화를 취소했습니다.', 'info');
+          return;
+        }
+        await reactivateAccount(error.session);
+      }
+      localStorage.setItem('accessToken', session.access_token);
+      localStorage.setItem('refreshToken', session.refresh_token);
+      localStorage.setItem('email', user.email);
+      localStorage.setItem('userId', user.id);
+      loginSuccess(user.email, session.access_token, user.id);
+      showAlert('Google 계정으로 로그인되었습니다.', 'success');
+      setActiveTab('dashboard');
+      window.history.replaceState({}, document.title, window.location.origin);
+    } catch (error) {
+      showAlert(error instanceof Error ? error.message : '계정 상태를 확인하지 못했습니다.', 'error');
+    }
   }, [loginSuccess, setActiveTab, showAlert]);
+
+  useEffect(() => {
+    const accountAccessMessage = sessionStorage.getItem('accountAccessMessage');
+    if (accountAccessMessage) {
+      sessionStorage.removeItem('accountAccessMessage');
+      showAlert(accountAccessMessage, 'error');
+    }
+  }, [showAlert]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data, error }) => {
       if (error) console.error(error);
-      if (data.session) completeGoogleLogin(data.session);
+      if (data.session) void completeGoogleLogin(data.session);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) completeGoogleLogin(session);
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) void completeGoogleLogin(session);
     });
     return () => subscription.unsubscribe();
   }, [completeGoogleLogin]);
@@ -97,10 +131,32 @@ export default function AuthPage({ setActiveTab, initialMode = 'login' }: AuthPa
     setLoadingAction('form');
     try {
       if (mode === 'login') {
-        const data = await login({ email, password });
+        let data;
+        let reactivated = false;
+        try {
+          data = await login({ email, password });
+        } catch (error) {
+          if (!(error instanceof AccountDeactivatedError)) throw error;
+
+          const confirmed = window.confirm('비활성화된 계정입니다. 계정을 다시 활성화하고 로그인하시겠습니까?');
+          if (!confirmed) {
+            await supabase.auth.signOut();
+            showAlert('계정 재활성화를 취소했습니다.', 'info');
+            return;
+          }
+
+          await reactivateAccount(error.session);
+          data = { session: error.session, user: error.session.user };
+          reactivated = true;
+        }
         if (data.session && data.user) {
+          if (rememberEmail) {
+            localStorage.setItem(REMEMBERED_EMAIL_STORAGE_KEY, email.trim());
+          } else {
+            localStorage.removeItem(REMEMBERED_EMAIL_STORAGE_KEY);
+          }
           loginSuccess(data.user.email, data.session.access_token, data.user.id);
-          showAlert('로그인에 성공했습니다.', 'success');
+          showAlert(reactivated ? '계정을 재활성화하고 로그인했습니다.' : '로그인에 성공했습니다.', 'success');
           setActiveTab('dashboard');
         }
       } else {
@@ -146,6 +202,21 @@ export default function AuthPage({ setActiveTab, initialMode = 'login' }: AuthPa
         <form id={`auth-panel-${mode}`} role="tabpanel" aria-labelledby={`auth-tab-${mode}`} onSubmit={handleSubmit}>
           <TextField label="이메일 주소" type="email" autoComplete="email" placeholder="example@flowcheck.com" value={email} onChange={(event) => setEmail(event.target.value)} required disabled={loadingAction !== null} />
           <TextField label="비밀번호" type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} placeholder="비밀번호를 입력하세요" value={password} onChange={(event) => setPassword(event.target.value)} required disabled={loadingAction !== null} />
+          {mode === 'login' && (
+            <label className="auth-remember-email">
+              <input
+                type="checkbox"
+                checked={rememberEmail}
+                disabled={loadingAction !== null}
+                onChange={(event) => {
+                  const checked = event.target.checked;
+                  setRememberEmail(checked);
+                  if (!checked) localStorage.removeItem(REMEMBERED_EMAIL_STORAGE_KEY);
+                }}
+              />
+              <span>아이디 기억하기</span>
+            </label>
+          )}
           {mode === 'signup' && <TextField label="비밀번호 확인" type="password" autoComplete="new-password" placeholder="비밀번호를 다시 입력하세요" value={passwordConfirm} onChange={(event) => setPasswordConfirm(event.target.value)} error={passwordError} description={passwordConfirmTouched && passwordMatched ? '비밀번호가 일치합니다.' : undefined} required disabled={loadingAction !== null} />}
           {mode === 'signup' && <TextField label="닉네임" type="text" autoComplete="nickname" placeholder="사용하실 닉네임" value={nickname} onChange={(event) => setNickname(event.target.value)} required disabled={loadingAction !== null} />}
           <Button type="submit" fullWidth isLoading={loadingAction === 'form'} loadingText="처리 중..." disabled={loadingAction !== null || Boolean(passwordError)}>{mode === 'login' ? '로그인' : '회원가입 완료'}</Button>

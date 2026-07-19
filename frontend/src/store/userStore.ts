@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { useAlertStore } from './alertStore';
 import { supabase } from '../lib/supabaseClient';
 
 export type AuthStatus = 'checking' | 'authenticated' | 'anonymous';
@@ -7,6 +6,7 @@ export type AuthStatus = 'checking' | 'authenticated' | 'anonymous';
 export interface CurrentUser {
   id: string;
   email: string;
+  avatarUrl: string;
   role: 'USER' | 'ADMIN' | string;
   balance: number;
   status: string;
@@ -31,12 +31,12 @@ interface UserState {
   }) => void;
   loginSuccess: (email: string, token?: string, userId?: string) => void;
   logout: () => Promise<void>;
-  toggleRole: () => void;
 }
 
 const createInitialUser = (): CurrentUser => ({
   id: '',
   email: '',
+  avatarUrl: '',
   role: 'USER',
   balance: 0,
   status: 'ACTIVE',
@@ -130,18 +130,4 @@ export const useUserStore = create<UserState>((set) => ({
       console.error('Failed to sign out from Supabase:', error);
     }
   },
-  toggleRole: () =>
-    set((state) => {
-      const nextRole = state.currentUser.role === 'USER' ? 'ADMIN' : 'USER';
-
-      // Call showAlert directly from alertStore
-      useAlertStore.getState().showAlert(
-        `시뮬레이션 역할을 ${nextRole === 'ADMIN' ? '관리자' : '일반 사용자'}(으)로 전환했습니다.`,
-        'info'
-      );
-
-      return {
-        currentUser: { ...state.currentUser, role: nextRole },
-      };
-    }),
 }));

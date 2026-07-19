@@ -1,11 +1,15 @@
 package com.flowcheck.controller;
 
 import com.flowcheck.domain.PostCategory;
+import com.flowcheck.dto.CommentRequest;
+import com.flowcheck.dto.community.CommunityPostCommentResponse;
+import com.flowcheck.dto.community.CommunityPostLikeResponse;
 import com.flowcheck.dto.community.CommunityPostRequest;
 import com.flowcheck.dto.community.CommunityPostResponse;
 import com.flowcheck.dto.community.CommunityPostUpdateRequest;
 import com.flowcheck.dto.community.CommunitySharedTestResultResponse;
 import com.flowcheck.service.CommunityPostService;
+import com.flowcheck.service.CommunityPostInteractionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -36,6 +40,7 @@ import java.util.UUID;
 public class CommunityPostController {
 
     private final CommunityPostService communityPostService;
+    private final CommunityPostInteractionService communityPostInteractionService;
 
     /*
      * 카테고리별 게시글 목록을 조회합니다.
@@ -167,6 +172,54 @@ public class CommunityPostController {
         /*
          * 삭제 성공 시 응답 본문 없이 204 상태를 반환합니다.
          */
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{postId}/like")
+    public ResponseEntity<CommunityPostLikeResponse> toggleLike(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable Long postId
+    ) {
+        UUID userId = extractUserId(jwt);
+        return ResponseEntity.ok(communityPostInteractionService.toggleLike(postId, userId));
+    }
+
+    @GetMapping("/{postId}/like-status")
+    public ResponseEntity<CommunityPostLikeResponse> getLikeStatus(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable Long postId
+    ) {
+        UUID userId = extractUserId(jwt);
+        return ResponseEntity.ok(communityPostInteractionService.getLikeStatus(postId, userId));
+    }
+
+    @GetMapping("/{postId}/comments")
+    public ResponseEntity<Page<CommunityPostCommentResponse>> getComments(
+            @PathVariable Long postId,
+            @PageableDefault(size = 20) Pageable pageable
+    ) {
+        return ResponseEntity.ok(communityPostInteractionService.getComments(postId, pageable));
+    }
+
+    @PostMapping("/{postId}/comments")
+    public ResponseEntity<CommunityPostCommentResponse> createComment(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable Long postId,
+            @Valid @RequestBody CommentRequest request
+    ) {
+        UUID userId = extractUserId(jwt);
+        CommunityPostCommentResponse response = communityPostInteractionService
+                .createComment(postId, userId, request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @DeleteMapping("/comments/{commentId}")
+    public ResponseEntity<Void> deleteComment(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable Long commentId
+    ) {
+        UUID userId = extractUserId(jwt);
+        communityPostInteractionService.deleteComment(commentId, userId);
         return ResponseEntity.noContent().build();
     }
 

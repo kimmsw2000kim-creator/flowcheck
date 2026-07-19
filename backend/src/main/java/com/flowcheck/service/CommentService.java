@@ -5,6 +5,7 @@ import com.flowcheck.dto.CommentRequest;
 import com.flowcheck.dto.CommentResponse;
 import com.flowcheck.repository.CommentRepository;
 import com.flowcheck.repository.PostRepository;
+import com.flowcheck.repository.UserRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -27,6 +28,7 @@ public class CommentService {
 
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
+    private final UserRepository userRepository;
 
     /*
      * 댓글 및 답글 조회
@@ -59,6 +61,7 @@ public class CommentService {
                         parent.getId(),
                         parent.getContent(),
                         parent.getWriterEmail(),
+                        findWriterAvatarUrl(parent.getWriterEmail()),
                         parent.getCreatedAt(),
                         null,
                         repliesByParentId.getOrDefault(
@@ -103,6 +106,7 @@ public class CommentService {
                 parent.getId(),
                 parent.getContent(),
                 parent.getWriterEmail(),
+                findWriterAvatarUrl(parent.getWriterEmail()),
                 parent.getCreatedAt(),
                 null,
                 repliesByParentId.getOrDefault(
@@ -154,6 +158,7 @@ public class CommentService {
                 savedComment.getId(),
                 savedComment.getContent(),
                 savedComment.getWriterEmail(),
+                findWriterAvatarUrl(savedComment.getWriterEmail()),
                 savedComment.getCreatedAt(),
                 savedComment.getParentId(),
                 List.of());
@@ -195,9 +200,21 @@ public class CommentService {
                 reply.getId(),
                 reply.getContent(),
                 reply.getWriterEmail(),
+                findWriterAvatarUrl(reply.getWriterEmail()),
                 reply.getCreatedAt(),
                 reply.getParentId(),
                 List.of());
+    }
+
+    // 작성자 프로필 조회
+    private String findWriterAvatarUrl(String email) {
+        if (email == null || email.isBlank()) {
+            return null;
+        }
+
+        return userRepository.findByEmail(email.trim())
+                .map(user -> user.getAvatarUrl())
+                .orElse(null);
     }
 
     /*

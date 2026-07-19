@@ -8,6 +8,7 @@ export interface SiteSummary {
 
 export interface MypageData {
   email: string;
+  avatarUrl?: string | null;
   role?: string;
   status?: string;
   balance: number;
@@ -54,4 +55,25 @@ export interface MypageCouponHistoryItem {
   couponType: string;
   description: string;
   usedAt: string;
+}
+
+export type MypageActivityFilter = 'ALL' | 'POST' | 'COMMENT';
+
+export interface MypageCommunityActivityItem {
+  activityType: 'POST' | 'COMMENT' | 'REPLY';
+  boardType: 'COMMUNITY' | 'FREE_BOARD';
+  category: 'TEST_SHARE' | 'SITE_PROMOTION' | 'FREE_BOARD' | string;
+  activityId: number;
+  postId: number;
+  title: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface MypageCommunityActivityPage {
+  content: MypageCommunityActivityItem[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
 }

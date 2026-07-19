@@ -6,6 +6,7 @@ export interface ForumPost {
   userId?: string;
   email?: string;
   writerEmail?: string;
+  writerAvatarUrl?: string | null;
   likes?: number;
   likeCount?: number;
   shares?: number;
@@ -19,6 +20,7 @@ export interface ForumComment {
   userId?: string;
   author?: string;
   writerEmail?: string;
+  writerAvatarUrl?: string | null;
   content: string;
   parentId: number | null;
   createdAt: string;

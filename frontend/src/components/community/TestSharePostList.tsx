@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { fetchCommunityPosts } from '../../api/communityPostApi';
 import type { Post } from '../../types/post';
 import EmptyState from '../common/EmptyState';
+import { CommunityAuthor } from './CommunityPostList';
 
 // 작성자에게만 수정·삭제 기능을 제공합니다.
 import CommunityPostActions from './CommunityPostActions';
@@ -207,9 +208,14 @@ export default function TestSharePostList({
                                 color: 'var(--text-secondary)',
                             }}
                         >
-                            <small>
-                                {post.writerEmail} ·{' '}
-                                {formatDate(post.createdAt)}
+                            <small className="community-post-meta">
+                                <CommunityAuthor
+                                    email={post.writerEmail}
+                                    avatarUrl={post.writerAvatarUrl}
+                                />
+                                <time dateTime={post.createdAt}>
+                                    {formatDate(post.createdAt)}
+                                </time>
                             </small>
 
                             {/* 실제 테스트 요청과 연결된 게시글인지 표시합니다. */}
