@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { fetchMypage } from '../api/mypageApi';
-import { getAccountAccessMessage } from '../api/client';
+import { getAccountAccessCode, getAccountAccessMessage } from '../api/client';
 import { getProfileImageUrl, syncPublicProfileImage } from '../api/profileApi';
 import { supabase } from '../lib/supabaseClient';
 import { useAlertStore } from '../store/alertStore';
@@ -136,6 +136,15 @@ export function useSessionBootstrap(): void {
           UIUXTestCoupons: profile.UIUXTestCouponCount,
         });
       } else {
+        if (getAccountAccessCode(profileResult.reason) === 'ACCOUNT_DEACTIVATED') {
+          // 로그인 직후 재활성화가 이어질 수 있으므로 동일 세션의 재처리를 허용합니다.
+          // reactivateAccount의 토큰 갱신 이벤트가 오면 ACTIVE 프로필을 다시 불러옵니다.
+          lastSessionFingerprint = undefined;
+          clearLedger();
+          resetAuthState();
+          return;
+        }
+
         if (getAccountAccessMessage(profileResult.reason)) {
           clearLedger();
           resetAuthState();
