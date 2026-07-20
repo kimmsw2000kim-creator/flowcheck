@@ -42,6 +42,7 @@ function Mypage() {
   const [data, setData] = useState<MypageData>(emptyData);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
+  const [canChangePassword, setCanChangePassword] = useState(false);
 
   useEffect(() => {
     const checkAuthAndFetch = async () => {
@@ -54,6 +55,17 @@ function Mypage() {
         }
 
         const userEmail = session.user.email || '';
+
+        // 연결된 인증 수단 중 email이 있을 때만 현재 비밀번호 변경 폼을 제공합니다.
+        // Google 전용 계정은 공급자 계정에서 비밀번호를 관리합니다.
+        const metadataProviders = Array.isArray(session.user.app_metadata?.providers)
+          ? session.user.app_metadata.providers
+          : [];
+        setCanChangePassword(
+          session.user.identities?.some((identity) => identity.provider === 'email')
+          || metadataProviders.includes('email')
+          || session.user.app_metadata?.provider === 'email',
+        );
 
         const mypageData = await fetchMypage();
 
@@ -144,7 +156,12 @@ function Mypage() {
 
             <Route
               path="account"
-              element={<MypageAccountSecuritySection email={data.email} />}
+              element={(
+                <MypageAccountSecuritySection
+                  email={data.email}
+                  canChangePassword={canChangePassword}
+                />
+              )}
             />
 
             <Route path="*" element={<Navigate to="profile" replace />} />

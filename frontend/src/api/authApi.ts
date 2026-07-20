@@ -24,6 +24,20 @@ export async function updatePassword(password: string): Promise<void> {
     if (error) throw new Error(error.message);
 }
 
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    if (!currentPassword) throw new Error("현재 비밀번호를 입력해 주세요.");
+    if (!newPassword) throw new Error("새 비밀번호를 입력해 주세요.");
+
+    // 복구 링크와 달리 로그인 중 변경은 현재 비밀번호를 함께 보내
+    // 세션을 탈취한 사용자가 비밀번호를 임의로 바꾸지 못하게 합니다.
+    const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+        current_password: currentPassword,
+    });
+
+    if (error) throw new Error(error.message);
+}
+
 export async function signup({ email, password, nickname }: AuthParams): Promise<any> {
     if (!password) throw new Error("비밀번호가 필요합니다.");
 
@@ -38,6 +52,14 @@ export async function signup({ email, password, nickname }: AuthParams): Promise
     });
 
     if (error) throw new Error(error.message);
+
+    // 이메일 인증이 켜진 Supabase는 기존 확정 계정에 오류 대신
+    // identities가 비어 있는 가짜 사용자 객체를 반환합니다.
+    // FlowCheck 정책상 가입 여부를 명확히 안내하기 위해 이를 기존 계정으로 판정합니다.
+    if (data.user?.identities?.length === 0) {
+        throw new Error("이미 가입된 계정입니다. 로그인하거나 비밀번호 찾기를 이용해 주세요.");
+    }
+
     return data;
 }
 
