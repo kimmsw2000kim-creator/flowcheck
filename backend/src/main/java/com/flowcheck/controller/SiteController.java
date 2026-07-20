@@ -5,7 +5,6 @@ import com.flowcheck.dto.SiteResponseDTO;
 import com.flowcheck.service.SiteService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -31,7 +30,7 @@ public class SiteController {
     @PostMapping
     public ResponseEntity<SiteResponseDTO> registerSite(
             @AuthenticationPrincipal Jwt jwt,
-            @Valid @RequestBody SiteRegisterRequestDTO requestDTO) {
+            @RequestBody SiteRegisterRequestDTO requestDTO) {
         String email = jwt.getClaimAsString("email");
         SiteResponseDTO response = siteService.registerSite(email, requestDTO);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);

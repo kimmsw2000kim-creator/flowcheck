@@ -9,15 +9,12 @@ import com.flowcheck.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
-import org.jsoup.Connection;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
-import java.net.InetAddress;
-import java.net.URI;
 import java.util.List;
 import java.util.UUID;
 
@@ -133,7 +130,10 @@ public class SiteService {
 
     private boolean verifyMetaTag(String domainUrl, String token) throws IOException {
         log.info("메타 태그 검증 시작 - URL: {}", domainUrl);
-        Document doc = safeGet(domainUrl).parse();
+        Document doc = Jsoup.connect(domainUrl)
+                .timeout(5000)
+                .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) FlowCheckVerification/1.0")
+                .get();
 
         Element meta = doc.selectFirst("meta[name=overload-verification]");
         if (meta != null) {
@@ -149,7 +149,12 @@ public class SiteService {
         String txtUrl = domainUrl + "/.well-known/overload-verification.txt";
         log.info("텍스트 파일 검증 시작 - URL: {}", txtUrl);
 
-        String body = safeGet(txtUrl).body();
+        String body = Jsoup.connect(txtUrl)
+                .ignoreContentType(true)
+                .timeout(5000)
+                .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) FlowCheckVerification/1.0")
+                .execute()
+                .body();
 
         if (body != null) {
             String trimmedBody = body.trim();
@@ -165,93 +170,11 @@ public class SiteService {
         if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
             trimmed = "https://" + trimmed;
         }
-        URI uri = validatePublicHttpUri(trimmed);
-        trimmed = uri.toString();
         // 끝의 / 문자 제거
         if (trimmed.endsWith("/")) {
             trimmed = trimmed.substring(0, trimmed.length() - 1);
         }
         return trimmed;
-    }
-
-    private Connection.Response safeGet(String rawUrl) throws IOException {
-        URI uri = validatePublicHttpUri(rawUrl);
-        for (int redirectCount = 0; redirectCount < 3; redirectCount++) {
-            Connection.Response response = Jsoup.connect(uri.toString())
-                    .ignoreContentType(true)
-                    .followRedirects(false)
-                    .timeout(5000)
-                    .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) FlowCheckVerification/1.0")
-                    .execute();
-
-            int statusCode = response.statusCode();
-            if (statusCode < 300 || statusCode >= 400) {
-                return response;
-            }
-
-            String location = response.header("Location");
-            if (location == null || location.isBlank()) {
-                return response;
-            }
-            uri = validatePublicHttpUri(uri.resolve(location).toString());
-        }
-        throw new IOException("도메인 검증 중 리다이렉트가 너무 많습니다.");
-    }
-
-    private URI validatePublicHttpUri(String rawUrl) {
-        try {
-            URI uri = new URI(rawUrl.trim());
-            String scheme = uri.getScheme();
-            String host = uri.getHost();
-            int port = uri.getPort();
-            if (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) {
-                throw new IllegalArgumentException("http 또는 https URL만 등록할 수 있습니다.");
-            }
-            if (host == null || host.isBlank() || uri.getUserInfo() != null) {
-                throw new IllegalArgumentException("도메인 URL의 호스트를 확인할 수 없습니다.");
-            }
-            if (port != -1 && port != 80 && port != 443) {
-                throw new IllegalArgumentException("도메인 검증은 80 또는 443 포트만 지원합니다.");
-            }
-            String lowerHost = host.toLowerCase();
-            if ("localhost".equals(lowerHost) || lowerHost.endsWith(".localhost")) {
-                throw new IllegalArgumentException("localhost 주소는 등록할 수 없습니다.");
-            }
-            for (InetAddress address : InetAddress.getAllByName(host)) {
-                if (!isPublicAddress(address)) {
-                    throw new IllegalArgumentException("사설망 또는 로컬 주소는 등록할 수 없습니다.");
-                }
-            }
-            return uri;
-        } catch (IllegalArgumentException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new IllegalArgumentException("도메인 URL이 올바르지 않습니다.");
-        }
-    }
-
-    private boolean isPublicAddress(InetAddress address) {
-        if (address.isAnyLocalAddress()
-                || address.isLoopbackAddress()
-                || address.isLinkLocalAddress()
-                || address.isSiteLocalAddress()
-                || address.isMulticastAddress()) {
-            return false;
-        }
-
-        byte[] bytes = address.getAddress();
-        if (bytes.length == 4) {
-            int first = bytes[0] & 0xff;
-            int second = bytes[1] & 0xff;
-            return first != 0
-                    && first != 10
-                    && first != 127
-                    && !(first == 100 && second >= 64 && second <= 127)
-                    && !(first == 169 && second == 254)
-                    && !(first == 172 && second >= 16 && second <= 31)
-                    && !(first == 192 && second == 168);
-        }
-        return bytes.length != 16 || ((bytes[0] & 0xfe) != 0xfc);
     }
 
     private String extractHostName(String url) {

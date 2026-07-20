@@ -62,10 +62,8 @@ public class LoadTestService {
                 UUID generatedRequestId = savedRequest.getId();
 
                 List<UserCoupon> availableCoupons = userCouponRepository
-                                .findByUserAndCoupon_CouponTypeAndRemainingChancesGreaterThanOrderByCreatedAtAsc(
-                                                user,
-                                                CouponType.LOAD_TEST,
-                                                0);
+                                .findByUserAndCoupon_CouponTypeAndRemainingChancesGreaterThanOrderByCreatedAtAsc(user,
+                                                CouponType.LOAD_TEST, 0);
 
                 if (!availableCoupons.isEmpty()) {
                         // 쿠폰 사용
