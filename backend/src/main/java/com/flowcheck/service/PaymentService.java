@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowcheck.domain.Coupon;
 import com.flowcheck.domain.CouponType;
+import com.flowcheck.domain.CreditTransactionType;
 import com.flowcheck.domain.UserCoupon;
 import com.flowcheck.domain.CreditsLedger;
 import com.flowcheck.domain.TossPayment;
@@ -266,9 +267,48 @@ public class PaymentService {
                         p.getBankCode(),
                         p.getCustomerName(),
                         p.getPaymentStatus(),
+                        calculateCreditAmount(p.getAmount()),
+                        isRefundable(p),
                         p.getDueDate(),
                         p.getCreatedAt()))
                 .toList();
+    }
+
+    @Transactional
+    public void refundPayment(Long paymentId, String reason, String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        TossPayment payment = tossPaymentRepository.findById(paymentId)
+                .orElseThrow(() -> new IllegalArgumentException("Payment record not found."));
+
+        if (!payment.getUser().getUserId().equals(user.getUserId())) {
+            throw new IllegalArgumentException("Refund is not allowed for this payment.");
+        }
+
+        if (!isRefundable(payment)) {
+            throw new IllegalStateException("Only completed Toss payments can be refunded.");
+        }
+
+        int creditedAmount = calculateCreditAmount(payment.getAmount());
+        if (user.getBalance() < creditedAmount) {
+            throw new IllegalStateException("Refund is unavailable because the charged credits were already used.");
+        }
+
+        requestTossCancel(payment, reason);
+
+        user.deductBalance(creditedAmount);
+        userRepository.save(user);
+
+        payment.setPaymentStatus("CANCELED");
+        tossPaymentRepository.save(payment);
+
+        creditsLedgerRepository.save(CreditsLedger.builder()
+                .user(user)
+                .amount(-creditedAmount)
+                .transactionType(CreditTransactionType.PAYMENT_REFUND)
+                .description("Toss Payments 크레딧 환불 - 주문번호: " + payment.getOrderId())
+                .build());
     }
 
     /**
@@ -276,12 +316,7 @@ public class PaymentService {
      */
     private void creditUserBalance(User user, TossPayment payment) {
         // 결제 금액(KRW)에 따른 실제 지급 크레딧(C) 계산
-        int creditAmount = payment.getAmount();
-        if (payment.getAmount() == 45000) {
-            creditAmount = 50000;
-        } else if (payment.getAmount() == 70000) {
-            creditAmount = 100000;
-        }
+        int creditAmount = calculateCreditAmount(payment.getAmount());
 
         // 사용자 크레딧 추가 및 저장
         user.chargeBalance(creditAmount);
@@ -291,7 +326,7 @@ public class PaymentService {
         CreditsLedger ledger = CreditsLedger.builder()
                 .user(user)
                 .amount(creditAmount)
-                .transactionType("CHARGE")
+                .transactionType(CreditTransactionType.CHARGE)
                 .description("Toss Payments 크레딧 충전 - 주문번호: " + payment.getOrderId())
                 .build();
 
@@ -303,6 +338,57 @@ public class PaymentService {
     private String tossBasicAuthHeader() {
         return "Basic "
                 + Base64.getEncoder().encodeToString((secretKey + ":").getBytes(StandardCharsets.UTF_8));
+    }
+
+    private boolean isRefundable(TossPayment payment) {
+        return "DONE".equalsIgnoreCase(payment.getPaymentStatus())
+                && payment.getPaymentKey() != null
+                && !payment.getPaymentKey().isBlank()
+                && (payment.getAccountNumber() == null || payment.getAccountNumber().isBlank());
+    }
+
+    private int calculateCreditAmount(Integer paymentAmount) {
+        if (paymentAmount == null) {
+            return 0;
+        }
+        if (paymentAmount == 45000) {
+            return 50000;
+        }
+        if (paymentAmount == 70000) {
+            return 100000;
+        }
+        return paymentAmount;
+    }
+
+    private void requestTossCancel(TossPayment payment, String reason) {
+        String cancelReason = reason == null || reason.isBlank()
+                ? "사용자 요청에 따른 크레딧 환불"
+                : reason.trim();
+        if (cancelReason.length() > 200) {
+            cancelReason = cancelReason.substring(0, 200);
+        }
+
+        try {
+            restClient.post()
+                    .uri("https://api.tosspayments.com/v1/payments/{paymentKey}/cancel", payment.getPaymentKey())
+                    .header("Authorization", tossBasicAuthHeader())
+                    .header("Idempotency-Key", "payment-refund-" + payment.getPaymentId())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of(
+                            "cancelReason", cancelReason,
+                            "cancelAmount", payment.getAmount()))
+                    .retrieve()
+                    .onStatus(status -> status.is4xxClientError() || status.is5xxServerError(), (req, res) -> {
+                        String errorText = new String(res.getBody().readAllBytes(), StandardCharsets.UTF_8);
+                        log.error("Toss Payments cancel error response: {}", errorText);
+                        throw new RuntimeException("Toss cancel API error: " + errorText);
+                    })
+                    .toBodilessEntity();
+        } catch (Exception e) {
+            log.error("Failed to cancel Toss payment. paymentId={}, orderId={}",
+                    payment.getPaymentId(), payment.getOrderId(), e);
+            throw new RuntimeException("Toss Payments refund request failed: " + e.getMessage());
+        }
     }
 
     private JsonNode fetchTossPayment(String paymentKey) {
@@ -340,7 +426,7 @@ public class PaymentService {
                 .map(l -> new CreditsLedgerResponseDto(
                         l.getId(),
                         l.getAmount(),
-                        l.getTransactionType(),
+                        l.getTransactionType().name(),
                         l.getDescription(),
                         l.getCreatedAt() != null ? l.getCreatedAt().format(formatter) : ""))
                 .toList();
@@ -351,6 +437,9 @@ public class PaymentService {
      */
     @Transactional
     public void buyCoupons(String email, int count, CouponType couponType) {
+        if (count <= 0) {
+            throw new IllegalArgumentException("쿠폰 구매 수량은 1개 이상이어야 합니다.");
+        }
         CouponType targetType = couponType != null ? couponType : CouponType.LOAD_TEST;
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
@@ -387,7 +476,7 @@ public class PaymentService {
         CreditsLedger ledger = CreditsLedger.builder()
                 .user(user)
                 .amount(-cost)
-                .transactionType("COUPON_BUY")
+                .transactionType(CreditTransactionType.COUPON_BUY)
                 .description("선결제 테스트 쿠폰 구매: " + count + "회권 (" + targetType + ")")
                 .build();
         creditsLedgerRepository.save(ledger);

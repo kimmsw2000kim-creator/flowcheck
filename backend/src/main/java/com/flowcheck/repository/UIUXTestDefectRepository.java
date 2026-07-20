@@ -11,8 +11,11 @@ import java.util.UUID;
 
 @Repository
 public interface UIUXTestDefectRepository extends JpaRepository<UIUXTestDefect, Long> {
+    // 특정 테스트 요청에 속한 결함 전체를 엔티티로 조회합니다.
     List<UIUXTestDefect> findByTestRequestId(UUID testRequestId);
 
+    // 상태 조회 화면에 필요한 결함 필드만 가져옵니다.
+    // evidence는 jsonb라 projection 호환을 위해 text로 캐스팅하고, 서비스에서 Map으로 다시 파싱합니다.
     @Query(value = """
             SELECT
                 id,
@@ -32,9 +35,11 @@ public interface UIUXTestDefectRepository extends JpaRepository<UIUXTestDefect, 
             """, nativeQuery = true)
     List<StatusProjection> findStatusProjectionsByTestRequestId(@Param("requestId") UUID requestId);
 
+    // 최종 리포트가 다시 저장될 때 이전 결함 목록을 지우고 새 결함 목록으로 교체합니다.
     void deleteByTestRequestId(UUID testRequestId);
 
     interface StatusProjection {
+        // UIUXTestStatusResponse.DefectDto로 변환되는 읽기 전용 결함 projection입니다.
         Long getId();
         String getCategory();
         String getSelector();

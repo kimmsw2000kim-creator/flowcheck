@@ -4,6 +4,9 @@ import boto3
 from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 
+# UI/UX 브라우저 테스트를 ECS Fargate에서 실행하기 위한 태스크 정의 등록 스크립트입니다.
+# 기존 백엔드 태스크 정의에서 IAM role을 재사용하고, UI/UX 워커 컨테이너 이미지/CPU/메모리/로그 설정만
+# 별도로 구성해 `flowcheck-uiux-task` 계열의 ECS task definition revision을 새로 만듭니다.
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"), override=True)
 
 AWS_REGION = os.getenv("AWS_REGION", "ap-northeast-2")
@@ -28,6 +31,12 @@ logs_client = boto3.client("logs", region_name=AWS_REGION)
 
 
 def ensure_log_group_exists(log_group_name: str) -> None:
+    """UI/UX 태스크 로그를 받을 CloudWatch Logs 그룹을 보장합니다.
+
+    ECS awslogs 드라이버는 지정된 로그 그룹이 없으면 태스크 시작 시 실패할 수 있으므로,
+    태스크 정의를 등록하기 전에 미리 생성합니다. 이미 존재하는 경우는 정상 상태로 보고 넘어가고,
+    그 외 AWS 오류는 설정 문제일 가능성이 높아 스크립트를 중단합니다.
+    """
     try:
         logs_client.create_log_group(logGroupName=log_group_name)
         print(f"Created CloudWatch log group {log_group_name}")
@@ -39,6 +48,8 @@ def ensure_log_group_exists(log_group_name: str) -> None:
         raise SystemExit(f"Failed to create CloudWatch log group {log_group_name}: {exc}") from exc
 
 try:
+    # UI/UX 워커도 동일한 AWS 리소스 접근 권한이 필요하므로, 기존 서비스 태스크 정의의 role ARN을 복사합니다.
+    # 이렇게 하면 별도 IAM role을 만들지 않아도 Supabase/AWS/로그 권한 체계를 기존 배포와 맞출 수 있습니다.
     source = client.describe_task_definition(taskDefinition=SOURCE_TASK_FAMILY)["taskDefinition"]
     execution_role_arn = source.get("executionRoleArn")
     task_role_arn = source.get("taskRoleArn")
@@ -46,6 +57,8 @@ except Exception as exc:
     raise SystemExit(f"Failed to fetch source task definition {SOURCE_TASK_FAMILY}: {exc}") from exc
 
 container_definition = {
+    # VNC/noVNC 서버와 Playwright 워커가 함께 들어 있는 AI 이미지입니다.
+    # 6080 포트는 테스트 실행 중 브라우저 화면을 사용자가 확인할 수 있도록 noVNC 웹 UI로 노출됩니다.
     "name": CONTAINER_NAME,
     "image": f"{DOCKER_USERNAME}/{AI_IMAGE}:latest",
     "cpu": int(UIUX_TASK_CPU),
@@ -63,6 +76,8 @@ container_definition = {
 if ENABLE_AWSLOGS:
     ensure_log_group_exists(AWSLOGS_GROUP)
 
+    # Fargate 컨테이너 stdout/stderr를 CloudWatch Logs로 보내 장애 원인과 브라우저 워커 로그를 추적합니다.
+    # `awslogs-create-group`은 IAM 권한이 더 필요할 수 있어 기본값은 false이고, 위에서 직접 생성하는 방식을 우선합니다.
     log_options = {
         "awslogs-group": AWSLOGS_GROUP,
         "awslogs-region": AWS_REGION,
@@ -77,6 +92,8 @@ if ENABLE_AWSLOGS:
     }
 
 try:
+    # Fargate용 태스크 정의를 등록합니다. 네트워크는 awsvpc 모드가 필수이며,
+    # CPU/메모리는 문자열 값 그대로 ECS API에 전달하고 컨테이너 제한에는 정수로 변환해 넣습니다.
     response = client.register_task_definition(
         family=UIUX_TASK_FAMILY,
         taskRoleArn=task_role_arn,

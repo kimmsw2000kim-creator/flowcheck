@@ -26,12 +26,15 @@ interface UIUXTestPageProps {
 
 const formatStepNumber = (step: number) => String(step).padStart(2, '0');
 const UIUX_POLL_INTERVAL_MS = 1000;
-const UIUX_VNC_ACCESS_RETRY_MS = 1000;
-const UIUX_MAX_VNC_ACCESS_RETRIES = 90;
+const UIUX_VNC_ACCESS_RETRY_MS = 2000;
+const UIUX_MAX_VNC_ACCESS_RETRIES = 45;
+const UIUX_VNC_ACCESS_LOG_EVERY = 5;
 const UIUX_MAX_POLL_COUNT = 200;
 const UIUX_MAX_POLL_ERRORS = 5;
 
 const getLiveVncProxyOrigin = () => {
+  // 로컬 Vite 개발 서버는 API 서버와 origin이 다르므로 백엔드 origin을 명시합니다.
+  // 배포 환경에서는 ApiURL을 사용해 Spring의 VNC HTTP/WebSocket 프록시로 접근합니다.
   if (window.location.hostname === 'localhost' && window.location.port === '5173') {
     return 'http://localhost:8080';
   }
@@ -52,6 +55,7 @@ const buildLiveVncProxyUrl = (url: string) => {
 };
 
 const describeVncUrlForLog = (rawUrl: string) => {
+  // 진단 로그에 token 전체를 남기지 않기 위해 URL의 origin/path/query key만 요약합니다.
   try {
     const parsed = new URL(rawUrl, window.location.origin);
     return {
@@ -317,6 +321,20 @@ export default function UIUXTestPage({
     }
   }, []);
 
+  const syncUserEntitlements = React.useCallback(async () => {
+    try {
+      const mypageRes = await apiClient.get('/api/mypage');
+      onUserUpdate({
+        balance: mypageRes.data.balance,
+        coupons: mypageRes.data.couponCount,
+        loadTestCoupons: mypageRes.data.loadTestCouponCount,
+        UIUXTestCoupons: mypageRes.data.UIUXTestCouponCount,
+      });
+    } catch (err) {
+      console.error('Failed to sync user state:', err);
+    }
+  }, [onUserUpdate]);
+
   useEffect(() => {
     const selected = domains.find((domain) => domain.id === selectedUIUXTestDomain);
     if (selected) {
@@ -340,6 +358,8 @@ export default function UIUXTestPage({
     ?.screenshotUrl;
 
   useEffect(() => {
+    // 테스트가 RUNNING 상태가 되면 VNC signed URL을 별도로 요청합니다.
+    // 컨테이너 시작과 noVNC 준비에는 시간이 걸릴 수 있으므로 2초 간격, 최대 45회까지만 재시도합니다.
     if (!isRunning || !currentRequestId) {
       return;
     }
@@ -354,16 +374,21 @@ export default function UIUXTestPage({
 
     const requestVncAccess = () => {
       retryCount += 1;
-      sendUIUXClientLog(currentRequestId, 'vnc_token_request', { retryCount });
+      const shouldLogRetry = retryCount === 1 || retryCount % UIUX_VNC_ACCESS_LOG_EVERY === 0;
+      if (shouldLogRetry) {
+        sendUIUXClientLog(currentRequestId, 'vnc_token_request', { retryCount });
+      }
       void issueUIUXVncAccess(currentRequestId)
         .then((response) => {
           if (disposed) return;
           if (!response.ready || !response.url) {
             setLiveStreamClientStatus('waiting');
-            sendUIUXClientLog(currentRequestId, 'vnc_token_pending', {
-              retryCount,
-              message: response.message,
-            });
+            if (shouldLogRetry) {
+              sendUIUXClientLog(currentRequestId, 'vnc_token_pending', {
+                retryCount,
+                message: response.message,
+              });
+            }
             if (retryCount >= UIUX_MAX_VNC_ACCESS_RETRIES) {
               console.warn('VNC access URL retry limit reached:', response.message);
               sendUIUXClientLog(currentRequestId, 'vnc_token_retry_limit', {
@@ -399,12 +424,14 @@ export default function UIUXTestPage({
           }
           console.debug('VNC access URL is not ready yet:', error);
           setLiveStreamClientStatus('waiting');
-          sendUIUXClientLog(currentRequestId, 'vnc_token_error_retrying', {
-            retryCount,
-            message: error?.message,
-            status: error?.response?.status,
-            body: error?.response?.data,
-          });
+          if (shouldLogRetry) {
+            sendUIUXClientLog(currentRequestId, 'vnc_token_error_retrying', {
+              retryCount,
+              message: error?.message,
+              status: error?.response?.status,
+              body: error?.response?.data,
+            });
+          }
           retryTimer = setTimeout(requestVncAccess, UIUX_VNC_ACCESS_RETRY_MS);
         });
     };
@@ -420,6 +447,8 @@ export default function UIUXTestPage({
   }, [currentRequestId, isRunning, liveVncProxyUrl, vncAccessRequestId]);
 
   const handleRunUIUXTest = async () => {
+    // 테스트 시작 버튼의 메인 플로우입니다.
+    // 1) 입력/잔액 검증 → 2) 시작 API 호출 → 3) requestId 저장 → 4) /status polling 시작 → 5) 완료 시 결과 표시 순서로 진행됩니다.
     if (isSubmittingRef.current) {
       showAlert('이미 테스트 요청을 처리 중입니다. 잠시만 기다려 주세요.', 'error');
       return;
@@ -469,11 +498,14 @@ export default function UIUXTestPage({
       activePollRequestIdRef.current = requestId;
 
       const scheduleNextPoll = () => {
+        // requestId가 바뀌거나 사용자가 중지하면 이전 polling이 뒤늦게 상태를 덮어쓰지 않도록 activePollRequestIdRef로 보호합니다.
         if (activePollRequestIdRef.current !== requestId) return;
         pollTimeoutRef.current = setTimeout(pollStatus, UIUX_POLL_INTERVAL_MS);
       };
 
       const pollStatus = async () => {
+        // Spring 백엔드가 저장한 rawLogs/report/defects를 주기적으로 가져옵니다.
+        // 워커는 별도 컨테이너에서 돌기 때문에 프론트는 직접 워커와 통신하지 않고 항상 백엔드 상태만 읽습니다.
         if (activePollRequestIdRef.current !== requestId) return;
         pollCountRef.current += 1;
 
@@ -493,15 +525,19 @@ export default function UIUXTestPage({
           setLiveStreamServerStatus(statusRes.liveStream);
 
           if (statusRes.status === 'COMPLETED') {
+            // 완료 응답에는 점수, 마크다운 보고서, 결함 목록, 영상 URL이 포함됩니다.
             stopPolling();
             setUIUXTestStatus('success');
             setLiveStreamClientStatus('ended');
             setReportData(statusRes);
+            void syncUserEntitlements();
             showAlert('AI UI/UX 테스트가 완료되었습니다.', 'success');
           } else if (statusRes.status === 'FAILED') {
+            // 실패 상태도 최종 상태입니다. 일부 step/rawLogs가 남아 있을 수 있으므로 상태 조회는 여기서 멈춥니다.
             stopPolling();
             setUIUXTestStatus('error');
             setLiveStreamClientStatus('error');
+            void syncUserEntitlements();
             showAlert('AI UI/UX 테스트 중 오류가 발생했습니다.', 'error');
           } else {
             scheduleNextPoll();
@@ -523,13 +559,8 @@ export default function UIUXTestPage({
       pollStatus();
 
       try {
-        const mypageRes = await apiClient.get('/api/mypage');
-        onUserUpdate({
-          balance: mypageRes.data.balance,
-          coupons: mypageRes.data.couponCount,
-          loadTestCoupons: mypageRes.data.loadTestCouponCount,
-          UIUXTestCoupons: mypageRes.data.UIUXTestCouponCount,
-        });
+        // 시작 요청에서 쿠폰/크레딧이 차감될 수 있으므로 마이페이지 값을 다시 읽어 헤더/보유 현황을 동기화합니다.
+        await syncUserEntitlements();
       } catch (err) {
         console.error('Failed to sync user state:', err);
       }
@@ -549,6 +580,8 @@ export default function UIUXTestPage({
   };
 
   const handleStopUIUXTest = async () => {
+    // 사용자가 중지를 누르면 백엔드 상태를 FAILED로 바꾸고 프론트 polling/VNC 연결 상태를 정리합니다.
+    // 이미 완료된 테스트는 백엔드에서 거절될 수 있습니다.
     if (!currentRequestId || isStopping) {
       return;
     }
@@ -562,6 +595,7 @@ export default function UIUXTestPage({
       setLiveVncProxyUrl(null);
       setVncAccessRequestId(null);
       setLiveStreamClientStatus('ended');
+      await syncUserEntitlements();
       showAlert('UI/UX 테스트를 중지했습니다. 결과는 실패 상태로 기록됩니다.', 'success');
     } catch (err: any) {
       const errorMessage =
@@ -575,12 +609,14 @@ export default function UIUXTestPage({
   };
 
   const handleVideoTimeUpdate = (currentTime: number) => {
+    // 최종 영상 재생 중 현재 시간과 가까운 결함을 자동으로 활성화해 타임라인과 영상 위치를 맞춥니다.
     if (!reportData?.defects) return;
     const currentDefect = reportData.defects.find((defect) => Math.abs(defect.timestampOffset - currentTime) < 1);
     setActiveDefectId(currentDefect?.id || null);
   };
 
   const handleDefectClick = (offset: number) => {
+    // 결함 항목을 클릭하면 녹화 영상의 해당 timestampOffset으로 이동합니다.
     setActiveDefectId(reportData?.defects?.find((defect) => defect.timestampOffset === offset)?.id || null);
     customVideoRef.current?.seekTo(offset);
   };

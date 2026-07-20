@@ -9,14 +9,17 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.UUID;
 
 @Tag(name = "UI Test Explorer", description = "자율형 UI 탐색 API")
@@ -27,7 +30,15 @@ import java.util.UUID;
 @CrossOrigin(origins = { "http://localhost:5173", "https://flow-check.duckdns.org" })
 public class UIUXTestController {
 
+    private static final String CALLBACK_TOKEN_HEADER = "X-Internal-Api-Key";
+
+    // UI/UX 테스트의 HTTP 진입점입니다.
+    // 사용자가 직접 호출하는 시작/상태/VNC/취소 API와, Python 워커가 콜백하는 steps/report/fail API가
+    // 같은 requestId를 중심으로 모입니다.
     private final UIUXTestService UIUXTestService;
+
+    @Value("${internal.uiux-test-callback-token}")
+    private String uiuxTestCallbackToken;
 
 
     @Operation(summary = "UI 탐색 테스트 시작", description = "자율형 AI 크롤링 및 UX 분석 테스트를 생성하고 시작 요청을 보냅니다.")
@@ -36,6 +47,9 @@ public class UIUXTestController {
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody UIUXTestStartRequest request) {
         try {
+            // 테스트 시작은 동기적으로 결과를 기다리지 않습니다.
+            // 서비스에서 결제/중복 실행/요청 저장을 끝낸 뒤 requestId만 반환하고,
+            // 실제 브라우저 실행은 트랜잭션 커밋 이후 AsyncUIUXTestWorker가 FastAPI로 넘깁니다.
             UUID userId = UUID.fromString(jwt.getSubject());
             UUID requestId = UIUXTestService.submitUIUXTest(userId, request);
             return ResponseEntity.status(HttpStatus.ACCEPTED).body(
@@ -62,10 +76,14 @@ public class UIUXTestController {
 
     @Operation(summary = "UI 탐색 실시간 상태 및 결과 조회", description = "특정 요청 ID에 대응하는 실시간 탐색 단계(Telemetry) 및 종합 보고서를 조회합니다.")
     @GetMapping("/{requestId}/status")
-    public ResponseEntity<?> getTestStatus(@PathVariable UUID requestId) {
+    public ResponseEntity<?> getTestStatus(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID requestId) {
         try {
-            // 핵심 로직: 해당 요청 ID의 최신 진행 상태와 스텝 정보를 서비스 계층에서 조회하여 반환
-            UIUXTestStatusResponse response = UIUXTestService.getTestStatus(requestId);
+            // 상태 조회도 테스트 소유자만 볼 수 있어야 합니다.
+            // requestId만으로 조회하면 다른 사용자의 결과/영상/VNC 상태가 노출될 수 있으므로 userId를 함께 검증합니다.
+            UUID userId = UUID.fromString(jwt.getSubject());
+            UIUXTestStatusResponse response = UIUXTestService.getTestStatusForUser(userId, requestId);
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
             // 핵심 로직: 유효하지 않은 UUID 요청이거나 데이터가 없는 경우 404 (Not Found) 에러 반환
@@ -85,6 +103,9 @@ public class UIUXTestController {
         String userIdForLog = jwt != null ? jwt.getSubject() : "anonymous";
         log.info("VNC_DIAG token_request requestId={} userId={}", requestId, userIdForLog);
         try {
+            // VNC는 테스트 대상 브라우저 화면을 그대로 보여주므로 임의 접근을 막아야 합니다.
+            // 사용자가 해당 테스트 소유자인지 확인하고, noVNC 서버가 실제로 준비된 경우에만
+            // 짧은 만료 시간을 가진 signed URL을 발급합니다.
             UUID userId = UUID.fromString(userIdForLog);
             long expiresAt = UIUXTestService.issueVncAccessExpiresAt(userId, requestId);
             String token = UIUXTestService.signVncAccess(requestId, expiresAt);
@@ -121,14 +142,19 @@ public class UIUXTestController {
     @PostMapping("/{requestId}/steps")
     public ResponseEntity<?> addStep(
             @PathVariable UUID requestId,
+            @RequestHeader(value = CALLBACK_TOKEN_HEADER, required = false) String callbackToken,
             @RequestBody java.util.Map<String, Object> request) {
         try {
-            // 핵심 로직: AI 서버에서 전달받은 스텝 로그를 저장
+            validateCallbackToken(requestId, callbackToken);
+            // Python 워커/오케스트레이터가 보내는 진행 로그입니다.
+            // 프론트는 /status polling으로 이 rawLogs를 받아 "실행 로그"와 VNC 준비 상태를 표시합니다.
             UIUXTestService.addStep(requestId, request);
             return ResponseEntity.ok().build();
         } catch (IllegalArgumentException e) {
             log.warn("유효하지 않은 스텝 로그 제출: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        } catch (ResponseStatusException e) {
+            throw e;
         } catch (Exception e) {
             log.error("스텝 로그 제출 중 오류 발생", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
@@ -139,14 +165,19 @@ public class UIUXTestController {
     @PostMapping("/{requestId}/report")
     public ResponseEntity<?> submitReport(
             @PathVariable UUID requestId,
+            @RequestHeader(value = CALLBACK_TOKEN_HEADER, required = false) String callbackToken,
             @RequestBody UIUXTestReportSubmitRequest request) {
         try {
-            // 핵심 로직: 전체 테스트 결과(리포트) 저장 및 상태를 COMPLETED로 변경하여 테스트 종료 처리
+            validateCallbackToken(requestId, callbackToken);
+            // 워커가 모든 탐색/검사/점수 계산을 마친 뒤 보내는 최종 결과입니다.
+            // 이 요청이 성공하면 점수, 결함, 영상 URL, 마크다운 보고서가 저장되고 테스트가 COMPLETED로 종료됩니다.
             UIUXTestService.saveReport(requestId, request);
             return ResponseEntity.ok().build();
         } catch (IllegalArgumentException e) {
             log.warn("유효하지 않은 리포트 제출: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        } catch (ResponseStatusException e) {
+            throw e;
         } catch (Exception e) {
             log.error("리포트 제출 중 오류 발생", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
@@ -157,14 +188,19 @@ public class UIUXTestController {
     @PostMapping("/{requestId}/fail")
     public ResponseEntity<?> reportFailure(
             @PathVariable UUID requestId,
+            @RequestHeader(value = CALLBACK_TOKEN_HEADER, required = false) String callbackToken,
             @RequestParam String reason) {
         try {
-            // 핵심 로직: 테스트 실패 상태 기록 및 원인 저장
+            validateCallbackToken(requestId, callbackToken);
+            // 컨테이너 시작 실패, URL 로드 실패, Playwright 실행 예외처럼 테스트 전체가 더 진행될 수 없는 경우 호출됩니다.
+            // Lighthouse/axe 단독 실패는 여기로 오지 않고 최종 리포트의 대체 규칙 경로로 처리됩니다.
             UIUXTestService.markAsFailed(requestId, reason);
             return ResponseEntity.ok().build();
         } catch (IllegalArgumentException e) {
             log.warn("유효하지 않은 실패 보고: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        } catch (ResponseStatusException e) {
+            throw e;
         } catch (Exception e) {
             log.error("실패 보고 중 오류 발생", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
@@ -197,6 +233,8 @@ public class UIUXTestController {
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable UUID requestId,
             @RequestBody java.util.Map<String, Object> payload) {
+        // 브라우저 iframe 로드, VNC 토큰 재시도 같은 프론트 전용 진단 로그입니다.
+        // DB에는 저장하지 않고 서버 로그에만 남겨 배포 환경의 VNC 연결 문제를 추적합니다.
         String userId = jwt != null ? jwt.getSubject() : "anonymous";
         String event = sanitizeClientLogValue(payload != null ? payload.get("event") : null);
         String detail = sanitizeClientLogValue(payload != null ? payload.get("detail") : null);
@@ -205,11 +243,31 @@ public class UIUXTestController {
     }
 
     private String sanitizeClientLogValue(Object value) {
+        // signed VNC URL에는 token query가 들어가므로 로그에 남기기 전에 마스킹합니다.
+        // detail 전체가 길어지는 경우도 있어 로그 폭주 방지용으로 길이를 제한합니다.
         if (value == null) {
             return null;
         }
         String text = String.valueOf(value)
                 .replaceAll("(?i)(token=)[^&\\s,}]+", "$1[redacted]");
         return text.length() <= 2000 ? text : text.substring(0, 2000) + "...[truncated]";
+    }
+
+    private void validateCallbackToken(UUID requestId, String callbackToken) {
+        if (uiuxTestCallbackToken == null || uiuxTestCallbackToken.isBlank()) {
+            log.error("UIUX_TEST_CALLBACK_TOKEN is not configured");
+            throw new ResponseStatusException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "UI/UX callback authentication is not configured");
+        }
+
+        boolean tokenMatches = callbackToken != null && MessageDigest.isEqual(
+                uiuxTestCallbackToken.getBytes(StandardCharsets.UTF_8),
+                callbackToken.getBytes(StandardCharsets.UTF_8));
+
+        if (!tokenMatches) {
+            log.warn("Rejected UI/UX callback for request {}", requestId);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid callback credentials");
+        }
     }
 }

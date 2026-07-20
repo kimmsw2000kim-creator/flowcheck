@@ -13,6 +13,8 @@ public interface RegisteredSiteRepository extends JpaRepository<RegisteredSite, 
 
     List<RegisteredSite> findByUser_UserIdOrderByCreatedAtDesc(UUID userId);
 
+    List<RegisteredSite> findByUser_UserIdAndIsVerifiedTrue(UUID userId);
+
     long countByUser(User user);
 
     long countByUser_UserId(UUID userId);

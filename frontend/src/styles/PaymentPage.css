@@ -35,6 +35,13 @@
   gap: var(--space-6);
 }
 
+.payment-page__history-column {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
 .payment-balance {
   display: flex;
   align-items: center;
@@ -288,31 +295,94 @@
   font-size: var(--font-size-xs);
 }
 
-.payment-ledger {
+.payment-ledger,
+.payment-history,
+.payment-activity {
   min-width: 0;
 }
 
-.payment-ledger__table-container {
+.payment-ledger__table-container,
+.payment-history__table-container,
+.payment-activity__table-container {
   max-height: 480px;
+  overflow-x: hidden;
   overflow-y: auto;
 }
 
+.payment-activity {
+  overflow: hidden;
+}
+
+.payment-activity__table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.payment-activity__table th,
+.payment-activity__table td {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.payment-activity__table th:nth-child(1),
+.payment-activity__table td:nth-child(1) {
+  width: 40%;
+}
+
+.payment-activity__table th:nth-child(2),
+.payment-activity__table td:nth-child(2) {
+  width: 21%;
+}
+
+.payment-activity__table th:nth-child(3),
+.payment-activity__table td:nth-child(3) {
+  width: 23%;
+}
+
+.payment-activity__table th:nth-child(4),
+.payment-activity__table td:nth-child(4) {
+  width: 16%;
+}
+
 .payment-ledger__type,
-.payment-ledger__description {
+.payment-ledger__description,
+.payment-history__order,
+.payment-history__credits,
+.payment-activity__detail {
   display: block;
 }
 
-.payment-ledger__type {
+.payment-ledger__type,
+.payment-history__order,
+.payment-activity__main strong {
   color: var(--color-text-primary);
 }
 
-.payment-ledger__description {
+.payment-ledger__description,
+.payment-history__credits,
+.payment-activity__detail {
   margin-top: var(--space-1);
   color: var(--color-text-muted);
   font-size: var(--font-size-2xs);
 }
 
-.payment-ledger__amount {
+.payment-activity__main {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.payment-activity__main strong {
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-snug);
+}
+
+.payment-ledger__amount,
+.payment-history__amount,
+.payment-activity__amount {
   font-weight: var(--font-weight-extrabold);
   text-align: right;
   white-space: nowrap;
@@ -322,18 +392,46 @@
   color: var(--color-status-success);
 }
 
-.payment-ledger__amount[data-positive='false'] {
+.payment-ledger__amount[data-positive='false'],
+.payment-activity__amount[data-positive='false'] {
   color: var(--color-status-error);
 }
 
-.payment-ledger__date {
+.payment-activity__amount[data-positive='true'] {
+  color: var(--color-status-success);
+}
+
+.payment-ledger__date,
+.payment-history__date,
+.payment-activity__date {
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
+  text-align: center;
+  white-space: normal;
+}
+
+.payment-history__actions,
+.payment-activity__actions {
   text-align: center;
   white-space: nowrap;
 }
 
-.payment-ledger .fc-empty-state {
+.payment-activity__actions .fc-button {
+  min-width: 0;
+  padding-inline: var(--space-2);
+  font-size: var(--font-size-2xs);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.payment-history__unavailable,
+.payment-activity__unavailable {
+  color: var(--color-text-muted);
+}
+
+.payment-ledger .fc-empty-state,
+.payment-history .fc-empty-state,
+.payment-activity .fc-empty-state {
   margin: 0;
 }
 

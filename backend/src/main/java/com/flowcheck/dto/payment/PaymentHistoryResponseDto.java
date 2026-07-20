@@ -11,6 +11,8 @@ public record PaymentHistoryResponseDto(
     String bankCode,
     String customerName,
     String paymentStatus,
+    Integer creditedAmount,
+    boolean refundable,
     OffsetDateTime dueDate,
     OffsetDateTime createdAt
 ) {}

@@ -6,6 +6,8 @@ interface UIUXScoreBarChartProps {
 }
 
 export default function UIUXScoreBarChart({ scores }: UIUXScoreBarChartProps) {
+  // UI/UX 점수 5개 항목을 막대형으로 보여줍니다.
+  // bestPractices는 예전 결과 데이터에 없을 수 있어 0으로 보정합니다.
   const data = [
     { name: '사용성', score: scores.usability },
     { name: '접근성', score: scores.accessibility },

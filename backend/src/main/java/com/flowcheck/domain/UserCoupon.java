@@ -50,4 +50,8 @@ public class UserCoupon {
         }
         this.remainingChances--;
     }
+
+    public void refundChance() {
+        this.remainingChances++;
+    }
 }

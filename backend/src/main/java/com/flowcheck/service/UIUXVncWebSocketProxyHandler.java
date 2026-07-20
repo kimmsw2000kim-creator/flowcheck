@@ -26,6 +26,8 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 public class UIUXVncWebSocketProxyHandler implements WebSocketHandler, SubProtocolCapable {
 
+    // noVNC 브라우저 클라이언트와 컨테이너 내부 websockify 사이를 중계하는 WebSocket 프록시입니다.
+    // HTTP asset은 UIUXVncProxyController가 담당하고, 실제 화면 픽셀/키보드/마우스 이벤트 스트림은 이 핸들러가 양방향으로 전달합니다.
     private static final String TOMCAT_BINARY_BUFFER_SIZE = "org.apache.tomcat.websocket.binaryBufferSize";
     private static final String TOMCAT_TEXT_BUFFER_SIZE = "org.apache.tomcat.websocket.textBufferSize";
     private static final String VNC_WEBSOCKET_BUFFER_SIZE = "1048576";
@@ -36,6 +38,8 @@ public class UIUXVncWebSocketProxyHandler implements WebSocketHandler, SubProtoc
 
     @Override
     public void afterConnectionEstablished(WebSocketSession clientSession) throws Exception {
+        // HandshakeInterceptor가 검증한 requestId를 session attribute로 넣어둡니다.
+        // requestId로 최신 VNC base URI를 찾은 뒤 컨테이너의 /websockify endpoint에 서버 측 WebSocket을 새로 엽니다.
         String rawRequestId = (String) clientSession.getAttributes().get("requestId");
         UUID requestId = UUID.fromString(rawRequestId);
         URI baseUri = uiuxTestService.getLiveVncBaseUri(requestId);
@@ -66,6 +70,8 @@ public class UIUXVncWebSocketProxyHandler implements WebSocketHandler, SubProtoc
 
     @Override
     public void handleMessage(WebSocketSession clientSession, WebSocketMessage<?> message) throws Exception {
+        // 브라우저에서 들어오는 키보드/마우스/프로토콜 메시지를 upstream websockify로 전달합니다.
+        // upstream 연결이 아직 없거나 끊어진 경우 메시지를 버리고 진단 로그를 남깁니다.
         WebSocketSession upstreamSession = upstreamSessions.get(clientSession.getId());
         if (upstreamSession != null && upstreamSession.isOpen()) {
             send(upstreamSession, copyMessage(message));
@@ -104,6 +110,7 @@ public class UIUXVncWebSocketProxyHandler implements WebSocketHandler, SubProtoc
     }
 
     private void closePair(WebSocketSession clientSession, CloseStatus status) throws Exception {
+        // 클라이언트와 upstream은 1:1 쌍입니다. 한쪽이 닫히면 다른 쪽도 닫아 세션 누수를 막습니다.
         WebSocketSession upstreamSession = upstreamSessions.remove(clientSession.getId());
         if (upstreamSession != null && upstreamSession.isOpen()) {
             upstreamSession.close(status);
@@ -111,12 +118,16 @@ public class UIUXVncWebSocketProxyHandler implements WebSocketHandler, SubProtoc
     }
 
     private void send(WebSocketSession session, WebSocketMessage<?> message) throws Exception {
+        // Spring WebSocketSession은 동시 send에 안전하지 않을 수 있어 session 단위로 직렬화합니다.
+        // VNC는 binary frame이 빠르게 오가기 때문에 여기서 경쟁 상태를 막는 것이 중요합니다.
         synchronized (session) {
             session.sendMessage(message);
         }
     }
 
     private WebSocketMessage<?> copyMessage(WebSocketMessage<?> message) {
+        // 같은 메시지 객체를 양쪽 세션에서 재사용하지 않도록 payload를 복사합니다.
+        // 특히 BinaryMessage의 ByteBuffer position이 바뀌면 다음 relay에서 빈 payload가 될 수 있습니다.
         if (message instanceof TextMessage textMessage) {
             return new TextMessage(textMessage.getPayload(), message.isLast());
         }
@@ -130,6 +141,8 @@ public class UIUXVncWebSocketProxyHandler implements WebSocketHandler, SubProtoc
     }
 
     private static StandardWebSocketClient createWebSocketClient() {
+        // VNC frame은 일반 텍스트 API보다 크므로 Tomcat 기본 버퍼보다 크게 잡습니다.
+        // noVNC가 큰 framebuffer update를 보낼 때 잘리지 않도록 1MB로 맞춥니다.
         StandardWebSocketClient client = new StandardWebSocketClient();
         Map<String, Object> userProperties = new HashMap<>();
         userProperties.put(TOMCAT_BINARY_BUFFER_SIZE, VNC_WEBSOCKET_BUFFER_SIZE);
@@ -156,6 +169,7 @@ public class UIUXVncWebSocketProxyHandler implements WebSocketHandler, SubProtoc
 
         @Override
         public void handleMessage(WebSocketSession session, WebSocketMessage<?> message) throws Exception {
+            // upstream websockify가 보내는 화면 업데이트를 브라우저 noVNC 클라이언트로 되돌려 보냅니다.
             if (clientSession.isOpen()) {
                 send(clientSession, copyMessage(message));
             }

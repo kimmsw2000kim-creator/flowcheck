@@ -20,6 +20,11 @@ from load_test_service import (
 )
 
 class UiTestRequest(BaseModel):
+    """Spring 백엔드가 UI/UX 테스트 실행을 요청할 때 보내는 payload입니다.
+
+    requestId는 이후 워커가 Spring의 steps/report/fail API로 콜백할 때 쓰는 기준 ID이고,
+    targetUrl은 Playwright/Lighthouse가 실제로 접속할 검사 대상입니다.
+    """
     requestId: str
     targetUrl: str
     promptInput: Optional[str] = ""
@@ -42,41 +47,19 @@ client = genai.Client(api_key=GEMINI_API_KEY)
 
 app = FastAPI()
 
+cors_origins = [
+    origin.strip()
+    for origin in os.getenv("FASTAPI_CORS_ORIGINS", "http://localhost:5173,https://flow-check.duckdns.org").split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-@app.get("/api/debug-env")
-def debug_env():
-    env_path = ENV_PATH
-    exists = os.path.exists(env_path)
-    key_in_file = None
-    if exists:
-        try:
-            with open(env_path, "r", encoding="utf-8") as f:
-                for line in f:
-                    if line.startswith("GEMINI_API_KEY="):
-                        key_in_file = line.strip().split("=", 1)[1]
-                        break
-        except Exception as e:
-            key_in_file = f"Error reading file: {str(e)}"
-    
-    # Force reload
-    load_dotenv(env_path, override=True)
-    api_key = os.getenv("GEMINI_API_KEY")
-    
-    return {
-        "env_path": env_path,
-        "exists": exists,
-        "key_in_file_masked": (key_in_file[:10] + "...") if key_in_file else None,
-        "api_key_in_env_masked": (api_key[:10] + "...") if api_key else None,
-        "working_directory": os.getcwd(),
-        "__file__": __file__,
-    }
 
 class LoadTestRequest(BaseModel):
     requestId: Optional[str] = None
@@ -103,6 +86,8 @@ async def run_load_test(request: LoadTestRequest):
 
 @app.post("/api/uiux-tests")
 async def run_uiux_test(request: UiTestRequest, background_tasks: BackgroundTasks):
+    # UI/UX 테스트는 브라우저/컨테이너 실행이 오래 걸리므로 FastAPI 요청 안에서 직접 기다리지 않습니다.
+    # background task로 넘기고 즉시 accepted 성격의 응답을 주면 Spring의 AsyncUIUXTestWorker가 빠르게 반환됩니다.
     print(f"UIUX 테스트 요청 수신됨: {request}", flush=True)
     background_tasks.add_task(run_uiux_test_service, request.requestId, request.targetUrl)
     return {"status": "started"}
