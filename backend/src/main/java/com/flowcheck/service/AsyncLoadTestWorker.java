@@ -115,7 +115,8 @@ public class AsyncLoadTestWorker {
                             ? null
                             : new LoadTestMetricsDocument.ScoreBreakdown(
                                     testResults.getScoreBreakdown().getReliabilityScore(),
-                                    testResults.getScoreBreakdown().getLatencyScore());
+                                    testResults.getScoreBreakdown().getLatencyScore(),
+                                    testResults.getScoreBreakdown().getScalabilityScore());
 
             LoadTestMetricsDocument metricsDocument = new LoadTestMetricsDocument(
                     LoadTestMetricsDocument.CURRENT_SCHEMA_VERSION,
@@ -134,6 +135,10 @@ public class AsyncLoadTestWorker {
                     testResults.getPerformanceGrade(),
                     testResults.getScoreLabel(),
                     scoreBreakdown,
+                    testResults.getScoreVersion(),
+                    testResults.getScoreStatus(),
+                    testResults.getScoreTargets(),
+                    testResults.getAnalysisReport(),
                     testResults.getPoints() == null ? List.of() : testResults.getPoints());
 
             Map<String, Object> rawMetrics = objectMapper.convertValue(

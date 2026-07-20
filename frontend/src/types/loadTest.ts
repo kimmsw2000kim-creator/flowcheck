@@ -8,6 +8,53 @@ export interface LoadChartDataPoint {
   vus?: number | null;
 }
 
+export interface LoadStageAnalysis {
+  stage: string;
+  startSecond: number;
+  endSecond: number;
+  minVus: number;
+  maxVus: number;
+  avgVus: number;
+  requestCount: number;
+  avgTps: number;
+  maxTps: number;
+  tpsPerVu: number;
+  avgResponse?: number | null;
+  p95Response?: number | null;
+  errorRate?: number | null;
+}
+
+export interface LoadBottleneckSignal {
+  type: string;
+  severity: string;
+  firstObservedSecond?: number | null;
+  evidence: string;
+}
+
+export interface LoadAnalysisAction {
+  priority: number;
+  title: string;
+  rationale: string;
+  evidence: string;
+}
+
+export interface LoadAnalysisReport {
+  schemaVersion: number;
+  generationSource: string;
+  verdict: string;
+  stages: LoadStageAnalysis[];
+  bottlenecks: LoadBottleneckSignal[];
+  actions: LoadAnalysisAction[];
+  limitations: string[];
+  sustainableTps?: number | null;
+}
+
+export interface LoadScoreTargets {
+  targetTps?: number | null;
+  targetP95Ms: number;
+  maxErrorRate: number;
+}
+
 export interface LoadTestResult {
   totalRequests?: number | null;
   avgTps: number;
@@ -21,8 +68,13 @@ export interface LoadTestResult {
   scoreBreakdown: {
     reliabilityScore: number;
     latencyScore: number;
+    scalabilityScore?: number | null;
   };
+  scoreVersion?: number;
+  scoreStatus?: string;
+  scoreTargets?: LoadScoreTargets | null;
   bottleneckComment: string;
+  analysisReport?: LoadAnalysisReport | null;
   points: LoadChartDataPoint[];
   metricsStatus: string;
   metricsWarning?: string | null;

@@ -91,7 +91,11 @@ class LoadTestServiceTest {
                 100,
                 "A",
                 "우수",
-                new LoadTestMetricsDocument.ScoreBreakdown(60, 40),
+                new LoadTestMetricsDocument.ScoreBreakdown(60, 40, null),
+                null,
+                null,
+                null,
+                null,
                 List.of(LoadTestResponse.ChartPoint.builder()
                         .time("00:00")
                         .elapsedSeconds(0)

@@ -34,8 +34,12 @@ public class LoadTestResponse {
         private String performanceGrade;
         private String scoreLabel;
         private ScoreBreakdown scoreBreakdown;
+        private Integer scoreVersion;
+        private String scoreStatus;
+        private ScoreTargets scoreTargets;
         @JsonAlias("bottleneck_comment")
         private String bottleneckComment;
+        private AnalysisReport analysisReport;
         private List<ChartPoint> points;
         private String metricsStatus;
         private String metricsWarning;
@@ -51,6 +55,74 @@ public class LoadTestResponse {
     public static class ScoreBreakdown {
         private Integer reliabilityScore;
         private Integer latencyScore;
+        private Integer scalabilityScore;
+    }
+
+    @Getter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ScoreTargets {
+        private Double targetTps;
+        private Double targetP95Ms;
+        private Double maxErrorRate;
+    }
+
+    @Getter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class AnalysisReport {
+        private Integer schemaVersion;
+        private String generationSource;
+        private String verdict;
+        private List<StageAnalysis> stages;
+        private List<BottleneckSignal> bottlenecks;
+        private List<AnalysisAction> actions;
+        private List<String> limitations;
+        private Double sustainableTps;
+    }
+
+    @Getter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class StageAnalysis {
+        private String stage;
+        private Integer startSecond;
+        private Integer endSecond;
+        private Integer minVus;
+        private Integer maxVus;
+        private Double avgVus;
+        private Integer requestCount;
+        private Double avgTps;
+        private Integer maxTps;
+        private Double tpsPerVu;
+        private Double avgResponse;
+        private Double p95Response;
+        private Double errorRate;
+    }
+
+    @Getter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class BottleneckSignal {
+        private String type;
+        private String severity;
+        private Integer firstObservedSecond;
+        private String evidence;
+    }
+
+    @Getter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class AnalysisAction {
+        private Integer priority;
+        private String title;
+        private String rationale;
+        private String evidence;
     }
 
     @Getter

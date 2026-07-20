@@ -111,7 +111,11 @@ async def run_load_test_pipeline(client: Any, request: Any) -> TestResultsRespon
         performanceGrade=assessment.grade,
         scoreLabel=assessment.label,
         scoreBreakdown=assessment.breakdown,
+        scoreVersion=1,
+        scoreStatus="LEGACY_V1",
+        scoreTargets=None,
         bottleneckComment=markdown_report,
+        analysisReport=structured_analysis,
         points=summary.get("chart_points", []),
         metricsStatus=summary.get("metrics_status", "UNAVAILABLE"),
         metricsWarning=summary.get(

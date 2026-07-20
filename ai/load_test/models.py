@@ -2,6 +2,8 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
+from .analysis_engine import StructuredAnalysisReport
+
 
 class ChartPoint(BaseModel):
     time: str
@@ -16,6 +18,7 @@ class ChartPoint(BaseModel):
 class ScoreBreakdown(BaseModel):
     reliabilityScore: int
     latencyScore: int
+    scalabilityScore: Optional[int] = None
 
 
 class PerformanceAssessment(BaseModel):
@@ -36,7 +39,11 @@ class TestResultsResponse(BaseModel):
     performanceGrade: str
     scoreLabel: str
     scoreBreakdown: ScoreBreakdown
+    scoreVersion: int = 1
+    scoreStatus: str = "LEGACY_V1"
+    scoreTargets: Optional[dict] = None
     bottleneckComment: str
+    analysisReport: Optional[StructuredAnalysisReport] = None
     points: List[ChartPoint]
     metricsStatus: str
     metricsWarning: Optional[str] = None
