@@ -88,7 +88,7 @@ export default function Header({ activeTab, onOpenAuth }: HeaderProps) {
     <header className="app-header" ref={headerRef}>
       <div className="app-header__inner">
         <button type="button" className="app-header__brand" onClick={() => navigate(isLoggedIn ? '/dashboard' : '/')} aria-label="FlowCheck 홈">
-          <Activity size={24} aria-hidden="true" /><span>FlowCheck</span>
+          <img src="/favicon.ico" alt="로고" /><span>FlowCheck</span>
         </button>
         <button type="button" className="app-header__menu-button" aria-expanded={menuOpen} aria-controls="app-header-menu" onClick={() => { setMenuOpen((open) => !open); setProfileMenuOpen(false); }}>
           {menuOpen ? <X size={22} aria-hidden="true" /> : <Menu size={22} aria-hidden="true" />}<span className="sr-only">메뉴 {menuOpen ? '닫기' : '열기'}</span>
