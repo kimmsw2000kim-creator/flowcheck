@@ -7,10 +7,12 @@ set -eu
 SCRIPT_LOCAL_PATH="/tmp/script.js"
 SUMMARY_LOCAL_PATH="/tmp/summary.json"
 METRICS_LOCAL_PATH="/tmp/metrics.json.gz"
+EXECUTION_LOCAL_PATH="/tmp/execution.json"
 
 SCRIPT_S3_PATH="s3://${S3_BUCKET}/tasks/${TEST_ID}/script.js"
 SUMMARY_S3_PATH="s3://${S3_BUCKET}/tasks/${TEST_ID}/summary.json"
 METRICS_S3_PATH="s3://${S3_BUCKET}/tasks/${TEST_ID}/metrics.json.gz"
+EXECUTION_S3_PATH="s3://${S3_BUCKET}/tasks/${TEST_ID}/execution.json"
 
 echo "1. Downloading k6 script from S3... ($SCRIPT_S3_PATH)"
 aws s3 cp "$SCRIPT_S3_PATH" "$SCRIPT_LOCAL_PATH"
@@ -24,6 +26,7 @@ k6 run \
     "$SCRIPT_LOCAL_PATH"
 K6_EXIT_CODE=$?
 set -e
+printf '{"exitCode":%s}\n' "$K6_EXIT_CODE" > "$EXECUTION_LOCAL_PATH"
 
 if [ ! -s "$SUMMARY_LOCAL_PATH" ]; then
     echo "k6 did not produce a summary file (exit code: $K6_EXIT_CODE)." >&2
@@ -36,8 +39,14 @@ aws s3 cp \
     "$SUMMARY_S3_PATH" \
     --content-type "application/json"
 
+echo "4. Uploading execution metadata to S3... ($EXECUTION_S3_PATH)"
+aws s3 cp \
+    "$EXECUTION_LOCAL_PATH" \
+    "$EXECUTION_S3_PATH" \
+    --content-type "application/json"
+
 if [ -s "$METRICS_LOCAL_PATH" ]; then
-    echo "4. Uploading measured time-series data to S3... ($METRICS_S3_PATH)"
+    echo "5. Uploading measured time-series data to S3... ($METRICS_S3_PATH)"
     aws s3 cp \
         "$METRICS_LOCAL_PATH" \
         "$METRICS_S3_PATH" \
@@ -47,4 +56,4 @@ else
     echo "k6 did not produce granular metric output; summary remains available." >&2
 fi
 
-echo "5. All result uploads completed (k6 exit code: $K6_EXIT_CODE)."
+echo "6. All result uploads completed (k6 exit code: $K6_EXIT_CODE)."

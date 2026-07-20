@@ -40,6 +40,7 @@ public class LoadTestResponse {
         @JsonAlias("bottleneck_comment")
         private String bottleneckComment;
         private AnalysisReport analysisReport;
+        private DiagnosticMetrics diagnosticMetrics;
         private List<ChartPoint> points;
         private String metricsStatus;
         private String metricsWarning;
@@ -123,6 +124,45 @@ public class LoadTestResponse {
         private String title;
         private String rationale;
         private String evidence;
+    }
+
+    @Getter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class DiagnosticMetrics {
+        private TimingBreakdown timing;
+        private Integer iterations;
+        private Integer droppedIterations;
+        private Double checkFailureRate;
+        private java.util.Map<String, Integer> statusCodes;
+        private List<RequestDiagnostic> requests;
+        private Integer executionExitCode;
+        private List<String> thresholdFailures;
+    }
+
+    @Getter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TimingBreakdown {
+        private Double blockedMs;
+        private Double connectingMs;
+        private Double tlsHandshakingMs;
+        private Double sendingMs;
+        private Double waitingMs;
+        private Double receivingMs;
+    }
+
+    @Getter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class RequestDiagnostic {
+        private String name;
+        private Integer requests;
+        private Double avgResponse;
+        private Double errorRate;
     }
 
     @Getter

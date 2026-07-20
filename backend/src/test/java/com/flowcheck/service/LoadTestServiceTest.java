@@ -96,6 +96,7 @@ class LoadTestServiceTest {
                 null,
                 null,
                 null,
+                null,
                 List.of(LoadTestResponse.ChartPoint.builder()
                         .time("00:00")
                         .elapsedSeconds(0)

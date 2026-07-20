@@ -129,6 +129,7 @@ async def run_load_test_pipeline(client: Any, request: Any) -> TestResultsRespon
         scoreTargets=score_result.targets,
         bottleneckComment=markdown_report,
         analysisReport=structured_analysis,
+        diagnosticMetrics=summary.get("diagnostic_metrics"),
         points=summary.get("chart_points", []),
         metricsStatus=summary.get("metrics_status", "UNAVAILABLE"),
         metricsWarning=summary.get(

@@ -152,6 +152,8 @@ class AwsExecutorTest(unittest.TestCase):
             self.assertEqual("bucket", Bucket)
             if Key.endswith("summary.json"):
                 return {"Body": io.BytesIO(json.dumps(summary).encode("utf-8"))}
+            if Key.endswith("execution.json"):
+                return {"Body": io.BytesIO(b'{"exitCode":0}')}
             if Key.endswith("metrics.json.gz"):
                 return {"Body": io.BytesIO(compressed_metrics)}
             raise AssertionError(f"unexpected S3 key: {Key}")
@@ -189,6 +191,7 @@ class AwsExecutorTest(unittest.TestCase):
         self.assertEqual(
             [
                 call(Bucket="bucket", Key="tasks/request-1/summary.json"),
+                call(Bucket="bucket", Key="tasks/request-1/execution.json"),
                 call(Bucket="bucket", Key="tasks/request-1/metrics.json.gz"),
             ],
             s3.get_object.call_args_list,
@@ -199,6 +202,7 @@ class AwsExecutorTest(unittest.TestCase):
         self.assertEqual("MEASURED_K6", result["data_origin"])
         self.assertEqual(10, result["max_tps"])
         self.assertEqual(1, len(result["chart_points"]))
+        self.assertEqual(0, result["diagnostic_metrics"].executionExitCode)
 
     def test_client_error_is_converted(self):
         s3, ecs, _waiter = self.build_clients()

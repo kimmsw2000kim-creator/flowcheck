@@ -42,6 +42,33 @@ class PerformanceScoreResult(BaseModel):
     sustainableTps: Optional[float] = None
 
 
+class TimingBreakdown(BaseModel):
+    blockedMs: Optional[float] = None
+    connectingMs: Optional[float] = None
+    tlsHandshakingMs: Optional[float] = None
+    sendingMs: Optional[float] = None
+    waitingMs: Optional[float] = None
+    receivingMs: Optional[float] = None
+
+
+class RequestDiagnostic(BaseModel):
+    name: str
+    requests: int
+    avgResponse: Optional[float] = None
+    errorRate: Optional[float] = None
+
+
+class DiagnosticMetrics(BaseModel):
+    timing: TimingBreakdown = Field(default_factory=TimingBreakdown)
+    iterations: int = 0
+    droppedIterations: int = 0
+    checkFailureRate: Optional[float] = None
+    statusCodes: dict[str, int] = Field(default_factory=dict)
+    requests: List[RequestDiagnostic] = Field(default_factory=list)
+    executionExitCode: Optional[int] = None
+    thresholdFailures: List[str] = Field(default_factory=list)
+
+
 class TestResultsResponse(BaseModel):
     totalRequests: int
     avgTps: float
@@ -58,6 +85,7 @@ class TestResultsResponse(BaseModel):
     scoreTargets: Optional[PerformanceTargets] = None
     bottleneckComment: str
     analysisReport: Optional[StructuredAnalysisReport] = None
+    diagnosticMetrics: Optional[DiagnosticMetrics] = None
     points: List[ChartPoint]
     metricsStatus: str
     metricsWarning: Optional[str] = None

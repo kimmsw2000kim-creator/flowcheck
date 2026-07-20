@@ -44,6 +44,12 @@ class LoadTestMetricsDocumentTest {
                         .actions(List.of())
                         .limitations(List.of())
                         .build(),
+                LoadTestResponse.DiagnosticMetrics.builder()
+                        .iterations(120)
+                        .droppedIterations(2)
+                        .statusCodes(Map.of("200", 118, "500", 2))
+                        .thresholdFailures(List.of("http_req_failed: rate<0.01"))
+                        .build(),
                 List.of(LoadTestResponse.ChartPoint.builder()
                         .time("00:00")
                         .elapsedSeconds(0)
@@ -63,7 +69,7 @@ class LoadTestMetricsDocumentTest {
                 LoadTestMetricsDocument.class);
 
         assertThat(jsonbValue)
-                .containsEntry("schemaVersion", 3)
+                .containsEntry("schemaVersion", 4)
                 .containsEntry("bucketSeconds", 1)
                 .containsEntry("dataOrigin", "MEASURED_K6");
         assertThat(restored.summary().totalRequests()).isEqualTo(120L);
@@ -71,6 +77,7 @@ class LoadTestMetricsDocumentTest {
         assertThat(restored.points()).hasSize(1);
         assertThat(restored.points().getFirst().getElapsedSeconds()).isZero();
         assertThat(restored.analysisReport().getGenerationSource()).isEqualTo("LLM");
+        assertThat(restored.diagnosticMetrics().getDroppedIterations()).isEqualTo(2);
         assertThat(restored.scoreVersion()).isEqualTo(1);
     }
 
@@ -90,6 +97,7 @@ class LoadTestMetricsDocumentTest {
 
         assertThat(restored.schemaVersion()).isEqualTo(2);
         assertThat(restored.analysisReport()).isNull();
+        assertThat(restored.diagnosticMetrics()).isNull();
         assertThat(restored.scoreVersion()).isNull();
     }
 }

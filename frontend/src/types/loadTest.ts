@@ -55,6 +55,29 @@ export interface LoadScoreTargets {
   maxErrorRate: number;
 }
 
+export interface LoadDiagnosticMetrics {
+  timing: {
+    blockedMs?: number | null;
+    connectingMs?: number | null;
+    tlsHandshakingMs?: number | null;
+    sendingMs?: number | null;
+    waitingMs?: number | null;
+    receivingMs?: number | null;
+  };
+  iterations: number;
+  droppedIterations: number;
+  checkFailureRate?: number | null;
+  statusCodes: Record<string, number>;
+  requests: Array<{
+    name: string;
+    requests: number;
+    avgResponse?: number | null;
+    errorRate?: number | null;
+  }>;
+  executionExitCode?: number | null;
+  thresholdFailures: string[];
+}
+
 export interface LoadTestResult {
   totalRequests?: number | null;
   avgTps: number;
@@ -75,6 +98,7 @@ export interface LoadTestResult {
   scoreTargets?: LoadScoreTargets | null;
   bottleneckComment: string;
   analysisReport?: LoadAnalysisReport | null;
+  diagnosticMetrics?: LoadDiagnosticMetrics | null;
   points: LoadChartDataPoint[];
   metricsStatus: string;
   metricsWarning?: string | null;

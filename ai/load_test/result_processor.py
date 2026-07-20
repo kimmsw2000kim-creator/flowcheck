@@ -29,6 +29,17 @@ def parse_k6_summary(summary_data: Dict[str, Any], duration: int) -> LoadTestSum
 
     is_server_dead = (total_count == 0) or (real_error_rate_raw >= 0.99)
     real_error_rate = 100.0 if is_server_dead else real_error_rate_raw * 100
+    threshold_failures = []
+    for metric_name, metric_data in metrics.items():
+        thresholds = metric_data.get("thresholds", {}) if isinstance(metric_data, dict) else {}
+        for threshold_name, threshold_result in thresholds.items():
+            passed = (
+                threshold_result.get("ok")
+                if isinstance(threshold_result, dict)
+                else threshold_result
+            )
+            if passed is False:
+                threshold_failures.append(f"{metric_name}: {threshold_name}")
 
     return {
         "real_request_count": total_count,
@@ -37,6 +48,7 @@ def parse_k6_summary(summary_data: Dict[str, Any], duration: int) -> LoadTestSum
         "real_error_rate": real_error_rate,
         "is_server_dead": is_server_dead,
         "duration": duration,
+        "threshold_failures": threshold_failures,
     }
 
 

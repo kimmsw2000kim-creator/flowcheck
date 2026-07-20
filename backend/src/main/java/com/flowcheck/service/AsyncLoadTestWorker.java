@@ -139,6 +139,7 @@ public class AsyncLoadTestWorker {
                     testResults.getScoreStatus(),
                     testResults.getScoreTargets(),
                     testResults.getAnalysisReport(),
+                    testResults.getDiagnosticMetrics(),
                     testResults.getPoints() == null ? List.of() : testResults.getPoints());
 
             Map<String, Object> rawMetrics = objectMapper.convertValue(

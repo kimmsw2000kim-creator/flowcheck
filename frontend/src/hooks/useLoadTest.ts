@@ -192,6 +192,7 @@ export function useLoadTest(
                     scoreTargets: testResults.scoreTargets ?? null,
                     bottleneckComment: testResults.bottleneckComment,
                     analysisReport: testResults.analysisReport ?? null,
+                    diagnosticMetrics: testResults.diagnosticMetrics ?? null,
                     points: testResults.points || [],
                     metricsStatus: testResults.metricsStatus || 'LEGACY_UNVERIFIED',
                     metricsWarning: testResults.metricsWarning || null,

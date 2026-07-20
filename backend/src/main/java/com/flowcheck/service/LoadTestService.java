@@ -228,6 +228,7 @@ public class LoadTestService {
                                 .scoreTargets(metricsDocument != null ? metricsDocument.scoreTargets() : null)
                                 .bottleneckComment(report.getAiPerformanceReview())
                                 .analysisReport(metricsDocument != null ? metricsDocument.analysisReport() : null)
+                                .diagnosticMetrics(metricsDocument != null ? metricsDocument.diagnosticMetrics() : null)
                                 .points(chartPoints)
                                 .metricsStatus(metricsStatus)
                                 .metricsWarning(metricsWarning)

@@ -34,6 +34,7 @@ class LoadAnalysisContext(BaseModel):
     bottlenecks: list[BottleneckSignal] = Field(default_factory=list)
     coverageRatio: float = 0.0
     scalingEfficiency: Optional[float] = None
+    diagnosticMetrics: Optional[dict[str, Any]] = None
 
 
 class AnalysisAction(BaseModel):
@@ -58,9 +59,20 @@ def build_analysis_context(
     summary: dict[str, Any],
     declared_profile: Optional[list[dict[str, Any]]] = None,
 ) -> LoadAnalysisContext:
+    diagnostics = summary.get("diagnostic_metrics")
+    if hasattr(diagnostics, "model_dump"):
+        diagnostics = diagnostics.model_dump()
+    diagnostic_dict = diagnostics if isinstance(diagnostics, dict) else None
     points = [_point_to_dict(point) for point in summary.get("chart_points", [])]
     if not points:
-        return LoadAnalysisContext()
+        return LoadAnalysisContext(
+            bottlenecks=(
+                _detect_diagnostic_bottlenecks(diagnostic_dict)
+                if diagnostic_dict
+                else []
+            ),
+            diagnosticMetrics=diagnostic_dict,
+        )
 
     grouped = (
         _group_by_declared_profile(points, declared_profile)
@@ -74,6 +86,8 @@ def build_analysis_context(
     ]
     coverage = sum(_is_complete_point(point) for point in points) / len(points)
     bottlenecks, scaling_efficiency = _detect_bottlenecks(stages, points)
+    if diagnostic_dict:
+        bottlenecks.extend(_detect_diagnostic_bottlenecks(diagnostic_dict))
 
     return LoadAnalysisContext(
         stages=stages,
@@ -84,6 +98,7 @@ def build_analysis_context(
             if scaling_efficiency is not None
             else None
         ),
+        diagnosticMetrics=diagnostic_dict,
     )
 
 
@@ -267,3 +282,31 @@ def _duration_seconds(value: Any) -> float:
     if text.endswith("s"):
         return float(text[:-1])
     return float(text)
+
+
+def _detect_diagnostic_bottlenecks(
+    diagnostics: dict[str, Any],
+) -> list[BottleneckSignal]:
+    signals: list[BottleneckSignal] = []
+    dropped = max(0, int(diagnostics.get("droppedIterations") or 0))
+    if dropped > 0:
+        signals.append(BottleneckSignal(
+            type="DROPPED_ITERATIONS",
+            severity="HIGH",
+            evidence=f"실행 중 dropped iterations {dropped}건이 관측됐습니다.",
+        ))
+    check_failure_rate = diagnostics.get("checkFailureRate")
+    if check_failure_rate is not None and float(check_failure_rate) > 0:
+        signals.append(BottleneckSignal(
+            type="CHECK_FAILURES",
+            severity="HIGH" if float(check_failure_rate) >= 5 else "MEDIUM",
+            evidence=f"k6 check 실패율이 {float(check_failure_rate):.2f}%입니다.",
+        ))
+    threshold_failures = diagnostics.get("thresholdFailures") or []
+    if threshold_failures:
+        signals.append(BottleneckSignal(
+            type="THRESHOLD_FAILURES",
+            severity="HIGH",
+            evidence=f"k6 threshold {len(threshold_failures)}개가 실패했습니다.",
+        ))
+    return signals
