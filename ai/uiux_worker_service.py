@@ -539,6 +539,9 @@ _LIGHTHOUSE_DESC_KO: Dict[str, str] = {
     "Avoid requesting the notification permission on page load": "페이지 로드 시 알림 권한을 자동으로 요청하지 마세요.",
     "Displays images with incorrect aspect ratio": "이미지가 원래 비율과 다르게 표시되고 있습니다.",
     "Detected JavaScript libraries": "감지된 JavaScript 라이브러리 목록입니다.",
+    # 성능 - Lighthouse 공식 문서 기반
+    "Avoid chaining critical requests by reducing the length of chains, reducing the download size of resources, or deferring the download of unnecessary resources to improve page load.": "중요 요청 체인의 길이와 리소스 다운로드 크기를 줄이고, 불필요한 리소스는 지연 로드해 페이지 로딩 성능을 개선하세요.",
+    "Requests are blocking the page's initial render, which may delay LCP. Deferring or inlining can move these network requests out of the critical path.": "초기 렌더링을 막는 요청이 있어 LCP가 지연될 수 있습니다. 핵심 리소스는 인라인 처리하고, 비핵심 CSS/JavaScript는 defer, async 또는 지연 로딩으로 critical path 밖으로 이동하세요.",
 }
 
 
@@ -637,6 +640,8 @@ def localize_uiux_text(text: Optional[str]) -> Optional[str]:
         "Cumulative Layout Shift": "화면 요소가 로딩 중 예기치 않게 이동합니다.",
         "Speed Index": "화면 주요 콘텐츠가 표시되는 속도가 느립니다.",
         "Time to Interactive": "페이지가 상호작용 가능한 상태가 되기까지 시간이 오래 걸립니다.",
+        "Network dependency tree": "네트워크 의존성 트리",
+        "Render blocking requests": "렌더링 차단 요청",
     }
     for source, target in replacements.items():
         if normalized == source:
@@ -660,6 +665,10 @@ def localize_uiux_text(text: Optional[str]) -> Optional[str]:
         return "초기 로딩 중 긴 JavaScript 작업을 줄이고 코드 분할, 지연 로딩, 불필요한 스크립트 제거를 적용하세요."
     if "Measures the movement of visible elements" in normalized:
         return "이미지와 광고 영역의 크기를 미리 지정하고, 로딩 중 레이아웃이 밀리지 않도록 공간을 예약하세요."
+    if "Avoid chaining critical requests" in normalized:
+        return "중요 요청 체인의 길이와 리소스 다운로드 크기를 줄이고, 불필요한 리소스는 지연 로드해 페이지 로딩 성능을 개선하세요."
+    if "Requests are blocking the page's initial render" in normalized or "render-blocking" in normalized:
+        return "초기 렌더링을 차단하는 요청이 있어 LCP가 지연될 수 있습니다. 핵심 리소스는 인라인 처리하고, 비핵심 CSS/JavaScript는 defer, async 또는 지연 로딩으로 전환하세요."
     if "ARIA roles must be contained" in normalized:
         return "일부 ARIA 역할은 정해진 부모 요소 안에 배치되어야 합니다."
     if "one main landmark" in normalized:
@@ -732,6 +741,13 @@ def localize_lighthouse_finding(finding: dict) -> tuple[str, str]:
         "cumulative-layout-shift": ("로딩 중 화면 요소가 흔들립니다.", "이미지/광고/동적 영역의 크기를 미리 예약해 사용자가 보던 위치가 밀리지 않게 하세요."),
         "speed-index": ("화면 콘텐츠가 표시되는 속도가 느립니다.", "첫 화면에 필요한 리소스만 우선 로드하고 나머지는 지연 로딩하세요."),
         "interactive": ("상호작용 가능 시점이 늦습니다.", "초기 JavaScript 실행량을 줄여 버튼과 링크가 더 빨리 반응하게 하세요."),
+        "max-potential-fid": ("최대 입력 지연 가능 시간이 깁니다.", "가장 오래 걸리는 JavaScript 작업을 줄이고, 긴 작업을 분할해 사용자의 첫 입력 지연을 낮추세요."),
+        "critical-request-chains": ("중요 요청 체인이 길어 페이지 로딩이 지연됩니다.", "렌더링에 필요한 핵심 요청 수와 다운로드 크기를 줄이고, 불필요한 리소스는 지연 로딩하세요."),
+        "render-blocking-resources": ("초기 렌더링을 차단하는 리소스가 있습니다.", "첫 화면에 필요한 CSS는 인라인 처리하고, 비핵심 CSS/JavaScript는 defer, async 또는 지연 로딩으로 전환하세요."),
+        "unused-javascript": ("사용하지 않는 JavaScript가 많습니다.", "초기 화면에 필요 없는 JavaScript를 제거하거나 코드 분할하고, 필요한 시점까지 로딩을 지연하세요."),
+        "uses-text-compression": ("텍스트 리소스 압축이 적용되지 않았습니다.", "HTML, CSS, JavaScript 같은 텍스트 기반 리소스에 gzip, deflate 또는 Brotli 압축을 적용하세요."),
+        "uses-rel-preconnect": ("중요 외부 출처에 대한 사전 연결이 없습니다.", "중요한 외부 도메인에는 preconnect 또는 dns-prefetch 리소스 힌트를 추가해 연결 시간을 줄이세요."),
+        "largest-contentful-paint-element": ("가장 큰 콘텐츠 요소가 LCP에 영향을 줍니다.", "LCP 대상 이미지나 텍스트 블록을 우선 로드하고, 크기 지정과 이미지 최적화를 적용하세요."),
     }
     # 접근성 audit → 한글 제목/권장사항 직접 매핑
     # 출처: https://github.com/GoogleChrome/lighthouse/blob/main/core/audits/accessibility/
@@ -970,6 +986,38 @@ def summarize_defect_group(defects: List[UIUXTestDefect], category_label: str) -
     if recommendation:
         return f"- {category_label}: {description}. 개선 방향: {recommendation}."
     return f"- {category_label}: {description}."
+
+def select_balanced_defect_groups(grouped_defects: List[List[UIUXTestDefect]], limit: int = 5) -> List[List[UIUXTestDefect]]:
+    """최종 보고서에 표시할 결함 그룹을 카테고리 편중 없이 고릅니다.
+
+    접근성 DOM 규칙은 한 화면에서 작은 터치 대상처럼 반복 결함이 많이 나올 수 있습니다.
+    단순히 심각도순 상위 N개만 자르면 접근성 항목만 보이고 사용성/성능/탐색 효율 문제가 가려지므로,
+    먼저 카테고리별 대표 그룹을 하나씩 넣고 남은 칸을 전체 우선순위 순서로 채웁니다.
+    """
+    selected: List[List[UIUXTestDefect]] = []
+    seen_keys = set()
+    seen_categories = set()
+
+    for group in grouped_defects:
+        category = group[0].category
+        if category in seen_categories:
+            continue
+        selected.append(group)
+        seen_categories.add(category)
+        seen_keys.add((category, group[0].rule_id or group[0].description))
+        if len(selected) >= limit:
+            return selected
+
+    for group in grouped_defects:
+        key = (group[0].category, group[0].rule_id or group[0].description)
+        if key in seen_keys:
+            continue
+        selected.append(group)
+        seen_keys.add(key)
+        if len(selected) >= limit:
+            break
+
+    return selected
 
 def find_chromium_executable() -> Optional[str]:
     """Lighthouse가 사용할 Chromium 실행 파일 경로를 찾습니다.
@@ -1698,7 +1746,7 @@ def build_report_markdown(scores, breakdown, defects):
             grouped_defects.append([defect])
         else:
             grouped_defects[grouped_index[group_key]].append(defect)
-    top_groups = grouped_defects[:5]
+    top_groups = select_balanced_defect_groups(grouped_defects, limit=5)
 
     if scores["overall"] >= 85:
         summary = "주요 흐름은 전반적으로 안정적입니다. 일부 세부 항목을 보완하면 더 완성도 높은 경험이 됩니다."
@@ -1725,10 +1773,15 @@ def build_report_markdown(scores, breakdown, defects):
     if not top_groups:
         lines.append("- 이번 테스트에서 즉시 조치가 필요한 주요 결함은 감지되지 않았습니다.")
     else:
+        groups_by_category = {}
         for group in top_groups:
-            defect = group[0]
-            label = category_labels.get(defect.category, "Quality")
-            lines.append(summarize_defect_group(group, label))
+            groups_by_category.setdefault(group[0].category, []).append(group)
+
+        for category, groups in groups_by_category.items():
+            label = category_labels.get(category, "Quality")
+            lines.append(f"#### {label}")
+            for group in groups:
+                lines.append(summarize_defect_group(group, label).replace(f"- {label}: ", "- ", 1))
 
     lines.extend([
         "",
