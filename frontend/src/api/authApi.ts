@@ -38,6 +38,14 @@ export async function signup({ email, password, nickname }: AuthParams): Promise
     });
 
     if (error) throw new Error(error.message);
+
+    // 이메일 인증이 켜진 Supabase는 기존 확정 계정에 오류 대신
+    // identities가 비어 있는 가짜 사용자 객체를 반환합니다.
+    // FlowCheck 정책상 가입 여부를 명확히 안내하기 위해 이를 기존 계정으로 판정합니다.
+    if (data.user?.identities?.length === 0) {
+        throw new Error("이미 가입된 계정입니다. 로그인하거나 비밀번호 찾기를 이용해 주세요.");
+    }
+
     return data;
 }
 
