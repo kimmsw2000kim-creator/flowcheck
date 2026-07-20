@@ -356,6 +356,17 @@ def build_markdown_report(
     else:
         reliability_label = "위험"
 
+    score_breakdown = (
+        f"신뢰성 {assessment.breakdown.reliabilityScore}/40 · "
+        f"꼬리 지연 {assessment.breakdown.latencyScore}/40 · "
+        f"확장성 {assessment.breakdown.scalabilityScore}/20"
+        if assessment.breakdown.scalabilityScore is not None
+        else (
+            f"안정성 {assessment.breakdown.reliabilityScore}/60 · "
+            f"응답성 {assessment.breakdown.latencyScore}/40"
+        )
+    )
+
     return f"""# 부하 테스트 결과
 
 > **성능 점수: {assessment.score}/100 · {assessment.grade} ({assessment.label})**
@@ -371,7 +382,7 @@ def build_markdown_report(
 | p95 응답시간 | **{p95_response}** | - |
 | 오류율 | **{error_rate:.2f}%** | {reliability_label} |
 
-**점수 구성:** 안정성 {assessment.breakdown.reliabilityScore}/60 · 응답성 {assessment.breakdown.latencyScore}/40
+**점수 구성:** {score_breakdown}
 
 _FlowCheck 채점 기준: 오류율 0%는 60점, 5% 이상은 0점이며 구간 내 선형 감점합니다. 평균 응답시간은 200ms 이하 40점, 500ms 30점, 1초 15점, 2초 이상 0점이며 구간 내 선형 감점합니다._
 

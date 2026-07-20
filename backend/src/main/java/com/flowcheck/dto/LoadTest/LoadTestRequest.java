@@ -1,5 +1,8 @@
 package com.flowcheck.dto.LoadTest;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -28,4 +31,22 @@ public class LoadTestRequest {
     private Integer duration;
 
     private String loadPrompt;
+
+    @Valid
+    private PerformanceTargets performanceTargets;
+
+    @Setter
+    @Getter
+    @NoArgsConstructor
+    public static class PerformanceTargets {
+        @DecimalMin(value = "0.01", message = "목표 TPS는 0보다 커야 합니다.")
+        private Double targetTps;
+
+        @DecimalMin(value = "0.01", message = "목표 p95 응답시간은 0보다 커야 합니다.")
+        private Double targetP95Ms;
+
+        @DecimalMin(value = "0.0", message = "최대 오류율은 0 이상이어야 합니다.")
+        @DecimalMax(value = "100.0", message = "최대 오류율은 100 이하여야 합니다.")
+        private Double maxErrorRate;
+    }
 }
