@@ -13,7 +13,9 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -23,10 +25,11 @@ import java.util.concurrent.ConcurrentHashMap;
 public class LoadTestStreamService {
 
     private final TestRequestRepository testRequestRepository;
-    private final Map<UUID, SseEmitter> emitters = new ConcurrentHashMap<>();
+    private final LoadTestRefundService loadTestRefundService;
+    private final Map<UUID, Set<SseEmitter>> emitters = new ConcurrentHashMap<>();
 
     @Transactional(readOnly = true)
-    public SseEmitter register(UUID userId, UUID requestId) {
+    public synchronized SseEmitter register(UUID userId, UUID requestId) {
         TestRequest testRequest = testRequestRepository
                 .findByIdAndUser_UserIdAndTestType(requestId, userId, "LOAD")
                 .orElseThrow(() -> new ResponseStatusException(
@@ -34,26 +37,67 @@ public class LoadTestStreamService {
                         "Load test not found"));
 
         SseEmitter emitter = new SseEmitter(0L);
-        SseEmitter previous = emitters.put(requestId, emitter);
-        if (previous != null) {
-            previous.complete();
+
+        if (isTerminal(testRequest.getTestStatus())) {
+            safeSend(emitter, buildSnapshot(testRequest, null));
+            emitter.complete();
+            return emitter;
         }
 
-        emitter.onCompletion(() -> emitters.remove(requestId, emitter));
+        emitters.computeIfAbsent(requestId, ignored -> ConcurrentHashMap.newKeySet())
+                .add(emitter);
+
+        emitter.onCompletion(() -> removeEmitter(requestId, emitter));
         emitter.onTimeout(() -> {
-            emitters.remove(requestId, emitter);
+            removeEmitter(requestId, emitter);
             emitter.complete();
         });
-        emitter.onError(error -> emitters.remove(requestId, emitter));
+        emitter.onError(error -> removeEmitter(requestId, emitter));
 
-        safeSend(emitter, buildSnapshot(testRequest, null));
+        if (!safeSend(emitter, buildSnapshot(testRequest, null))) {
+            removeEmitter(requestId, emitter);
+        }
         return emitter;
+    }
+
+    synchronized void removeEmitter(UUID requestId, SseEmitter emitter) {
+        Set<SseEmitter> requestEmitters = emitters.get(requestId);
+        if (requestEmitters == null) {
+            return;
+        }
+
+        requestEmitters.remove(emitter);
+        if (requestEmitters.isEmpty()) {
+            emitters.remove(requestId, requestEmitters);
+        }
+    }
+
+    synchronized int emitterCount(UUID requestId) {
+        Set<SseEmitter> requestEmitters = emitters.get(requestId);
+        return requestEmitters == null ? 0 : requestEmitters.size();
     }
 
     @Transactional
     public void updateProgress(UUID requestId, LoadTestProgressUpdateRequest request) {
-        TestRequest testRequest = testRequestRepository.findById(requestId)
+        TestRequest testRequest = "FAILED".equals(request.status())
+                ? testRequestRepository.findByIdForUpdate(requestId)
+                        .orElseThrow(() -> new IllegalArgumentException("Invalid request ID"))
+                : testRequestRepository.findById(requestId)
                 .orElseThrow(() -> new IllegalArgumentException("Invalid request ID"));
+
+        if (isTerminal(testRequest.getTestStatus())) {
+            log.warn(
+                    "Ignored load test progress after terminal state: requestId={}, currentStatus={}, incomingStatus={}, incomingPhase={}",
+                    requestId,
+                    testRequest.getTestStatus(),
+                    request.status(),
+                    request.phase());
+            return;
+        }
+
+        if ("FAILED".equals(request.status())) {
+            loadTestRefundService.refundIfNeeded(testRequest, request.message());
+        }
 
         testRequest.changeStatus(request.status());
         testRequest.changePhase(request.phase());
@@ -67,6 +111,10 @@ public class LoadTestStreamService {
                 request.status(),
                 request.phase(),
                 request.progress());
+    }
+
+    private boolean isTerminal(String status) {
+        return "COMPLETED".equals(status) || "FAILED".equals(status);
     }
 
     private LoadTestResponse buildSnapshot(TestRequest testRequest, String message) {
@@ -96,25 +144,36 @@ public class LoadTestStreamService {
         };
     }
 
-    private void broadcast(UUID requestId, LoadTestResponse payload) {
-        SseEmitter emitter = emitters.get(requestId);
-        if (emitter == null) {
+    private synchronized void broadcast(UUID requestId, LoadTestResponse payload) {
+        Set<SseEmitter> requestEmitters = emitters.get(requestId);
+        if (requestEmitters == null || requestEmitters.isEmpty()) {
             return;
         }
 
-        safeSend(emitter, payload);
+        for (SseEmitter emitter : new HashSet<>(requestEmitters)) {
+            if (!safeSend(emitter, payload)) {
+                requestEmitters.remove(emitter);
+            }
+        }
 
-        if ("COMPLETED".equals(payload.getStatus()) || "FAILED".equals(payload.getStatus())) {
-            emitter.complete();
-            emitters.remove(requestId, emitter);
+        if (isTerminal(payload.getStatus())) {
+            emitters.remove(requestId, requestEmitters);
+            for (SseEmitter emitter : new HashSet<>(requestEmitters)) {
+                emitter.complete();
+            }
+            requestEmitters.clear();
+        } else if (requestEmitters.isEmpty()) {
+            emitters.remove(requestId, requestEmitters);
         }
     }
 
-    private void safeSend(SseEmitter emitter, LoadTestResponse payload) {
+    private boolean safeSend(SseEmitter emitter, LoadTestResponse payload) {
         try {
             emitter.send(payload);
-        } catch (IOException e) {
+            return true;
+        } catch (IOException | IllegalStateException e) {
             emitter.completeWithError(e);
+            return false;
         }
     }
 }

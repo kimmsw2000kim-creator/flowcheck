@@ -17,6 +17,9 @@ interface LoadTestStreamPayload {
 
 type LoadStatus = 'idle' | 'running' | 'success' | 'error';
 
+const SSE_STABLE_CONNECTION_MS = 30_000;
+const SSE_MAX_RETRIES = 5;
+
 class FatalSseError extends Error {
   constructor(message: string) {
     super(message);
@@ -97,6 +100,7 @@ export function useLoadTest(
     const controller = new AbortController();
     streamRef.current = controller;
     let retryCount = 0;
+    let connectedAt: number | null = null;
 
     try {
       await fetchEventSource(`/api/load-tests/${requestId}/stream`, {
@@ -121,7 +125,7 @@ export function useLoadTest(
           const contentType = response.headers.get('content-type');
 
           if (response.ok && contentType?.startsWith(EventStreamContentType)) {
-            retryCount = 0;
+            connectedAt = Date.now();
             return;
           }
 
@@ -220,13 +224,18 @@ export function useLoadTest(
             throw error;
           }
 
+          if (connectedAt !== null && Date.now() - connectedAt >= SSE_STABLE_CONNECTION_MS) {
+            retryCount = 0;
+          }
+          connectedAt = null;
+
           retryCount += 1;
-          if (retryCount > 5) {
+          if (retryCount > SSE_MAX_RETRIES) {
             throw new FatalSseError('실시간 상태 연결에 반복적으로 실패했습니다. 잠시 후 다시 시도해 주세요.');
           }
 
           const retryDelay = Math.min(1000 * 2 ** (retryCount - 1), 10000);
-          console.warn(`SSE connection retry ${retryCount}/5 in ${retryDelay}ms`, error);
+          console.warn(`SSE connection retry ${retryCount}/${SSE_MAX_RETRIES} in ${retryDelay}ms`, error);
           return retryDelay;
         },
       });
