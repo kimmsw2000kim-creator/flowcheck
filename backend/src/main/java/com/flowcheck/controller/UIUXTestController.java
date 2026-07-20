@@ -27,7 +27,7 @@ import java.util.UUID;
 @RequestMapping("/api/uiux-tests")
 @RequiredArgsConstructor
 @Slf4j
-@CrossOrigin(origins = { "http://localhost:5173", "https://flow-check.duckdns.org" })
+@CrossOrigin(origins = { "http://localhost:5173", "https://flowcheck.kr" })
 public class UIUXTestController {
 
     private static final String CALLBACK_TOKEN_HEADER = "X-Internal-Api-Key";

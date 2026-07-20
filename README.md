@@ -5,10 +5,10 @@
 비밀번호 재설정 메일이 올바른 화면으로 돌아오도록 Supabase Dashboard의
 `Authentication > URL Configuration`에서 다음 값을 등록합니다.
 
-- Site URL: `https://flow-check.duckdns.org`
+- Site URL: `https://flowcheck.kr`
 - Redirect URLs:
   - `http://localhost:5173/reset-password`
-  - `https://flow-check.duckdns.org/reset-password`
+  - `https://flowcheck.kr/reset-password`
 
 운영 도메인이 변경되면 Site URL과 운영 Redirect URL을 실제 주소로 함께 변경합니다.
 이메일 템플릿을 직접 수정한 경우에는 링크가 `{{ .SiteURL }}`이 아니라

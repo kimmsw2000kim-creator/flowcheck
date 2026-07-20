@@ -49,7 +49,7 @@ app = FastAPI()
 
 cors_origins = [
     origin.strip()
-    for origin in os.getenv("FASTAPI_CORS_ORIGINS", "http://localhost:5173,https://flow-check.duckdns.org").split(",")
+    for origin in os.getenv("FASTAPI_CORS_ORIGINS", "http://localhost:5173,https://flowcheck.kr").split(",")
     if origin.strip()
 ]
 
