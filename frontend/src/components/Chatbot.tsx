@@ -1,9 +1,13 @@
-import { useState } from 'react';
 import ChatbotPage from '../pages/ChatbotPage';
+import { useChatbotStore } from '../store/chatbotStore';
 import './Chatbot.css';
 
 const Chatbot = () => {
-  const [isOpen, setIsOpen] = useState(false);
+  const isOpen = useChatbotStore((state) => state.isOpen);
+  const pendingRequest = useChatbotStore((state) => state.pendingRequest);
+  const toggleChatbot = useChatbotStore((state) => state.toggleChatbot);
+  const closeChatbot = useChatbotStore((state) => state.closeChatbot);
+  const consumePrompt = useChatbotStore((state) => state.consumePrompt);
 
   return (
     <div className="chatbot-container">
@@ -12,7 +16,7 @@ const Chatbot = () => {
           <button 
             type="button" 
             className="chatbot-close-overlay-btn" 
-            onClick={() => setIsOpen(false)}
+            onClick={closeChatbot}
             aria-label="챗봇 닫기"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24" fill="white">
@@ -20,14 +24,17 @@ const Chatbot = () => {
             </svg>
           </button>
           <div className="chatbot-page-wrapper">
-             <ChatbotPage />
+             <ChatbotPage
+               initialPromptRequest={pendingRequest}
+               onInitialPromptConsumed={consumePrompt}
+             />
           </div>
         </div>
       )}
       <button 
         type="button" 
         className="chatbot-fab" 
-        onClick={() => setIsOpen(!isOpen)} 
+        onClick={toggleChatbot}
         aria-label={isOpen ? '챗봇 닫기' : '챗봇 열기'} 
         aria-expanded={isOpen}
       >
