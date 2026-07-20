@@ -1,5 +1,6 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { MessageCircleQuestion } from 'lucide-react';
 import {
   CartesianGrid,
   Legend,
@@ -11,7 +12,8 @@ import {
   YAxis,
 } from 'recharts';
 import type { LoadTestResult } from '../../types/loadTest';
-import { Badge, Card, EmptyState } from '../common';
+import { useChatbotStore } from '../../store/chatbotStore';
+import { Badge, Button, Card, EmptyState } from '../common';
 import type { BadgeTone } from '../common';
 import './LoadTestResultView.css';
 
@@ -71,6 +73,14 @@ export function LoadTestResultView({ result }: LoadTestResultViewProps) {
   const hasMeasuredSeries = result.dataOrigin === 'MEASURED_K6' && Boolean(result.points?.length);
   const isLegacySeries = result.dataOrigin === 'LEGACY_SYNTHETIC';
   const seriesBadge = getSeriesBadge(result);
+  const openChatbotWithPrompt = useChatbotStore((state) => state.openWithPrompt);
+  const explainVerdict = () => {
+    const verdict = result.analysisReport?.verdict;
+    if (!verdict) return;
+    openChatbotWithPrompt(
+      `다음 부하 테스트 성능 분석의 종합 판정만 비전문가도 이해할 수 있도록 쉬운 한국어로 설명해 주세요.\n\n종합 판정: ${verdict}`,
+    );
+  };
 
   return (
     <section className="fc-load-result" aria-label="부하 테스트 결과">
@@ -122,9 +132,20 @@ export function LoadTestResultView({ result }: LoadTestResultViewProps) {
                 <span>종합 판정</span>
                 <p>{result.analysisReport.verdict}</p>
               </div>
-              <Badge tone={result.analysisReport.generationSource === 'LLM' ? 'info' : 'warning'}>
-                {result.analysisReport.generationSource === 'LLM' ? 'AI 분석' : '검증 폴백'}
-              </Badge>
+              <div className="fc-load-result__verdict-actions">
+                <Badge tone={result.analysisReport.generationSource === 'LLM' ? 'info' : 'warning'}>
+                  {result.analysisReport.generationSource === 'LLM' ? 'AI 분석' : '검증 폴백'}
+                </Badge>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  icon={MessageCircleQuestion}
+                  onClick={explainVerdict}
+                >
+                  쉽게 설명해줘
+                </Button>
+              </div>
             </div>
 
             <div className="fc-load-result__report-summary">

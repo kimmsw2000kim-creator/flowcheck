@@ -147,6 +147,13 @@
   line-height: var(--line-height-normal);
 }
 
+.fc-load-result__verdict-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .fc-load-result__report-summary {
   display: flex;
   flex-wrap: wrap;
@@ -432,6 +439,12 @@
   }
 
   .fc-load-result__verdict {
+    flex-direction: column;
+  }
+
+  .fc-load-result__verdict-actions {
+    width: 100%;
+    align-items: stretch;
     flex-direction: column;
   }
 
