@@ -36,6 +36,10 @@ supabase:
 gemini:
   api-key: ${GEMINI_API_KEY:}
 
+http-client:
+  ssl:
+    trust-all: ${HTTP_CLIENT_SSL_TRUST_ALL:true}
+
 toss:
   secret-key: ${TOSS_WIDGET_SECRET_KEY:${TOSS_SECRET_KEY:}}
   client-key: ${VITE_TOSS_CLIENT_KEY:${TOSS_WIDGET_CLIENT_KEY:${TOSS_CLIENT_KEY:}}}
