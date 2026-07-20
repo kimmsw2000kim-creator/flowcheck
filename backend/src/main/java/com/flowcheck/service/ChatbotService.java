@@ -7,7 +7,10 @@ import com.flowcheck.dto.ChatRequestDto;
 import com.flowcheck.dto.ChatResponseDto;
 import com.flowcheck.repository.ChatMessageRepository;
 import com.flowcheck.repository.ChatSessionRepository;
+import com.flowcheck.repository.LoadTestReportRepository;
 import com.flowcheck.repository.TestRequestRepository;
+import com.flowcheck.repository.UIUXTestDefectRepository;
+import com.flowcheck.repository.UIUXTestReportRepository;
 import com.flowcheck.util.EncryptionUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +39,9 @@ public class ChatbotService {
     private final ChatSessionRepository chatSessionRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final TestRequestRepository testRequestRepository;
+    private final UIUXTestReportRepository uiuxTestReportRepository;
+    private final UIUXTestDefectRepository uiuxTestDefectRepository;
+    private final LoadTestReportRepository loadTestReportRepository;
     private final EncryptionUtil encryptionUtil;
     private final WebClient webClient = createInsecureWebClient();
     private final ObjectMapper objectMapper;
@@ -103,12 +109,17 @@ public class ChatbotService {
         systemInstructionText.append("★ 중요 규칙 2: 사용자가 '이미지 만들어줘', '로고 그려줘' 등 이미지 생성을 요구하는 경우, 직접 만들 수 없다고 하지 마세요. 대신 다음 마크다운 이미지 형식을 사용하여 이미지를 제공하세요: `![이미지 설명](https://image.pollinations.ai/prompt/영어로_번역된_프롬프트?width=800&height=400&nologo=true)` (프롬프트는 띄어쓰기를 %20으로 치환한 영어여야 합니다).\n");
         systemInstructionText.append("중요: 텍스트가 빽빽해 보이지 않도록 문단을 짧게 나누고, 볼드체(**) 사용을 최소화하여 가독성 높게 답변하세요.\n\n");
         
-        systemInstructionText.append("사용자의 최근 테스트 이력은 다음과 같습니다:\n");
-        for (TestRequest test : testHistory) {
-            systemInstructionText.append(String.format("- 유형: %s, 타겟 URL: %s, 상태: %s, 진행률: %d%%\n", 
-                    test.getTestType(), test.getTargetUrl(), test.getTestStatus(), test.getTestProgress()));
-        }
-        systemInstructionText.append("\n사용자의 이력을 참고하여 맞춤형 답변을 제공하세요.");
+        systemInstructionText.append("사용자의 최근 테스트 이력과 결과 요약은 다음과 같습니다. 결과 요약이 있는 경우 이를 우선 참고해 답변하세요:\n");
+        testHistory.stream().limit(5).forEach(test -> {
+            systemInstructionText.append(String.format("- 유형: %s, 타겟 URL: %s, 상태: %s, 진행률: %d%%, 생성일: %s\n",
+                    test.getTestType(),
+                    test.getTargetUrl(),
+                    test.getTestStatus(),
+                    test.getTestProgress(),
+                    test.getCreatedAt()));
+            systemInstructionText.append(buildTestResultContext(test));
+        });
+        systemInstructionText.append("\n사용자의 이력과 결과 요약을 참고하여 맞춤형 답변을 제공하세요. 단, 결과 요약에 없는 수치는 추측하지 말고 확인 가능한 범위만 말하세요.");
 
         Map<String, Object> systemInstruction = Map.of(
             "parts", List.of(Map.of("text", systemInstructionText.toString()))
@@ -167,6 +178,83 @@ public class ChatbotService {
                 .content(geminiResponseText)
                 .createdAt(botMessageEntity.getCreatedAt())
                 .build();
+    }
+
+    private String buildTestResultContext(TestRequest test) {
+        if ("UIUX".equals(test.getTestType()) || "UI".equals(test.getTestType())) {
+            return buildUiuxResultContext(test);
+        }
+        if ("LOAD".equals(test.getTestType())) {
+            return buildLoadResultContext(test);
+        }
+        return "  - 결과 상세: 지원하지 않는 테스트 유형이라 상세 결과를 요약하지 못했습니다.\n";
+    }
+
+    private String buildUiuxResultContext(TestRequest test) {
+        return uiuxTestReportRepository.findFirstByTestRequestIdOrderByCreatedAtDescIdDesc(test.getId())
+                .map(report -> {
+                    StringBuilder builder = new StringBuilder();
+                    builder.append(String.format(
+                            "  - UI/UX 점수: 종합 %s점, 사용성 %s점, 접근성 %s점, 탐색 효율 %s점, 성능 %s점, 기술 품질 %s점\n",
+                            valueOrDash(report.getOverallScore()),
+                            valueOrDash(report.getScoreUsability()),
+                            valueOrDash(report.getScoreAccessibility()),
+                            valueOrDash(report.getScoreEfficiency()),
+                            valueOrDash(report.getScorePerformance()),
+                            valueOrDash(report.getScoreBestPractices())));
+                    builder.append("  - UI/UX 보고서 요약: ")
+                            .append(truncateForPrompt(report.getUiuxTestReview(), 700))
+                            .append("\n");
+
+                    List<UIUXTestDefect> defects = uiuxTestDefectRepository.findByTestRequestId(test.getId());
+                    if (defects.isEmpty()) {
+                        builder.append("  - 주요 결함: 저장된 결함 없음\n");
+                    } else {
+                        builder.append("  - 주요 결함:\n");
+                        defects.stream().limit(5).forEach(defect -> builder.append("    * ")
+                                .append(valueOrDash(defect.getCategory()))
+                                .append("/")
+                                .append(valueOrDash(defect.getSeverity()))
+                                .append(": ")
+                                .append(truncateForPrompt(defect.getDescription(), 180))
+                                .append(" | 개선: ")
+                                .append(truncateForPrompt(defect.getRecommendation(), 180))
+                                .append("\n"));
+                    }
+                    return builder.toString();
+                })
+                .orElse("  - 결과 상세: 아직 UI/UX 리포트가 저장되지 않았습니다.\n");
+    }
+
+    private String buildLoadResultContext(TestRequest test) {
+        return loadTestReportRepository.findByTestRequestId(test.getId())
+                .map(report -> String.format(
+                        "  - 부하 테스트 결과: VUsers %s명, 총 TPS %s, 평균 지연 시간 %sms, 오류율 %s%%\n  - 부하 테스트 AI 리뷰 요약: %s\n",
+                        valueOrDash(report.getVusers()),
+                        valueOrDash(report.getTotalTps()),
+                        valueOrDash(report.getAvgLatency()),
+                        valueOrDash(report.getErrorRate()),
+                        truncateForPrompt(report.getAiPerformanceReview(), 700)))
+                .orElse("  - 결과 상세: 아직 부하 테스트 리포트가 저장되지 않았습니다.\n");
+    }
+
+    private String valueOrDash(Object value) {
+        return value == null ? "-" : String.valueOf(value);
+    }
+
+    private String truncateForPrompt(String value, int maxLength) {
+        if (value == null || value.isBlank()) {
+            return "내용 없음";
+        }
+        String normalized = value
+                .replaceAll("(?m)^#+\\s*", "")
+                .replaceAll("[*_`>\\[\\]()]", "")
+                .replaceAll("\\s+", " ")
+                .trim();
+        if (normalized.length() <= maxLength) {
+            return normalized;
+        }
+        return normalized.substring(0, maxLength) + "...";
     }
 
     @Transactional(readOnly = true)
