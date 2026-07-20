@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { createCommunityPost } from '../../api/communityPostApi';
+import { COMMUNITY_LIMITS } from '../../constants/communityLimits';
 import { useDomains } from '../../hooks/useDomains';
 import { useAlertStore } from '../../store/alertStore';
 import { Badge, Button, Card, EmptyState, Field, PageHeader } from '../common';
@@ -60,11 +61,11 @@ export default function SitePromotionTab() {
           {selectedDomain && (
             <form className="community-promotion-form" onSubmit={submit} aria-busy={submitting || undefined}>
               <h3>{selectedDomain.serviceName || selectedDomain.domainUrl} 소개 작성</h3>
-              <Field label="홍보글 제목" htmlFor="promotion-title" required>
-                <input id="promotion-title" className="fc-input" maxLength={100} value={title} onChange={(event) => setTitle(event.target.value)} disabled={submitting} required />
+              <Field label="홍보글 제목" htmlFor="promotion-title" description={`${title.length} / ${COMMUNITY_LIMITS.POST_TITLE}자`} required>
+                <input id="promotion-title" className="fc-input" maxLength={COMMUNITY_LIMITS.POST_TITLE} value={title} onChange={(event) => setTitle(event.target.value)} disabled={submitting} required />
               </Field>
-              <Field label="사이트 소개" htmlFor="promotion-content" required>
-                <textarea id="promotion-content" className="fc-input" rows={6} value={content} onChange={(event) => setContent(event.target.value)} disabled={submitting} required />
+              <Field label="사이트 소개" htmlFor="promotion-content" description={`${content.length} / ${COMMUNITY_LIMITS.POST_CONTENT.toLocaleString()}자`} required>
+                <textarea id="promotion-content" className="fc-input" rows={6} maxLength={COMMUNITY_LIMITS.POST_CONTENT} value={content} onChange={(event) => setContent(event.target.value)} disabled={submitting} required />
               </Field>
               <Button type="submit" isLoading={submitting} loadingText="등록 중...">사이트 홍보글 등록</Button>
             </form>

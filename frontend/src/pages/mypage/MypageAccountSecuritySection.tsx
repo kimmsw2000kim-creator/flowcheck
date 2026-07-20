@@ -6,6 +6,11 @@ import { deactivateMypageAccount } from '../../api/mypageApi';
 import { Button, Card, PageHeader, TextField } from '../../components/common';
 import { useAlertStore } from '../../store/alertStore';
 import { useUserStore } from '../../store/userStore';
+import {
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  getPasswordValidationError,
+} from '../../utils/authValidation';
 import styles from '../../styles/mypage.module.css';
 
 interface MypageAccountSecuritySectionProps {
@@ -25,7 +30,7 @@ function MypageAccountSecuritySection({ email, canChangePassword }: MypageAccoun
 
   const passwordConfirmTouched = newPasswordConfirm.length > 0;
   const passwordMatched = newPassword === newPasswordConfirm;
-  const passwordTooShort = newPassword.length > 0 && newPassword.length < 6;
+  const newPasswordError = newPassword.length > 0 ? getPasswordValidationError(newPassword) : undefined;
 
   const handleLogout = async () => {
     await logout();
@@ -60,8 +65,9 @@ function MypageAccountSecuritySection({ email, canChangePassword }: MypageAccoun
   const handlePasswordChange = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (newPassword.length < 6) {
-      showAlert('새 비밀번호는 6자 이상이어야 합니다.', 'error');
+    const validationError = getPasswordValidationError(newPassword);
+    if (validationError) {
+      showAlert(validationError, 'error');
       return;
     }
     if (!passwordMatched) {
@@ -121,8 +127,10 @@ function MypageAccountSecuritySection({ email, canChangePassword }: MypageAccoun
                 autoComplete="new-password"
                 value={newPassword}
                 onChange={(event) => setNewPassword(event.target.value)}
-                minLength={6}
-                error={passwordTooShort ? '새 비밀번호는 6자 이상이어야 합니다.' : undefined}
+                minLength={PASSWORD_MIN_LENGTH}
+                maxLength={PASSWORD_MAX_LENGTH}
+                error={newPasswordError}
+                description={!newPasswordError && newPassword.length > 0 ? '사용 가능한 비밀번호 형식입니다.' : '8자 이상, 영문과 숫자를 포함해 주세요.'}
                 required
                 disabled={changingPassword}
               />
@@ -132,7 +140,8 @@ function MypageAccountSecuritySection({ email, canChangePassword }: MypageAccoun
                 autoComplete="new-password"
                 value={newPasswordConfirm}
                 onChange={(event) => setNewPasswordConfirm(event.target.value)}
-                minLength={6}
+                minLength={PASSWORD_MIN_LENGTH}
+                maxLength={PASSWORD_MAX_LENGTH}
                 error={passwordConfirmTouched && !passwordMatched ? '새 비밀번호가 일치하지 않습니다.' : undefined}
                 description={passwordConfirmTouched && passwordMatched ? '새 비밀번호가 일치합니다.' : undefined}
                 required
@@ -143,7 +152,7 @@ function MypageAccountSecuritySection({ email, canChangePassword }: MypageAccoun
                 fullWidth
                 isLoading={changingPassword}
                 loadingText="변경 중..."
-                disabled={passwordTooShort || !passwordMatched || currentPassword.length === 0}
+                disabled={Boolean(newPasswordError) || !passwordMatched || currentPassword.length === 0}
               >
                 비밀번호 변경
               </Button>

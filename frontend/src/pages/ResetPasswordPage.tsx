@@ -6,6 +6,11 @@ import { updatePassword } from '../api/authApi';
 import { Button, Card, EmptyState, PageHeader, TextField } from '../components/common';
 import { supabase } from '../lib/supabaseClient';
 import { useAlertStore } from '../store/alertStore';
+import {
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  getPasswordValidationError,
+} from '../utils/authValidation';
 
 type RecoveryState = 'checking' | 'ready' | 'invalid';
 
@@ -23,6 +28,9 @@ export default function ResetPasswordPage() {
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const passwordValidationError = password.length > 0 ? getPasswordValidationError(password) : undefined;
+  const passwordConfirmTouched = passwordConfirm.length > 0;
+  const passwordMatched = password === passwordConfirm;
 
   useEffect(() => {
     let disposed = false;
@@ -65,6 +73,12 @@ export default function ResetPasswordPage() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    const validationError = getPasswordValidationError(password);
+    if (validationError) {
+      showAlert(validationError, 'error');
+      return;
+    }
 
     if (password !== passwordConfirm) {
       showAlert('비밀번호가 일치하지 않습니다.', 'error');
@@ -111,9 +125,6 @@ export default function ResetPasswordPage() {
     );
   }
 
-  const passwordConfirmTouched = passwordConfirm.length > 0;
-  const passwordMatched = password === passwordConfirm;
-
   return (
     <section className="utility-page utility-page--narrow">
       <Card padding="lg">
@@ -131,7 +142,10 @@ export default function ResetPasswordPage() {
             placeholder="새 비밀번호를 입력하세요"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            minLength={6}
+            minLength={PASSWORD_MIN_LENGTH}
+            maxLength={PASSWORD_MAX_LENGTH}
+            error={passwordValidationError}
+            description={!passwordValidationError && password.length > 0 ? '사용 가능한 비밀번호 형식입니다.' : '8자 이상, 영문과 숫자를 포함해 주세요.'}
             required
             disabled={isSaving}
           />
@@ -142,7 +156,8 @@ export default function ResetPasswordPage() {
             placeholder="새 비밀번호를 다시 입력하세요"
             value={passwordConfirm}
             onChange={(event) => setPasswordConfirm(event.target.value)}
-            minLength={6}
+            minLength={PASSWORD_MIN_LENGTH}
+            maxLength={PASSWORD_MAX_LENGTH}
             error={passwordConfirmTouched && !passwordMatched ? '비밀번호가 일치하지 않습니다.' : undefined}
             description={passwordConfirmTouched && passwordMatched ? '비밀번호가 일치합니다.' : undefined}
             required
@@ -153,7 +168,7 @@ export default function ResetPasswordPage() {
             fullWidth
             isLoading={isSaving}
             loadingText="변경 중..."
-            disabled={!passwordMatched}
+            disabled={!passwordMatched || Boolean(passwordValidationError)}
           >
             비밀번호 변경하기
           </Button>

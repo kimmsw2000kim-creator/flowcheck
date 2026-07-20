@@ -1,5 +1,7 @@
 import apiClient from './client';
 
+const UIUX_REQUEST_TIMEOUT_MS = 10_000;
+
 // 이 파일은 UI/UX 테스트 관련 Spring API의 프론트 전용 계약을 모아 둔 곳입니다.
 // 백엔드 DTO와 필드명을 맞춰야 하므로 requestId, bestPractices, timestampOffset 같은 camelCase를 그대로 사용합니다.
 export interface StartUIUXTestResponse {
@@ -92,14 +94,30 @@ export async function startUIUXTest(targetUrl: string): Promise<StartUIUXTestRes
 /**
  * 실시간 UI 탐색 테스트 상태 및 단계 정보를 조회합니다.
  */
-export async function getUIUXTestStatus(requestId: string): Promise<UIUXTestStatusResponse> {
-  const response = await apiClient.get(`/api/uiux-tests/${requestId}/status`);
+export async function getUIUXTestStatus(
+  requestId: string,
+  signal?: AbortSignal,
+): Promise<UIUXTestStatusResponse> {
+  const response = await apiClient.get(`/api/uiux-tests/${requestId}/status`, {
+    signal,
+    timeout: UIUX_REQUEST_TIMEOUT_MS,
+  });
   return response.data;
 }
 
-export async function issueUIUXVncAccess(requestId: string): Promise<UIUXVncAccessResponse> {
+export async function issueUIUXVncAccess(
+  requestId: string,
+  signal?: AbortSignal,
+): Promise<UIUXVncAccessResponse> {
   // 실시간 화면 URL은 /status에 직접 노출하지 않고, 소유자 검증을 통과한 뒤 signed URL로 발급받습니다.
-  const response = await apiClient.post(`/api/uiux-tests/${requestId}/vnc-token`);
+  const response = await apiClient.post(
+    `/api/uiux-tests/${requestId}/vnc-token`,
+    undefined,
+    {
+      signal,
+      timeout: UIUX_REQUEST_TIMEOUT_MS,
+    },
+  );
   return response.data;
 }
 

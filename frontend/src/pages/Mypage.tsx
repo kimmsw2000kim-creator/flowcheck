@@ -25,6 +25,7 @@ import { useUserStore } from '../store/userStore';
 
 const emptyData: MypageData = {
   email: '',
+  nickname: '',
   avatarUrl: '',
   balance: 0,
   couponCount: 0,
@@ -72,6 +73,10 @@ function Mypage() {
         setData({
           ...mypageData,
           email: userEmail,
+          nickname: mypageData.nickname
+            || (typeof session.user.user_metadata?.nickname === 'string'
+              ? session.user.user_metadata.nickname
+              : ''),
           avatarUrl: mypageData.avatarUrl || getProfileImageUrl(session.user.user_metadata),
         });
 
@@ -88,6 +93,11 @@ function Mypage() {
   const handleAvatarChange = (avatarUrl: string) => {
     setData((current) => ({ ...current, avatarUrl }));
     setCurrentUser({ avatarUrl });
+  };
+
+  const handleNicknameChange = (nickname: string) => {
+    setData((current) => ({ ...current, nickname }));
+    setCurrentUser({ nickname });
   };
 
   return (
@@ -120,7 +130,13 @@ function Mypage() {
 
             <Route
               path="profile"
-              element={<MypageProfileSection data={data} onAvatarChange={handleAvatarChange} />}
+              element={(
+                <MypageProfileSection
+                  data={data}
+                  onAvatarChange={handleAvatarChange}
+                  onNicknameChange={handleNicknameChange}
+                />
+              )}
             />
 
             <Route

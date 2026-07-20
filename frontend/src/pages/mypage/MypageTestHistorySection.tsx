@@ -16,7 +16,7 @@ const formatDate = (value: string) => value ? new Date(value).toLocaleString('ko
 
 const scoreItems = (test: MypageTestHistoryItem, progress: number): Array<[string, number | null | undefined]> => {
   if (test.testType === 'UI' || test.testType === 'UIUX') {
-    const uiuxScores = [
+    const uiuxScores: Array<[string, number | null | undefined]> = [
       ['사용성', test.scoreUsability],
       ['접근성', test.scoreAccessibility],
       ['탐색', test.scoreEfficiency],

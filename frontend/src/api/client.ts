@@ -42,6 +42,7 @@ export function getAccountAccessMessage(error: unknown): string | null {
 
 const apiClient = axios.create({
   baseURL: ApiURL,
+  timeout: 60_000,
 });
 
 apiClient.interceptors.request.use(async (config) => {

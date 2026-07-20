@@ -4,9 +4,11 @@ import {
     deleteCommunityPost,
     updateCommunityPost,
 } from '../../api/communityPostApi';
+import { COMMUNITY_LIMITS } from '../../constants/communityLimits';
 import { useAlertStore } from '../../store/alertStore';
 import { useUserStore } from '../../store/userStore';
 import type { Post } from '../../types/post';
+import { Button, Card, Field } from '../common';
 
 interface CommunityPostActionsProps {
     post: Post;
@@ -166,34 +168,29 @@ export default function CommunityPostActions({
 
     return (
         <>
-            <div
-                style={{
-                    display: 'flex',
-                    gap: '0.5rem',
-                    marginTop: '1rem',
-                }}
-            >
+            <div className="community-post-actions">
                 {isOwner && (
-                    <button
+                    <Button
                         type="button"
-                        className="btn btn-secondary"
+                        variant="secondary"
+                        size="sm"
                         disabled={submitting}
                         onClick={openEditModal}
                     >
                         수정
-                    </button>
+                    </Button>
                 )}
 
                 {canDelete && (
-                    <button
+                    <Button
                         type="button"
-                        className="btn btn-secondary"
+                        variant="danger"
+                        size="sm"
                         disabled={submitting}
-                        style={{ color: 'var(--error)' }}
                         onClick={handleDelete}
                     >
                         삭제
-                    </button>
+                    </Button>
                 )}
             </div>
 
@@ -204,77 +201,68 @@ export default function CommunityPostActions({
                  */
                 <div
                     role="presentation"
-                    style={{
-                        position: 'fixed',
-                        inset: 0,
-                        zIndex: 1100,
-                        display: 'grid',
-                        placeItems: 'center',
-                        padding: '1rem',
-                        overflowY: 'auto',
-                        backgroundColor:
-                            'rgba(15, 23, 42, 0.65)',
-                    }}
+                    className="community-edit-dialog__backdrop"
                     onMouseDown={closeEditModal}
                 >
-                    <section
+                    <Card
+                        as="section"
+                        padding="lg"
                         role="dialog"
                         aria-modal="true"
                         aria-labelledby={`post-edit-title-${post.id}`}
-                        className="card"
-                        style={{
-                            width: 'min(640px, 100%)',
-                            maxHeight: '90vh',
-                            overflowY: 'auto',
-                            boxShadow:
-                                '0 24px 70px rgba(0, 0, 0, 0.3)',
-                        }}
+                        className="community-edit-dialog"
                         onMouseDown={(event) => {
                             /*
                              * 모달 내부 클릭으로 닫히는 것을 방지합니다.
                              */
                             event.stopPropagation();
                         }}
+                        onKeyDown={(event) => {
+                            // 키보드 사용자가 Esc로 수정 모달을 닫을 수 있게 합니다.
+                            if (event.key === 'Escape' && !submitting) {
+                                event.preventDefault();
+                                closeEditModal();
+                            }
+                        }}
                     >
                         <h2 id={`post-edit-title-${post.id}`}>
                             게시글 수정
                         </h2>
 
-                        <form onSubmit={handleUpdate}>
-                            <div className="form-group">
-                                <label
-                                    className="form-label"
-                                    htmlFor={`post-title-${post.id}`}
-                                >
-                                    제목
-                                </label>
-
+                        <form className="community-edit-dialog__form" onSubmit={handleUpdate}>
+                            <Field
+                                label="제목"
+                                htmlFor={`post-title-${post.id}`}
+                                description={`${title.length} / ${COMMUNITY_LIMITS.POST_TITLE}자`}
+                                required
+                            >
                                 <input
                                     id={`post-title-${post.id}`}
-                                    className="form-input"
+                                    className="fc-input"
                                     type="text"
-                                    maxLength={100}
+                                    maxLength={COMMUNITY_LIMITS.POST_TITLE}
                                     value={title}
                                     onChange={(event) =>
                                         setTitle(event.target.value)
                                     }
+                                    autoFocus
                                     required
                                 />
-                            </div>
+                            </Field>
 
-                            <div className="form-group">
-                                <label
-                                    className="form-label"
-                                    htmlFor={`post-content-${post.id}`}
-                                >
-                                    {post.category === 'TEST_SHARE'
-                                        ? '내용 (선택)'
-                                        : '내용'}
-                                </label>
+                            <Field
+                                label={post.category === 'TEST_SHARE'
+                                    ? '내용 (선택)'
+                                    : '내용'}
+                                htmlFor={`post-content-${post.id}`}
+                                description={`${content.length} / ${COMMUNITY_LIMITS.POST_CONTENT.toLocaleString()}자`}
+                                required={post.category !== 'TEST_SHARE'}
+                            >
                                 <textarea
                                     id={`post-content-${post.id}`}
-                                    className="form-input"
+                                    className="fc-input community-edit-dialog__textarea"
                                     rows={6}
+                                    maxLength={COMMUNITY_LIMITS.POST_CONTENT}
                                     value={content}
                                     onChange={(event) =>
                                         setContent(event.target.value)
@@ -282,35 +270,29 @@ export default function CommunityPostActions({
 
                                     // 테스트 공유글은 소개글 없이 수정할 수 있습니다.
                                     required={post.category !== 'TEST_SHARE'}
-                                />                            </div>
+                                />
+                            </Field>
 
-                            <div
-                                style={{
-                                    display: 'flex',
-                                    gap: '0.75rem',
-                                }}
-                            >
-                                <button
+                            <div className="community-actions community-edit-dialog__actions">
+                                <Button
                                     type="submit"
-                                    className="btn btn-primary"
-                                    disabled={submitting}
+                                    isLoading={submitting}
+                                    loadingText="수정 중..."
                                 >
-                                    {submitting
-                                        ? '수정 중...'
-                                        : '수정 완료'}
-                                </button>
+                                    수정 완료
+                                </Button>
 
-                                <button
+                                <Button
                                     type="button"
-                                    className="btn btn-secondary"
+                                    variant="secondary"
                                     disabled={submitting}
                                     onClick={closeEditModal}
                                 >
                                     취소
-                                </button>
+                                </Button>
                             </div>
                         </form>
-                    </section>
+                    </Card>
                 </div>
             )}
         </>

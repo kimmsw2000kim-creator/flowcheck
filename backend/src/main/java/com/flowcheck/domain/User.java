@@ -30,6 +30,10 @@ public class User {
     @Column(nullable = false, unique = true, length = 255)
     private String email;
 
+    @Size(min = 2, max = 20)
+    @Column(length = 20)
+    private String nickname;
+
     @NotNull
     @Min(0)
     @Builder.Default
@@ -182,6 +186,10 @@ public class User {
     // 프로필 URL 저장
     public void updateAvatarUrl(String avatarUrl) {
         this.avatarUrl = avatarUrl;
+    }
+
+    public void updateNickname(String nickname) {
+        this.nickname = nickname;
     }
 
     // 실제 회원탈퇴는 개인정보 익명화와 인증 계정 삭제 기능에서만 사용합니다.

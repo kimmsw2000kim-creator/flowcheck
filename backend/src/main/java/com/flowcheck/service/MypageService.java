@@ -36,6 +36,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,11 +52,16 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class MypageService {
+        private static final int NICKNAME_MIN_LENGTH = 2;
+        private static final int NICKNAME_MAX_LENGTH = 20;
+        private static final Pattern NICKNAME_PATTERN = Pattern.compile("^[가-힣A-Za-z0-9_]+$");
+
         private final RegisteredSiteRepository registeredSiteRepository;
         private final TestRequestRepository testRequestRepository;
         private final UserCouponRepository userCouponRepository;
@@ -97,6 +103,7 @@ public class MypageService {
 
                 return new MypageResponseDTO(
                                 user.getEmail(),
+                                user.getNickname(),
                                 user.getRole(),
                                 user.getStatus().name(),
                                 user.getAvatarUrl(),
@@ -123,6 +130,33 @@ public class MypageService {
                 return normalizedAvatarUrl;
         }
 
+        public boolean isNicknameAvailable(String nickname) {
+                String normalizedNickname = normalizeNickname(nickname);
+                return !userRepository.existsByNicknameIgnoreCase(normalizedNickname);
+        }
+
+        @Transactional
+        public String updateNickname(UUID userId, String nickname) {
+                String normalizedNickname = normalizeNickname(nickname);
+                User user = userRepository.findById(userId)
+                                .orElseThrow(() -> new ResponseStatusException(
+                                                HttpStatus.NOT_FOUND,
+                                                "사용자를 찾을 수 없습니다."));
+
+                if (userRepository.existsByNicknameIgnoreCaseAndUserIdNot(normalizedNickname, userId)) {
+                        throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 사용 중인 닉네임입니다.");
+                }
+
+                user.updateNickname(normalizedNickname);
+                try {
+                        // 사전 중복 검사 직후 다른 요청이 저장되는 경합도 DB 제약조건으로 막습니다.
+                        userRepository.saveAndFlush(user);
+                        return normalizedNickname;
+                } catch (DataIntegrityViolationException exception) {
+                        throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 사용 중인 닉네임입니다.", exception);
+                }
+        }
+
         @Transactional
         public void deactivateAccount(UUID userId) {
                 User user = userRepository.findById(userId)
@@ -145,6 +179,18 @@ public class MypageService {
                 // 본인이 비활성화한 계정만 로그인 과정에서 복구합니다.
                 user.reactivateAccount();
                 userRepository.save(user);
+        }
+
+        private String normalizeNickname(String nickname) {
+                String normalized = nickname == null ? "" : nickname.trim();
+                if (normalized.length() < NICKNAME_MIN_LENGTH
+                                || normalized.length() > NICKNAME_MAX_LENGTH
+                                || !NICKNAME_PATTERN.matcher(normalized).matches()) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.BAD_REQUEST,
+                                        "닉네임은 2~20자의 한글, 영문, 숫자, 밑줄만 사용할 수 있습니다.");
+                }
+                return normalized;
         }
 
         private String normalizeAvatarUrl(String avatarUrl) {

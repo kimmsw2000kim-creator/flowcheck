@@ -159,6 +159,8 @@ export default function UIUXTestPage({
   const [isStopping, setIsStopping] = useState(false);
 
   const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollAbortControllerRef = useRef<AbortController | null>(null);
+  const vncAbortControllerRef = useRef<AbortController | null>(null);
   const pollErrorCountRef = useRef(0);
   const pollCountRef = useRef(0);
   const activePollRequestIdRef = useRef<string | null>(null);
@@ -166,6 +168,8 @@ export default function UIUXTestPage({
 
   const stopPolling = React.useCallback(() => {
     activePollRequestIdRef.current = null;
+    pollAbortControllerRef.current?.abort();
+    pollAbortControllerRef.current = null;
     if (pollTimeoutRef.current !== null) {
       clearTimeout(pollTimeoutRef.current);
       pollTimeoutRef.current = null;
@@ -219,6 +223,8 @@ export default function UIUXTestPage({
     let disposed = false;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let retryCount = 0;
+    const requestController = new AbortController();
+    vncAbortControllerRef.current = requestController;
 
     const requestVncAccess = () => {
       retryCount += 1;
@@ -226,9 +232,9 @@ export default function UIUXTestPage({
       if (shouldLogRetry) {
         sendUIUXClientLog(currentRequestId, 'vnc_token_request', { retryCount });
       }
-      void issueUIUXVncAccess(currentRequestId)
+      void issueUIUXVncAccess(currentRequestId, requestController.signal)
         .then((response) => {
-          if (disposed) return;
+          if (disposed || requestController.signal.aborted) return;
           if (!response.ready || !response.url) {
             setLiveStreamClientStatus('waiting');
             if (shouldLogRetry) {
@@ -259,7 +265,7 @@ export default function UIUXTestPage({
           setVncAccessRequestId(currentRequestId);
         })
         .catch((error) => {
-          if (disposed) return;
+          if (disposed || requestController.signal.aborted) return;
           if (retryCount >= UIUX_MAX_VNC_ACCESS_RETRIES) {
             console.warn('VNC access URL retry limit reached:', error);
             sendUIUXClientLog(currentRequestId, 'vnc_token_retry_limit_error', {
@@ -288,6 +294,10 @@ export default function UIUXTestPage({
 
     return () => {
       disposed = true;
+      requestController.abort();
+      if (vncAbortControllerRef.current === requestController) {
+        vncAbortControllerRef.current = null;
+      }
       if (retryTimer) {
         clearTimeout(retryTimer);
       }
@@ -322,6 +332,8 @@ export default function UIUXTestPage({
       return;
     }
 
+    stopPolling();
+    vncAbortControllerRef.current?.abort();
     setUIUXTestStatus('running');
     setUIUXTestSteps([]);
     setReportData(null);
@@ -364,8 +376,12 @@ export default function UIUXTestPage({
           return;
         }
 
+        pollAbortControllerRef.current?.abort();
+        const requestController = new AbortController();
+        pollAbortControllerRef.current = requestController;
+
         try {
-          const statusRes = await getUIUXTestStatus(requestId);
+          const statusRes = await getUIUXTestStatus(requestId, requestController.signal);
           if (activePollRequestIdRef.current !== requestId) return;
 
           pollErrorCountRef.current = 0;
@@ -391,6 +407,7 @@ export default function UIUXTestPage({
             scheduleNextPoll();
           }
         } catch {
+          if (requestController.signal.aborted) return;
           if (activePollRequestIdRef.current !== requestId) return;
 
           pollErrorCountRef.current += 1;
@@ -400,6 +417,10 @@ export default function UIUXTestPage({
             showAlert('상태 조회가 중단되었습니다.', 'error');
           } else {
             scheduleNextPoll();
+          }
+        } finally {
+          if (pollAbortControllerRef.current === requestController) {
+            pollAbortControllerRef.current = null;
           }
         }
       };
@@ -434,11 +455,13 @@ export default function UIUXTestPage({
       return;
     }
 
+    stopPolling();
+    vncAbortControllerRef.current?.abort();
     setIsStopping(true);
+    setUIUXTestStatus('stopping');
     try {
       await cancelUIUXTest(currentRequestId);
       sendUIUXClientLog(currentRequestId, 'test_cancel_requested');
-      stopPolling();
       setUIUXTestStatus('error');
       setLiveVncProxyUrl(null);
       setVncAccessRequestId(null);
@@ -446,6 +469,8 @@ export default function UIUXTestPage({
       await syncUserEntitlements();
       showAlert('UI/UX 테스트를 중지했습니다. 결과는 실패 상태로 기록됩니다.', 'success');
     } catch (err: any) {
+      setUIUXTestStatus('error');
+      setLiveStreamClientStatus('error');
       const errorMessage =
         typeof err.response?.data === 'string'
           ? err.response.data

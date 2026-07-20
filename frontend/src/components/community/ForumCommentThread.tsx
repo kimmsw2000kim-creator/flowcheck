@@ -164,6 +164,7 @@ export default function ForumCommentThread({
             id={`comment-${uid}`}
             className="fc-input"
             rows={4}
+            maxLength={COMMUNITY_LIMITS.COMMENT}
             value={value}
             onChange={(event) =>
               onValueChange(
@@ -283,6 +284,7 @@ export default function ForumCommentThread({
                         id={`${replyId}-input`}
                         className="fc-input"
                         rows={3}
+                        maxLength={COMMUNITY_LIMITS.REPLY}
                         value={replyValue}
                         onChange={(event) =>
                           onReplyValueChange(

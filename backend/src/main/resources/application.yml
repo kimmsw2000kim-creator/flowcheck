@@ -51,6 +51,11 @@ external:
 fastapi:
   url: ${FASTAPI_URL:http://localhost:8000}
 
+http-client:
+  connect-timeout-ms: ${HTTP_CLIENT_CONNECT_TIMEOUT_MS:5000}
+  default-read-timeout-ms: ${HTTP_CLIENT_DEFAULT_READ_TIMEOUT_MS:60000}
+  load-test-read-timeout-ms: ${HTTP_CLIENT_LOAD_TEST_READ_TIMEOUT_MS:900000}
+
 internal:
   load-test-callback-token: ${LOAD_TEST_CALLBACK_TOKEN:}
   uiux-test-callback-token: ${UIUX_TEST_CALLBACK_TOKEN:${LOAD_TEST_CALLBACK_TOKEN:}}

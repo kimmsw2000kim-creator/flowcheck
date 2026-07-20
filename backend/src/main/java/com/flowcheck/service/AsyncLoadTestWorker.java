@@ -11,8 +11,8 @@ import com.flowcheck.dto.LoadTest.LoadTestResponse;
 import com.flowcheck.dto.LoadTest.LoadTestSubmittedEvent;
 import com.flowcheck.repository.LoadTestReportRepository;
 import com.flowcheck.repository.TestRequestRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.scheduling.annotation.Async;
@@ -22,6 +22,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
+import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
@@ -29,7 +30,6 @@ import java.util.UUID;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class AsyncLoadTestWorker {
 
     private final TestRequestRepository testRequestRepository;
@@ -37,6 +37,19 @@ public class AsyncLoadTestWorker {
     private final LoadTestStreamService loadTestStreamService;
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
+
+    public AsyncLoadTestWorker(
+            TestRequestRepository testRequestRepository,
+            LoadTestReportRepository loadTestReportRepository,
+            LoadTestStreamService loadTestStreamService,
+            @Qualifier("loadTestRestClient") RestClient restClient,
+            ObjectMapper objectMapper) {
+        this.testRequestRepository = testRequestRepository;
+        this.loadTestReportRepository = loadTestReportRepository;
+        this.loadTestStreamService = loadTestStreamService;
+        this.restClient = restClient;
+        this.objectMapper = objectMapper;
+    }
 
     @Value("${fastapi.url}")
     private String fastApiUrl;
@@ -52,6 +65,8 @@ public class AsyncLoadTestWorker {
         TestRequest testHistory = testRequestRepository.findById(requestId)
                 .orElseThrow(() -> new IllegalArgumentException("Request not found"));
 
+        long fastApiCallStartedAt = 0L;
+
         try {
             testHistory.changeStatus("RUNNING");
             testHistory.changePhase("DISPATCHED_TO_FASTAPI");
@@ -65,6 +80,7 @@ public class AsyncLoadTestWorker {
                             "FastAPI에 부하 테스트 실행을 전달하는 중입니다."));
 
             // FastAPI 호출 (여기서 몇 분이 걸리더라도 사용자 요청은 이미 202로 끝났으므로 안전함)
+            fastApiCallStartedAt = System.nanoTime();
             LoadTestResponse.TestResults testResults = restClient.post()
                     .uri(fastApiUrl + "/api/load-tests")
                     .contentType(MediaType.APPLICATION_JSON)
@@ -181,18 +197,43 @@ public class AsyncLoadTestWorker {
                             "부하 테스트가 완료되었습니다."));
 
         } catch (Exception e) {
-            log.error("Load test failed for request {}", requestId, e);
-            testHistory.changeStatus("FAILED");
-            testHistory.changePhase("FAILED");
-            testHistory.changeProgress(100);
-            testRequestRepository.save(testHistory);
+            boolean timedOut = isTimeout(e);
+            long elapsedMs = fastApiCallStartedAt == 0L
+                    ? 0L
+                    : (System.nanoTime() - fastApiCallStartedAt) / 1_000_000;
+
+            if (timedOut) {
+                log.error(
+                        "Load test FastAPI request timed out: requestId={}, elapsedMs={}, exceptionType={}",
+                        requestId,
+                        elapsedMs,
+                        e.getClass().getSimpleName());
+            } else {
+                log.error("Load test failed for request {}", requestId, e);
+            }
+            String failureMessage = timedOut
+                    ? "부하 테스트 서버의 응답 제한 시간을 초과했습니다. 잠시 후 다시 시도해 주세요."
+                    : e.getMessage() != null
+                            ? e.getMessage()
+                            : "부하 테스트 처리 중 오류가 발생했습니다.";
             loadTestStreamService.updateProgress(requestId,
                     new com.flowcheck.dto.LoadTest.LoadTestProgressUpdateRequest(
                             "FAILED",
-                            "FAILED",
+                            timedOut ? "TIMEOUT" : "FAILED",
                             100,
-                            e.getMessage() != null ? e.getMessage() : "부하 테스트 처리 중 오류가 발생했습니다."));
+                            failureMessage));
         }
+    }
+
+    private boolean isTimeout(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            if (current instanceof HttpTimeoutException) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     private String buildFastApiErrorMessage(int statusCode, String responseBody) {

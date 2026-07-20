@@ -74,3 +74,16 @@ export async function fetchMypageCommunityActivities(
 export async function deactivateMypageAccount(): Promise<void> {
     await apiClient.patch('/api/mypage/account/deactivate');
 }
+
+export async function updateMypageNickname(nickname: string): Promise<string> {
+    try {
+        const response = await apiClient.patch<{ nickname: string }>('/api/mypage/nickname', { nickname });
+        return response.data.nickname;
+    } catch (error: any) {
+        const message =
+            error.response?.data?.message ||
+            error.response?.data?.error ||
+            '닉네임을 변경하지 못했습니다.';
+        throw new Error(message);
+    }
+}

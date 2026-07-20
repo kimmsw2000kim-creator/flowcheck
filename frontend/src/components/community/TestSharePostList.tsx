@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { fetchCommunityPosts } from '../../api/communityPostApi';
+import { COMMUNITY_LIMITS } from '../../constants/communityLimits';
 import type { Post } from '../../types/post';
-import EmptyState from '../common/EmptyState';
+import { Badge, Button, Card, EmptyState } from '../common';
 import { CommunityAuthor } from './CommunityPostList';
 
 // 작성자에게만 수정·삭제 기능을 제공합니다.
@@ -26,6 +27,12 @@ function formatDate(value: string): string {
         hour: '2-digit',
         minute: '2-digit',
     });
+}
+
+function getContentPreview(value: string): string {
+    const content = value.trim();
+    if (content.length <= COMMUNITY_LIMITS.POST_PREVIEW) return content;
+    return `${content.slice(0, COMMUNITY_LIMITS.POST_PREVIEW).trimEnd()}…`;
 }
 
 // 한 페이지에 표시할 테스트 공유 게시글 수입니다.
@@ -155,34 +162,27 @@ export default function TestSharePostList({
     }
 
     return (
-        <section style={{ marginTop: '2.5rem' }}>
-            <h2>공유된 테스트 결과</h2>
+        <section
+            className="community-post-section"
+            aria-labelledby="community-test-share-heading"
+        >
+            <h2 id="community-test-share-heading">
+                공유된 테스트 결과
+            </h2>
 
-            <div
-                style={{
-                    display: 'grid',
-                    gap: '1rem',
-                    marginTop: '1rem',
-                }}
-            >
+            <div className="community-shared-post-list">
                 {posts.map((post) => (
-                    <article
+                    <Card
+                        as="article"
                         key={post.id}
-                        style={{
-                            padding: '1.25rem',
-                            border: '1px solid var(--border)',
-                            borderRadius: '0.75rem',
-                            backgroundColor: 'var(--bg-tertiary)',
-                        }}
+                        variant="outlined"
+                        className="community-shared-post-card"
                     >
-                        <h3 style={{ marginTop: 0 }}>
+                        <h3 className="community-shared-post-card__title">
                             {/* 제목을 클릭하면 새 커뮤니티 상세 페이지로 이동합니다. */}
                             <Link
                                 to={`/community/${post.id}`}
-                                style={{
-                                    color: 'inherit',
-                                    textDecoration: 'none',
-                                }}
+                                className="community-shared-post-card__title-link"
                             >
                                 {post.title}
                             </Link>
@@ -190,25 +190,22 @@ export default function TestSharePostList({
 
                         {/* 소개글이 있는 게시글에서만 본문을 표시합니다. */}
                         {post.content.trim() && (
-                            <p
-                                style={{
-                                    color: 'var(--text-secondary)',
-                                    whiteSpace: 'pre-wrap',
-                                }}
-                            >
-                                {post.content}
-                            </p>
+                            <>
+                                <p className="community-shared-post-card__content">
+                                    {getContentPreview(post.content)}
+                                </p>
+                                {post.content.trim().length > COMMUNITY_LIMITS.POST_PREVIEW && (
+                                    <Link
+                                        to={`/community/${post.id}`}
+                                        className="community-shared-post-card__read-more"
+                                    >
+                                        전체 내용 보기
+                                    </Link>
+                                )}
+                            </>
                         )}
-                        <div
-                            style={{
-                                display: 'flex',
-                                flexWrap: 'wrap',
-                                justifyContent: 'space-between',
-                                gap: '0.75rem',
-                                color: 'var(--text-secondary)',
-                            }}
-                        >
-                            <small className="community-post-meta">
+                        <div className="community-shared-post-card__footer">
+                            <small className="community-shared-post-card__byline">
                                 <CommunityAuthor
                                     email={post.writerEmail}
                                     avatarUrl={post.writerAvatarUrl}
@@ -218,38 +215,41 @@ export default function TestSharePostList({
                                 </time>
                             </small>
 
-                            {/* 실제 테스트 요청과 연결된 게시글인지 표시합니다. */}
-                            {post.testRequestId && (
-                                <small style={{ color: 'var(--success)' }}>
-                                    테스트 결과 연결 완료
-                                </small>
-                            )}
+                            <div className="community-shared-post-card__controls">
+                                <CommunityPostActions
+                                    post={post}
+                                    onUpdated={(updatedPost) => {
+                                        /*
+                                         * 수정된 테스트 공유글을 목록에 반영합니다.
+                                         */
+                                        setPosts((currentPosts) =>
+                                            currentPosts.map((currentPost) =>
+                                                currentPost.id === updatedPost.id
+                                                    ? updatedPost
+                                                    : currentPost
+                                            )
+                                        );
+                                    }}
+                                    onDeleted={() => {
+                                        /*
+                                         * 삭제 후 서버에서 현재 페이지를 다시 조회합니다.
+                                         * 다음 페이지 게시글이 현재 페이지로 이동하는 것도 반영됩니다.
+                                         */
+                                        setReloadKey(
+                                            (currentKey) => currentKey + 1
+                                        );
+                                    }}
+                                />
+
+                                {/* 수정·삭제 액션 아래에 테스트 연결 상태를 표시합니다. */}
+                                {post.testRequestId && (
+                                    <Badge tone="success">
+                                        테스트 결과 연결 완료
+                                    </Badge>
+                                )}
+                            </div>
                         </div>
-                        <CommunityPostActions
-                            post={post}
-                            onUpdated={(updatedPost) => {
-                                /*
-                                 * 수정된 테스트 공유글을 목록에 반영합니다.
-                                 */
-                                setPosts((currentPosts) =>
-                                    currentPosts.map((currentPost) =>
-                                        currentPost.id === updatedPost.id
-                                            ? updatedPost
-                                            : currentPost
-                                    )
-                                );
-                            }}
-                            onDeleted={() => {
-                                /*
-                                 * 삭제 후 서버에서 현재 페이지를 다시 조회합니다.
-                                 * 다음 페이지 게시글이 현재 페이지로 이동하는 것도 반영됩니다.
-                                 */
-                                setReloadKey(
-                                    (currentKey) => currentKey + 1
-                                );
-                            }}
-                        />
-                    </article>
+                    </Card>
                 ))}
             </div>
 
@@ -257,17 +257,12 @@ export default function TestSharePostList({
             {totalPages > 1 && (
                 <nav
                     aria-label="테스트 공유 게시글 페이지"
-                    style={{
-                        display: 'flex',
-                        justifyContent: 'center',
-                        alignItems: 'center',
-                        gap: '1rem',
-                        marginTop: '1.5rem',
-                    }}
+                    className="community-pagination community-post-pagination"
                 >
-                    <button
+                    <Button
                         type="button"
-                        className="btn btn-secondary"
+                        variant="secondary"
+                        size="sm"
                         disabled={currentPage === 0}
                         onClick={() => {
                             // 이전 페이지로 이동하되 0보다 작아지지 않게 합니다.
@@ -277,15 +272,16 @@ export default function TestSharePostList({
                         }}
                     >
                         이전
-                    </button>
+                    </Button>
 
-                    <span>
+                    <span className="community-post-pagination__status" aria-current="page">
                         {currentPage + 1} / {totalPages}
                     </span>
 
-                    <button
+                    <Button
                         type="button"
-                        className="btn btn-secondary"
+                        variant="secondary"
+                        size="sm"
                         disabled={currentPage >= totalPages - 1}
                         onClick={() => {
                             // 다음 페이지로 이동하되 마지막 페이지를 넘지 않게 합니다.
@@ -295,7 +291,7 @@ export default function TestSharePostList({
                         }}
                     >
                         다음
-                    </button>
+                    </Button>
                 </nav>
             )}
         </section>
