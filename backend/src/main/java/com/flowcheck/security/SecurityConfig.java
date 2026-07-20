@@ -63,7 +63,7 @@ public class SecurityConfig {
         configuration.setAllowedOriginPatterns(
         List.of(
                 "http://localhost:5173",
-                "https://flow-check.duckdns.org"
+                "https://flowcheck.kr"
         )
 );
 

@@ -20,7 +20,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @CrossOrigin(origins = {
         "http://localhost:5173",
-        "https://flow-check.duckdns.org"
+        "https://flowcheck.kr"
 }, allowCredentials = "true")
 public class SiteController {
 
