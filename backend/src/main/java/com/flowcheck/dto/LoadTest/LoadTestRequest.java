@@ -3,6 +3,7 @@ package com.flowcheck.dto.LoadTest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -28,6 +29,7 @@ public class LoadTestRequest {
 
     @NotNull(message = "테스트 지속 시간(duration)은 필수 입력값입니다.")
     @Min(value = 1, message = "테스트 시간은 1초 이상이어야 합니다.")
+    @Max(value = 600, message = "테스트 시간은 600초 이하여야 합니다.")
     private Integer duration;
 
     private String loadPrompt;

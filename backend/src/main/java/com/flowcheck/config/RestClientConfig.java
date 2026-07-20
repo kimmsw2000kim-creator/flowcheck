@@ -1,7 +1,10 @@
 package com.flowcheck.config;
 
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
@@ -11,43 +14,79 @@ import javax.net.ssl.X509TrustManager;
 import java.net.http.HttpClient;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
+import java.time.Duration;
 
 @Configuration
+@Slf4j
 public class RestClientConfig {
 
-    /**
-     * 사설/개발/보안망 네트워크 환경에서 발생하는 인증서 신뢰 오류(PKIX path building failed)를
-     * 우회하기 위해 모든 SSL 인증서를 임시로 신뢰(Trust-All)하도록 설정된 RestClient 빈(Bean)을 정의합니다.
-     */
     @Bean
-    public RestClient customRestClient(RestClient.Builder builder) {
+    @Primary
+    public RestClient customRestClient(
+            RestClient.Builder builder,
+            @Value("${http-client.connect-timeout-ms:5000}") long connectTimeoutMs,
+            @Value("${http-client.default-read-timeout-ms:60000}") long readTimeoutMs) {
+        return buildRestClient(builder, connectTimeoutMs, readTimeoutMs);
+    }
+
+    @Bean("loadTestRestClient")
+    public RestClient loadTestRestClient(
+            RestClient.Builder builder,
+            @Value("${http-client.connect-timeout-ms:5000}") long connectTimeoutMs,
+            @Value("${http-client.load-test-read-timeout-ms:900000}") long readTimeoutMs) {
+        return buildRestClient(builder, connectTimeoutMs, readTimeoutMs);
+    }
+
+    private RestClient buildRestClient(
+            RestClient.Builder builder,
+            long connectTimeoutMs,
+            long readTimeoutMs) {
+        Duration connectTimeout = positiveDuration(connectTimeoutMs, "connectTimeoutMs");
+        Duration readTimeout = positiveDuration(readTimeoutMs, "readTimeoutMs");
+
+        HttpClient.Builder httpClientBuilder = HttpClient.newBuilder()
+                .connectTimeout(connectTimeout)
+                .version(HttpClient.Version.HTTP_1_1);
+
         try {
-            // 1. 모든 신뢰인증서 유효성 체크를 무조건 통과시키는 TrustManager 구현체 선언
             TrustManager[] trustAllCerts = new TrustManager[]{
                 new X509TrustManager() {
-                    public X509Certificate[] getAcceptedIssuers() { return null; }
-                    public void checkClientTrusted(X509Certificate[] certs, String authType) {}
-                    public void checkServerTrusted(X509Certificate[] certs, String authType) {}
+                    @Override
+                    public X509Certificate[] getAcceptedIssuers() {
+                        return new X509Certificate[0];
+                    }
+
+                    @Override
+                    public void checkClientTrusted(X509Certificate[] certs, String authType) {
+                    }
+
+                    @Override
+                    public void checkServerTrusted(X509Certificate[] certs, String authType) {
+                    }
                 }
             };
 
-            // 2. TLS 프로토콜 SSL Context 초기화 및 우회 TrustManager 등록
             SSLContext sslContext = SSLContext.getInstance("TLS");
             sslContext.init(null, trustAllCerts, new SecureRandom());
-
-            // 3. 우회 SSL Context가 바인딩된 자바 내장 HttpClient 빌드
-            HttpClient httpClient = HttpClient.newBuilder()
-                    .sslContext(sslContext)
-                    .version(HttpClient.Version.HTTP_1_1)
-                    .build();
-
-            // 4. Spring의 JdkClientHttpRequestFactory를 사용하여 커스텀 HttpClient를 RestClient 빌더에 적용
-            return builder
-                    .requestFactory(new JdkClientHttpRequestFactory(httpClient))
-                    .build();
+            httpClientBuilder.sslContext(sslContext);
         } catch (Exception e) {
-            // 예외 발생 시 표준 검증이 적용된 기본 빌더 구조로 안전한 폴백(Fallback) 진행
-            return builder.build();
+            // SSL 초기화에 실패해도 연결 및 응답 제한은 반드시 유지합니다.
+            log.warn("Failed to initialize custom SSL context; using the platform SSL context", e);
         }
+
+        JdkClientHttpRequestFactory requestFactory =
+                new JdkClientHttpRequestFactory(httpClientBuilder.build());
+        requestFactory.setReadTimeout(readTimeout);
+
+        return builder
+                .requestFactory(requestFactory)
+                .build();
+    }
+
+    private Duration positiveDuration(long milliseconds, String propertyName) {
+        if (milliseconds <= 0) {
+            throw new IllegalArgumentException(propertyName + " must be greater than zero");
+        }
+        return Duration.ofMillis(milliseconds);
     }
 }
