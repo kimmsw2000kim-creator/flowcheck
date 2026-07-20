@@ -20,10 +20,15 @@
 .auth-tab:focus-visible, .admin-tab:focus-visible { outline: none; box-shadow: var(--shadow-focus-ring); }
 .auth-divider { display: flex; align-items: center; gap: var(--space-3); margin: var(--space-6) 0; color: var(--color-text-muted); font-size: var(--font-size-xs); }
 .auth-divider::before, .auth-divider::after { height: 1px; flex: 1; background: var(--color-border-default); content: ''; }
-.auth-remember-email { display: inline-flex; align-items: center; gap: var(--space-2); margin: calc(var(--space-2) * -1) 0 var(--space-5); color: var(--color-text-secondary); font-size: var(--font-size-sm); cursor: pointer; }
+.auth-login-options { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin: calc(var(--space-2) * -1) 0 var(--space-5); }
+.auth-remember-email { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--color-text-secondary); font-size: var(--font-size-sm); cursor: pointer; }
 .auth-remember-email input { width: 1rem; height: 1rem; margin: 0; accent-color: var(--color-action-primary); cursor: pointer; }
 .auth-remember-email input:focus-visible { outline: none; box-shadow: var(--shadow-focus-ring); }
 .auth-remember-email input:disabled, .auth-remember-email:has(input:disabled) { cursor: not-allowed; opacity: 0.6; }
+.auth-link { border-radius: var(--radius-xs); color: var(--color-action-primary); font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); text-underline-offset: var(--space-1); }
+.auth-link:hover { color: var(--color-action-primary-hover); }
+.auth-link:focus-visible { outline: none; box-shadow: var(--shadow-focus-ring); }
+.auth-secondary-action { margin-top: var(--space-5); text-align: center; }
 .auth-status { min-height: 16rem; display: grid; place-items: center; }
 .auth-status .fc-empty-state { width: 100%; }
 
@@ -131,6 +136,7 @@
   .auth-modal { max-height: calc(100dvh - (var(--space-3) * 2)); }
   .auth-modal__surface { max-height: calc(100dvh - (var(--space-3) * 2)); }
   .auth-tab { padding: 0 var(--space-2); }
+  .auth-login-options { align-items: flex-start; flex-direction: column; }
   .admin-stats-toolbar { align-items: stretch; flex-direction: column; }
   .admin-stats-grid { grid-template-columns: 1fr; }
   .admin-actions > *, .utility-page form > .fc-button { width: 100%; }
