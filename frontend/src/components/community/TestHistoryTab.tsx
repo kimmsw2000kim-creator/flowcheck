@@ -6,6 +6,7 @@ import {
 } from 'react';
 
 import { createCommunityPost } from '../../api/communityPostApi';
+import { COMMUNITY_LIMITS } from '../../constants/communityLimits';
 import { useAlertStore } from '../../store/alertStore';
 import type { MypageTestHistoryItem } from '../../types/mypage';
 import { Button, Card, Field, PageHeader } from '../common';
@@ -161,6 +162,7 @@ export default function TestHistoryTab() {
               >
                 <strong>{selectedTest.testName}</strong>
                 <p>{selectedTest.targetUrl}</p>
+                <p>공유하면 최종 결과 영상도 커뮤니티 게시글에 공개됩니다.</p>
               </Card>
 
               <form
@@ -170,12 +172,13 @@ export default function TestHistoryTab() {
                 <Field
                   label="공유글 제목"
                   htmlFor="test-share-title"
+                  description={`${title.length} / ${COMMUNITY_LIMITS.POST_TITLE}자`}
                   required
                 >
                   <input
                     id="test-share-title"
                     className="fc-input"
-                    maxLength={100}
+                    maxLength={COMMUNITY_LIMITS.POST_TITLE}
                     value={title}
                     onChange={(event) =>
                       setTitle(event.target.value)
@@ -189,11 +192,13 @@ export default function TestHistoryTab() {
                 <Field
                   label="테스트 결과 소개 (선택)"
                   htmlFor="test-share-content"
+                  description={`${content.length} / ${COMMUNITY_LIMITS.POST_CONTENT.toLocaleString()}자`}
                 >
                   <textarea
                     id="test-share-content"
                     className="fc-input"
                     rows={6}
+                    maxLength={COMMUNITY_LIMITS.POST_CONTENT}
                     value={content}
                     onChange={(event) =>
                       setContent(event.target.value)

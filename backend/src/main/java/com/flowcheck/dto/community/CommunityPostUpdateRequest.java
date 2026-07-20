@@ -24,6 +24,7 @@ public record CommunityPostUpdateRequest(
          * 빈 문자열을 허용합니다.
          */
         @NotNull(message = "게시글 내용 값이 필요합니다.")
+        @Size(max = 5000, message = "게시글 내용은 5,000자 이하여야 합니다.")
         String content
 ) {
 }
