@@ -235,6 +235,16 @@
   padding: 2px var(--space-2) var(--space-1) 0;
 }
 
+.uiux-step-list::before {
+  content: '';
+  position: absolute;
+  top: 14px;
+  bottom: 24px;
+  left: 13px;
+  width: 1px;
+  background: var(--color-border-default);
+}
+
 .uiux-step-item {
   display: flex;
   height: 46px;
@@ -253,6 +263,7 @@
 }
 
 .uiux-step-dot {
+  position: relative;
   z-index: 1;
   width: 9px;
   height: 9px;
@@ -272,12 +283,7 @@
 }
 
 .uiux-step-marker::after {
-  content: '';
-  position: absolute;
-  top: 23px;
-  width: 1px;
-  height: 30px;
-  background: var(--color-border-default);
+  display: none;
 }
 
 .uiux-step-item:last-child .uiux-step-marker::after {
