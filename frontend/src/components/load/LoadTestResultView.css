@@ -55,9 +55,76 @@
   font-weight: var(--font-weight-extrabold);
 }
 
+.fc-load-result__series-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.fc-load-result__series-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.fc-load-result__series-meta strong {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-bold);
+}
+
+.fc-load-result__series-warning {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-status-warning);
+  border-radius: var(--radius-md);
+  background: var(--color-status-warning-subtle);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.fc-load-result__chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.fc-load-result__chart-panel {
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-subtle);
+}
+
+.fc-load-result__chart-panel-heading {
+  margin-bottom: var(--space-3);
+}
+
+.fc-load-result__chart-panel-heading h4 {
+  margin: 0 0 var(--space-1);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-extrabold);
+}
+
+.fc-load-result__chart-panel-heading p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-normal);
+}
+
 .fc-load-result__chart {
   width: 100%;
-  height: 320px;
+  height: 300px;
 }
 
 .fc-load-result__markdown {
@@ -197,6 +264,10 @@
   .fc-load-result__metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .fc-load-result__chart-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 560px) {
@@ -211,5 +282,13 @@
 
   .fc-load-result__chart {
     height: 280px;
+  }
+
+  .fc-load-result__chart-panel {
+    padding: var(--space-3) var(--space-2) var(--space-3) 0;
+  }
+
+  .fc-load-result__chart-panel-heading {
+    padding-left: var(--space-3);
   }
 }

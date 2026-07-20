@@ -1,10 +1,12 @@
 package com.flowcheck.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowcheck.domain.LoadTestReport;
 import com.flowcheck.domain.TestRequest;
 import com.flowcheck.dto.LoadTest.LoadTestRequest;
+import com.flowcheck.dto.LoadTest.LoadTestMetricsDocument;
 import com.flowcheck.dto.LoadTest.LoadTestResponse;
 import com.flowcheck.dto.LoadTest.LoadTestSubmittedEvent;
 import com.flowcheck.repository.LoadTestReportRepository;
@@ -21,7 +23,7 @@ import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -96,26 +98,53 @@ public class AsyncLoadTestWorker {
                 aiReview = "AI 분석 결과가 비어 있습니다.";
             }
 
-            Map<String, Object> rawMetrics = new HashMap<>();
-            rawMetrics.put("points", testResults.getPoints());
-            if (testResults.getPerformanceScore() != null) {
-                rawMetrics.put("performanceScore", testResults.getPerformanceScore());
-                rawMetrics.put("performanceGrade", testResults.getPerformanceGrade());
-                rawMetrics.put("scoreLabel", testResults.getScoreLabel());
+            Double effectiveAvgTps = testResults.getAvgTps();
+            if (effectiveAvgTps == null && testResults.getMaxTps() != null) {
+                effectiveAvgTps = testResults.getMaxTps().doubleValue();
             }
-            if (testResults.getScoreBreakdown() != null) {
-                Map<String, Object> scoreBreakdown = new HashMap<>();
-                scoreBreakdown.put("reliabilityScore",
-                        testResults.getScoreBreakdown().getReliabilityScore());
-                scoreBreakdown.put("latencyScore",
-                        testResults.getScoreBreakdown().getLatencyScore());
-                rawMetrics.put("scoreBreakdown", scoreBreakdown);
+            if (effectiveAvgTps == null) {
+                effectiveAvgTps = 0.0;
             }
+            Integer bucketSeconds = testResults.getBucketSeconds();
+            if (bucketSeconds == null && "MEASURED_K6".equals(testResults.getDataOrigin())) {
+                bucketSeconds = LoadTestMetricsDocument.DEFAULT_BUCKET_SECONDS;
+            }
+
+            LoadTestMetricsDocument.ScoreBreakdown scoreBreakdown =
+                    testResults.getScoreBreakdown() == null
+                            ? null
+                            : new LoadTestMetricsDocument.ScoreBreakdown(
+                                    testResults.getScoreBreakdown().getReliabilityScore(),
+                                    testResults.getScoreBreakdown().getLatencyScore());
+
+            LoadTestMetricsDocument metricsDocument = new LoadTestMetricsDocument(
+                    LoadTestMetricsDocument.CURRENT_SCHEMA_VERSION,
+                    bucketSeconds,
+                    testResults.getDataOrigin(),
+                    testResults.getMetricsStatus(),
+                    testResults.getMetricsWarning(),
+                    new LoadTestMetricsDocument.Summary(
+                            testResults.getTotalRequests(),
+                            effectiveAvgTps,
+                            testResults.getMaxTps(),
+                            testResults.getAvgResponse(),
+                            testResults.getP95Response(),
+                            testResults.getErrorRate()),
+                    testResults.getPerformanceScore(),
+                    testResults.getPerformanceGrade(),
+                    testResults.getScoreLabel(),
+                    scoreBreakdown,
+                    testResults.getPoints() == null ? List.of() : testResults.getPoints());
+
+            Map<String, Object> rawMetrics = objectMapper.convertValue(
+                    metricsDocument,
+                    new TypeReference<Map<String, Object>>() {
+                    });
 
             LoadTestReport report = LoadTestReport.builder()
                     .testRequest(testHistory)
                     .vusers(request.getVusers())
-                    .totalTps(BigDecimal.valueOf(testResults.getMaxTps()))
+                    .totalTps(BigDecimal.valueOf(effectiveAvgTps))
                     .avgLatency((int) (testResults.getAvgResponse() * 1000))
                     .errorRate(BigDecimal.valueOf(testResults.getErrorRate()))
                     .rawMetrics(rawMetrics)

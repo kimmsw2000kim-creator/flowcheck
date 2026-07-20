@@ -1,8 +1,8 @@
 package com.flowcheck.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowcheck.domain.*;
+import com.flowcheck.dto.LoadTest.LoadTestMetricsDocument;
 import com.flowcheck.dto.LoadTest.LoadTestRequest;
 import com.flowcheck.dto.LoadTest.LoadTestResponse;
 import com.flowcheck.dto.LoadTest.LoadTestSubmittedEvent;
@@ -16,7 +16,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -132,11 +134,50 @@ public class LoadTestService {
                                 .orElseThrow(() -> new IllegalStateException(
                                                 "Report should exist for COMPLETED request"));
 
-                Object pointsObj = report.getRawMetrics().get("points");
-                List<LoadTestResponse.ChartPoint> chartPoints = objectMapper.convertValue(
-                                pointsObj,
-                                new TypeReference<List<LoadTestResponse.ChartPoint>>() {
-                                });
+                Map<String, Object> rawMetrics = report.getRawMetrics();
+                int schemaVersion = getIntValue(rawMetrics.get("schemaVersion"), 1);
+                boolean hasCurrentSeriesContract =
+                                schemaVersion == LoadTestMetricsDocument.CURRENT_SCHEMA_VERSION;
+                boolean hasUnsupportedFutureContract =
+                                schemaVersion > LoadTestMetricsDocument.CURRENT_SCHEMA_VERSION;
+
+                LoadTestMetricsDocument metricsDocument = hasCurrentSeriesContract
+                                ? objectMapper.convertValue(rawMetrics, LoadTestMetricsDocument.class)
+                                : null;
+                LoadTestMetricsDocument.Summary storedSummary = metricsDocument != null
+                                ? metricsDocument.summary()
+                                : null;
+
+                List<LoadTestResponse.ChartPoint> chartPoints =
+                                metricsDocument != null && metricsDocument.points() != null
+                                                ? metricsDocument.points()
+                                                : Collections.emptyList();
+                Long totalRequests = storedSummary != null ? storedSummary.totalRequests() : null;
+                double avgTps = storedSummary != null && storedSummary.avgTps() != null
+                                ? storedSummary.avgTps()
+                                : report.getTotalTps().doubleValue();
+                Integer maxTps = storedSummary != null ? storedSummary.maxTps() : null;
+                Double p95Response = storedSummary != null ? storedSummary.p95Response() : null;
+                Integer bucketSeconds = metricsDocument != null
+                                ? metricsDocument.bucketSeconds()
+                                : null;
+
+                String metricsStatus;
+                String metricsWarning;
+                String dataOrigin;
+                if (hasCurrentSeriesContract) {
+                        metricsStatus = getStringValue(metricsDocument.metricsStatus(), "UNAVAILABLE");
+                        metricsWarning = getStringValue(metricsDocument.metricsWarning(), null);
+                        dataOrigin = getStringValue(metricsDocument.dataOrigin(), "NOT_COLLECTED");
+                } else if (hasUnsupportedFutureContract) {
+                        metricsStatus = "UNSUPPORTED_SCHEMA";
+                        metricsWarning = "현재 서버가 지원하지 않는 시계열 스키마 버전입니다.";
+                        dataOrigin = "UNKNOWN";
+                } else {
+                        metricsStatus = "LEGACY_UNVERIFIED";
+                        metricsWarning = "이 결과는 이전 측정 형식으로 생성되어 실제 시계열을 제공하지 않습니다.";
+                        dataOrigin = "LEGACY_SYNTHETIC";
+                }
 
                 double avgResponse = report.getAvgLatency() / 1000.0;
                 double errorRate = report.getErrorRate().doubleValue();
@@ -145,8 +186,11 @@ public class LoadTestService {
                                 errorRate);
 
                 LoadTestResponse.TestResults resultsDto = LoadTestResponse.TestResults.builder()
-                                .maxTps(report.getTotalTps().intValue())
+                                .totalRequests(totalRequests)
+                                .avgTps(avgTps)
+                                .maxTps(maxTps)
                                 .avgResponse(avgResponse)
+                                .p95Response(p95Response)
                                 .errorRate(errorRate)
                                 .performanceScore(assessment.score())
                                 .performanceGrade(assessment.grade())
@@ -157,6 +201,11 @@ public class LoadTestService {
                                                 .build())
                                 .bottleneckComment(report.getAiPerformanceReview())
                                 .points(chartPoints)
+                                .metricsStatus(metricsStatus)
+                                .metricsWarning(metricsWarning)
+                                .dataOrigin(dataOrigin)
+                                .bucketSeconds(bucketSeconds)
+                                .metricsSchemaVersion(schemaVersion)
                                 .build();
 
                 return LoadTestResponse.builder()
@@ -166,6 +215,16 @@ public class LoadTestService {
                                 .message("부하 테스트가 완료되었습니다.")
                                 .testResults(resultsDto)
                                 .build();
+        }
+
+        private int getIntValue(Object value, int fallback) {
+                return value instanceof Number number ? number.intValue() : fallback;
+        }
+
+        private String getStringValue(Object value, String fallback) {
+                return value instanceof String stringValue && !stringValue.isBlank()
+                                ? stringValue
+                                : fallback;
         }
 
         private PerformanceAssessment calculatePerformanceAssessment(double avgResponse, double errorRate) {
