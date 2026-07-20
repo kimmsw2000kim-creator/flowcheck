@@ -21,11 +21,11 @@ def compressed_metric_stream(items):
     return io.BytesIO(gzip.compress(content.encode("utf-8")))
 
 
-def point(metric, timestamp, value):
+def point(metric, timestamp, value, tags=None):
     return {
         "type": "Point",
         "metric": metric,
-        "data": {"time": timestamp, "value": value, "tags": {}},
+        "data": {"time": timestamp, "value": value, "tags": tags or {}},
     }
 
 
@@ -121,6 +121,28 @@ class TimeSeriesAggregatorTest(unittest.TestCase):
     def test_rejects_invalid_gzip_stream(self):
         with self.assertRaises(MetricStreamParseError):
             aggregate_k6_metric_stream(io.BytesIO(b"not-gzip"), duration=10)
+
+    def test_aggregates_bounded_diagnostic_metrics(self):
+        stream = compressed_metric_stream([
+            point("http_reqs", "2026-01-01T00:00:00Z", 1, {"status": "200", "name": "GET /api"}),
+            point("http_req_duration", "2026-01-01T00:00:00Z", 120, {"name": "GET /api"}),
+            point("http_req_failed", "2026-01-01T00:00:00Z", 0, {"name": "GET /api"}),
+            point("http_req_waiting", "2026-01-01T00:00:00Z", 100),
+            point("http_req_connecting", "2026-01-01T00:00:00Z", 10),
+            point("iterations", "2026-01-01T00:00:00Z", 1),
+            point("dropped_iterations", "2026-01-01T00:00:00Z", 2),
+            point("checks", "2026-01-01T00:00:00Z", 0),
+        ])
+
+        result = aggregate_k6_metric_stream(stream, duration=10)
+
+        self.assertIsNotNone(result.diagnostics)
+        self.assertEqual(100, result.diagnostics.timing.waitingMs)
+        self.assertEqual(10, result.diagnostics.timing.connectingMs)
+        self.assertEqual(2, result.diagnostics.droppedIterations)
+        self.assertEqual(100, result.diagnostics.checkFailureRate)
+        self.assertEqual({"200": 1}, result.diagnostics.statusCodes)
+        self.assertEqual("GET /api", result.diagnostics.requests[0].name)
 
 
 if __name__ == "__main__":

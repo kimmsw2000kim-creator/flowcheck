@@ -18,9 +18,15 @@ public record LoadTestMetricsDocument(
         String performanceGrade,
         String scoreLabel,
         ScoreBreakdown scoreBreakdown,
+        Integer scoreVersion,
+        String scoreStatus,
+        LoadTestResponse.ScoreTargets scoreTargets,
+        LoadTestResponse.AnalysisReport analysisReport,
+        LoadTestResponse.DiagnosticMetrics diagnosticMetrics,
         List<LoadTestResponse.ChartPoint> points
 ) {
-    public static final int CURRENT_SCHEMA_VERSION = 2;
+    public static final int MIN_SUPPORTED_SCHEMA_VERSION = 2;
+    public static final int CURRENT_SCHEMA_VERSION = 4;
     public static final int DEFAULT_BUCKET_SECONDS = 1;
 
     public record Summary(
@@ -35,7 +41,8 @@ public record LoadTestMetricsDocument(
 
     public record ScoreBreakdown(
             Integer reliabilityScore,
-            Integer latencyScore
+            Integer latencyScore,
+            Integer scalabilityScore
     ) {
     }
 }

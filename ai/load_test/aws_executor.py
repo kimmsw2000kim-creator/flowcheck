@@ -9,6 +9,7 @@ import boto3
 from botocore.exceptions import ClientError
 
 from .exceptions import LoadTestExecutionError
+from .models import DiagnosticMetrics
 from .result_processor import LoadTestSummary, parse_k6_summary
 from .time_series_aggregator import (
     MetricAggregationResult,
@@ -54,6 +55,7 @@ def run_k6_aws_fargate(
     script_s3_key = f"tasks/{test_id}/script.js"
     result_s3_key = f"tasks/{test_id}/summary.json"
     metrics_s3_key = f"tasks/{test_id}/metrics.json.gz"
+    execution_s3_key = f"tasks/{test_id}/execution.json"
 
     try:
         s3_client = boto3.client("s3", region_name=settings.region)
@@ -114,6 +116,11 @@ def run_k6_aws_fargate(
         ) from exc
 
     summary = parse_k6_summary(summary_data, duration)
+    execution_metadata = _load_execution_metadata(
+        s3_client,
+        settings.s3_bucket,
+        execution_s3_key,
+    )
     aggregation = _load_metric_aggregation(
         s3_client=s3_client,
         bucket=settings.s3_bucket,
@@ -121,6 +128,9 @@ def run_k6_aws_fargate(
         duration=duration,
     )
     aggregation = validate_time_series_consistency(summary, aggregation, duration)
+    diagnostics = aggregation.diagnostics or DiagnosticMetrics()
+    diagnostics.executionExitCode = _optional_int(execution_metadata.get("exitCode"))
+    diagnostics.thresholdFailures = summary.get("threshold_failures", [])
     summary.update(
         {
             "chart_points": aggregation.points,
@@ -129,9 +139,26 @@ def run_k6_aws_fargate(
             "metrics_status": aggregation.status,
             "metrics_warning": aggregation.warning,
             "data_origin": aggregation.data_origin,
+            "diagnostic_metrics": diagnostics,
         }
     )
     return summary
+
+
+def _load_execution_metadata(s3_client: Any, bucket: str, key: str) -> Dict[str, Any]:
+    try:
+        execution_obj = s3_client.get_object(Bucket=bucket, Key=key)
+        return json.loads(execution_obj["Body"].read().decode("utf-8"))
+    except (ClientError, KeyError, OSError, UnicodeError, json.JSONDecodeError):
+        logger.warning("k6 execution metadata is unavailable: key=%s", key)
+        return {}
+
+
+def _optional_int(value: Any) -> Optional[int]:
+    try:
+        return int(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
 
 
 def _load_metric_aggregation(

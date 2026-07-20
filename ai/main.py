@@ -18,6 +18,7 @@ from load_test_service import (
     TestResultsResponse,
     run_load_test_pipeline,
 )
+from load_test.models import PerformanceTargets
 
 class UiTestRequest(BaseModel):
     """Spring 백엔드가 UI/UX 테스트 실행을 요청할 때 보내는 payload입니다.
@@ -67,6 +68,7 @@ class LoadTestRequest(BaseModel):
     vusers: int
     duration: int
     loadPrompt: Optional[str] = ""
+    performanceTargets: Optional[PerformanceTargets] = None
 
 @app.post("/api/load-tests", response_model=TestResultsResponse)
 async def run_load_test(request: LoadTestRequest):

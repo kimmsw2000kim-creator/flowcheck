@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { ArrowUp, Loader2, Menu, Check, Copy } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import styles from '../styles/chatbot.module.css';
 import apiClient from '../api/client';
+import type { ChatbotPromptRequest } from '../store/chatbotStore';
 
 interface Message {
   messageId: number;
@@ -54,7 +55,15 @@ const CodeBlock = ({ inline, className, children, ...props }: any) => {
   );
 };
 
-const ChatbotPage: React.FC = () => {
+interface ChatbotPageProps {
+  initialPromptRequest?: ChatbotPromptRequest | null;
+  onInitialPromptConsumed?: (requestId: number) => void;
+}
+
+const ChatbotPage: React.FC<ChatbotPageProps> = ({
+  initialPromptRequest,
+  onInitialPromptConsumed,
+}) => {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -62,23 +71,24 @@ const ChatbotPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const handledPromptIdRef = useRef<number | null>(null);
 
-  useEffect(() => {
-    fetchSessions();
-  }, []);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  const fetchSessions = async () => {
+  const fetchSessions = useCallback(async () => {
     try {
       const res = await apiClient.get('/api/chat/sessions');
       setSessions(res.data);
     } catch (error) {
       console.error('Failed to fetch sessions:', error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    void fetchSessions();
+  }, [fetchSessions]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   const loadSession = async (sessionId: string) => {
     setCurrentSessionId(sessionId);
@@ -90,10 +100,11 @@ const ChatbotPage: React.FC = () => {
     }
   };
 
-  const handleSendMessage = async () => {
-    if (!inputText.trim()) return;
+  const handleSendMessage = useCallback(async (messageOverride?: string) => {
+    const messageText = messageOverride ?? inputText;
+    if (!messageText.trim()) return;
 
-    const userMessage: Message = { messageId: Date.now(), role: 'USER', content: inputText };
+    const userMessage: Message = { messageId: Date.now(), role: 'USER', content: messageText };
     setMessages(prev => [...prev, userMessage]);
     setInputText('');
     setIsLoading(true);
@@ -101,7 +112,7 @@ const ChatbotPage: React.FC = () => {
     try {
       const response = await apiClient.post('/api/chat/send', {
         sessionId: currentSessionId,
-        message: inputText
+        message: messageText
       });
       
       const data = response.data;
@@ -113,14 +124,27 @@ const ChatbotPage: React.FC = () => {
 
       if (!currentSessionId && data.sessionId) {
         setCurrentSessionId(data.sessionId);
-        fetchSessions();
+        void fetchSessions();
       }
     } catch (error) {
       console.error('Failed to send message:', error);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentSessionId, fetchSessions, inputText]);
+
+  useEffect(() => {
+    if (
+      !initialPromptRequest
+      || handledPromptIdRef.current === initialPromptRequest.id
+    ) {
+      return;
+    }
+
+    handledPromptIdRef.current = initialPromptRequest.id;
+    onInitialPromptConsumed?.(initialPromptRequest.id);
+    void handleSendMessage(initialPromptRequest.prompt);
+  }, [handleSendMessage, initialPromptRequest, onInitialPromptConsumed]);
 
   return (
     <div className={styles.chatContainer}>
@@ -180,11 +204,11 @@ const ChatbotPage: React.FC = () => {
             type="text"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+            onKeyDown={(e) => e.key === 'Enter' && void handleSendMessage()}
             placeholder="메시지를 입력하세요..."
             className={styles.inputField}
           />
-          <button onClick={handleSendMessage} disabled={isLoading} className={styles.sendBtn}>
+          <button onClick={() => void handleSendMessage()} disabled={isLoading} className={styles.sendBtn}>
             <ArrowUp size={24} />
           </button>
         </div>

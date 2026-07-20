@@ -54,6 +54,12 @@ export default function LoadPage({ selectedLoadTestDomain, setSelectedLoadTestDo
     setDuration,
     loadPrompt,
     setLoadPrompt,
+    targetTps,
+    setTargetTps,
+    targetP95Ms,
+    setTargetP95Ms,
+    maxErrorRate,
+    setMaxErrorRate,
     loadStatus,
     loadPhase,
     loadProgress,
@@ -149,6 +155,53 @@ export default function LoadPage({ selectedLoadTestDomain, setSelectedLoadTestDo
               disabled={loadStatus === 'running'}
             />
           </Field>
+
+          <div className="load-page__slo-section">
+            <div className="load-page__slo-heading">
+              <strong>성능 목표</strong>
+              <span>비워 둔 목표 TPS는 점수에 반영하지 않습니다.</span>
+            </div>
+            <div className="load-page__slo-grid">
+              <Field label="목표 TPS" htmlFor="load-target-tps">
+                <input
+                  id="load-target-tps"
+                  className="load-page__number-input"
+                  type="number"
+                  min="0.01"
+                  step="1"
+                  value={targetTps}
+                  placeholder="선택 입력"
+                  onChange={(event) => setTargetTps(event.target.value === '' ? '' : Number(event.target.value))}
+                  disabled={loadStatus === 'running'}
+                />
+              </Field>
+              <Field label="목표 p95 (ms)" htmlFor="load-target-p95">
+                <input
+                  id="load-target-p95"
+                  className="load-page__number-input"
+                  type="number"
+                  min="0.01"
+                  step="10"
+                  value={targetP95Ms}
+                  onChange={(event) => setTargetP95Ms(Number(event.target.value))}
+                  disabled={loadStatus === 'running'}
+                />
+              </Field>
+              <Field label="최대 오류율 (%)" htmlFor="load-max-error-rate">
+                <input
+                  id="load-max-error-rate"
+                  className="load-page__number-input"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  value={maxErrorRate}
+                  onChange={(event) => setMaxErrorRate(Number(event.target.value))}
+                  disabled={loadStatus === 'running'}
+                />
+              </Field>
+            </div>
+          </div>
 
           <div className="load-page__charge-panel" data-tone={chargeTone}>
             <div className="load-page__charge-heading">

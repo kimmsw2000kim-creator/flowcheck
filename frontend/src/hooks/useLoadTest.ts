@@ -42,6 +42,9 @@ export function useLoadTest(
   const [vusers, setVusers] = useState<number>(100);
   const [duration, setDuration] = useState<number>(300);
   const [loadPrompt, setLoadPrompt] = useState<string>('');
+  const [targetTps, setTargetTps] = useState<number | ''>('');
+  const [targetP95Ms, setTargetP95Ms] = useState<number>(500);
+  const [maxErrorRate, setMaxErrorRate] = useState<number>(1);
   const [loadStatus, setLoadStatus] = useState<LoadStatus>('idle');
   const [loadPhase, setLoadPhase] = useState<string>('');
   const [loadProgress, setLoadProgress] = useState<number>(0);
@@ -184,7 +187,12 @@ export function useLoadTest(
                     performanceGrade: testResults.performanceGrade,
                     scoreLabel: testResults.scoreLabel,
                     scoreBreakdown: testResults.scoreBreakdown,
+                    scoreVersion: testResults.scoreVersion ?? 1,
+                    scoreStatus: testResults.scoreStatus || 'LEGACY_V1',
+                    scoreTargets: testResults.scoreTargets ?? null,
                     bottleneckComment: testResults.bottleneckComment,
+                    analysisReport: testResults.analysisReport ?? null,
+                    diagnosticMetrics: testResults.diagnosticMetrics ?? null,
                     points: testResults.points || [],
                     metricsStatus: testResults.metricsStatus || 'LEGACY_UNVERIFIED',
                     metricsWarning: testResults.metricsWarning || null,
@@ -259,6 +267,11 @@ export function useLoadTest(
       vusers,
       duration,
       loadPrompt,
+      performanceTargets: {
+        ...(targetTps !== '' ? { targetTps } : {}),
+        targetP95Ms,
+        maxErrorRate,
+      },
     };
 
     setLoadStatus('running');
@@ -289,6 +302,12 @@ export function useLoadTest(
     setDuration,
     loadPrompt,
     setLoadPrompt,
+    targetTps,
+    setTargetTps,
+    targetP95Ms,
+    setTargetP95Ms,
+    maxErrorRate,
+    setMaxErrorRate,
     loadStatus,
     loadPhase,
     loadProgress,

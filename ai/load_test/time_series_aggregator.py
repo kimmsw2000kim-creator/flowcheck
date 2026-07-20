@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, BinaryIO, Dict, List, Optional
 
-from .models import ChartPoint
+from .models import ChartPoint, DiagnosticMetrics, RequestDiagnostic, TimingBreakdown
 
 
 TRACKED_METRICS = {
@@ -13,7 +13,26 @@ TRACKED_METRICS = {
     "http_req_duration",
     "http_req_failed",
     "vus",
+    "http_req_blocked",
+    "http_req_connecting",
+    "http_req_tls_handshaking",
+    "http_req_sending",
+    "http_req_waiting",
+    "http_req_receiving",
+    "iterations",
+    "dropped_iterations",
+    "checks",
 }
+
+TIMING_METRIC_FIELDS = {
+    "http_req_blocked": "blockedMs",
+    "http_req_connecting": "connectingMs",
+    "http_req_tls_handshaking": "tlsHandshakingMs",
+    "http_req_sending": "sendingMs",
+    "http_req_waiting": "waitingMs",
+    "http_req_receiving": "receivingMs",
+}
+MAX_DIAGNOSTIC_GROUPS = 10
 
 
 class MetricStreamParseError(Exception):
@@ -150,6 +169,105 @@ class MetricAggregationResult:
     status: str
     warning: Optional[str]
     data_origin: str
+    diagnostics: Optional[DiagnosticMetrics] = None
+
+
+@dataclass
+class OperationAccumulator:
+    requests: float = 0.0
+    duration_sum: float = 0.0
+    duration_count: int = 0
+    failed_sum: float = 0.0
+    failed_count: int = 0
+
+
+@dataclass
+class DiagnosticAccumulator:
+    timing_sum: Dict[str, float] = field(default_factory=dict)
+    timing_count: Dict[str, int] = field(default_factory=dict)
+    iterations: float = 0.0
+    dropped_iterations: float = 0.0
+    check_sum: float = 0.0
+    check_count: int = 0
+    status_codes: Dict[str, float] = field(default_factory=dict)
+    operations: Dict[str, OperationAccumulator] = field(default_factory=dict)
+
+    def record(self, metric_name: str, value: float, tags: Dict[str, Any]) -> None:
+        timing_field = TIMING_METRIC_FIELDS.get(metric_name)
+        if timing_field:
+            self.timing_sum[timing_field] = self.timing_sum.get(timing_field, 0.0) + value
+            self.timing_count[timing_field] = self.timing_count.get(timing_field, 0) + 1
+        elif metric_name == "iterations":
+            self.iterations += value
+        elif metric_name == "dropped_iterations":
+            self.dropped_iterations += value
+        elif metric_name == "checks":
+            self.check_sum += value
+            self.check_count += 1
+
+        status = str(tags.get("status") or "").strip()
+        if metric_name == "http_reqs" and status:
+            self.status_codes[status] = self.status_codes.get(status, 0.0) + value
+
+        operation_name = str(tags.get("name") or tags.get("url") or "").strip()
+        if not operation_name:
+            return
+        operation = self.operations.setdefault(operation_name, OperationAccumulator())
+        if metric_name == "http_reqs":
+            operation.requests += value
+        elif metric_name == "http_req_duration":
+            operation.duration_sum += value
+            operation.duration_count += 1
+        elif metric_name == "http_req_failed":
+            operation.failed_sum += value
+            operation.failed_count += 1
+
+    def build(self) -> DiagnosticMetrics:
+        timing_values = {
+            field_name: round(total / self.timing_count[field_name], 2)
+            for field_name, total in self.timing_sum.items()
+            if self.timing_count.get(field_name)
+        }
+        status_codes = dict(
+            sorted(
+                ((status, max(0, int(round(count)))) for status, count in self.status_codes.items()),
+                key=lambda item: item[1],
+                reverse=True,
+            )[:MAX_DIAGNOSTIC_GROUPS]
+        )
+        operations = sorted(
+            self.operations.items(),
+            key=lambda item: item[1].requests,
+            reverse=True,
+        )[:MAX_DIAGNOSTIC_GROUPS]
+        return DiagnosticMetrics(
+            timing=TimingBreakdown(**timing_values),
+            iterations=max(0, int(round(self.iterations))),
+            droppedIterations=max(0, int(round(self.dropped_iterations))),
+            checkFailureRate=(
+                round((1 - (self.check_sum / self.check_count)) * 100, 2)
+                if self.check_count
+                else None
+            ),
+            statusCodes=status_codes,
+            requests=[
+                RequestDiagnostic(
+                    name=name[:500],
+                    requests=max(0, int(round(operation.requests))),
+                    avgResponse=(
+                        round(operation.duration_sum / operation.duration_count, 2)
+                        if operation.duration_count
+                        else None
+                    ),
+                    errorRate=(
+                        round(operation.failed_sum / operation.failed_count * 100, 2)
+                        if operation.failed_count
+                        else None
+                    ),
+                )
+                for name, operation in operations
+            ],
+        )
 
 
 def aggregate_k6_metric_stream(
@@ -158,6 +276,7 @@ def aggregate_k6_metric_stream(
 ) -> MetricAggregationResult:
     buckets: Dict[int, MetricBucket] = {}
     overall_p95 = P2Quantile(0.95)
+    diagnostics = DiagnosticAccumulator()
     invalid_lines = 0
 
     try:
@@ -184,6 +303,8 @@ def aggregate_k6_metric_stream(
                     bucket_key = math.floor(timestamp)
                     bucket = buckets.setdefault(bucket_key, MetricBucket())
                     _record_metric(bucket, metric_name, value, timestamp, overall_p95)
+                    tags = data.get("tags") if isinstance(data.get("tags"), dict) else {}
+                    diagnostics.record(metric_name, value, tags)
                 except (json.JSONDecodeError, TypeError, ValueError, OverflowError):
                     invalid_lines += 1
     except (OSError, EOFError, UnicodeError) as exc:
@@ -203,6 +324,7 @@ def aggregate_k6_metric_stream(
             status="UNAVAILABLE",
             warning="k6 시계열 파일에 HTTP 요청 측정값이 없습니다.",
             data_origin="NOT_COLLECTED",
+            diagnostics=diagnostics.build(),
         )
 
     start_key = active_keys[0]
@@ -277,6 +399,7 @@ def aggregate_k6_metric_stream(
         status="PARTIAL" if warnings else "COMPLETE",
         warning=" ".join(warnings) or None,
         data_origin="MEASURED_K6",
+        diagnostics=diagnostics.build(),
     )
 
 

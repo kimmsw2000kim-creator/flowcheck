@@ -1,6 +1,8 @@
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from .analysis_engine import StructuredAnalysisReport
 
 
 class ChartPoint(BaseModel):
@@ -16,6 +18,13 @@ class ChartPoint(BaseModel):
 class ScoreBreakdown(BaseModel):
     reliabilityScore: int
     latencyScore: int
+    scalabilityScore: Optional[int] = None
+
+
+class PerformanceTargets(BaseModel):
+    targetTps: Optional[float] = Field(default=None, gt=0)
+    targetP95Ms: float = Field(default=500.0, gt=0)
+    maxErrorRate: float = Field(default=1.0, ge=0, le=100)
 
 
 class PerformanceAssessment(BaseModel):
@@ -23,6 +32,41 @@ class PerformanceAssessment(BaseModel):
     grade: str
     label: str
     breakdown: ScoreBreakdown
+
+
+class PerformanceScoreResult(BaseModel):
+    assessment: PerformanceAssessment
+    version: int
+    status: str
+    targets: PerformanceTargets
+    sustainableTps: Optional[float] = None
+
+
+class TimingBreakdown(BaseModel):
+    blockedMs: Optional[float] = None
+    connectingMs: Optional[float] = None
+    tlsHandshakingMs: Optional[float] = None
+    sendingMs: Optional[float] = None
+    waitingMs: Optional[float] = None
+    receivingMs: Optional[float] = None
+
+
+class RequestDiagnostic(BaseModel):
+    name: str
+    requests: int
+    avgResponse: Optional[float] = None
+    errorRate: Optional[float] = None
+
+
+class DiagnosticMetrics(BaseModel):
+    timing: TimingBreakdown = Field(default_factory=TimingBreakdown)
+    iterations: int = 0
+    droppedIterations: int = 0
+    checkFailureRate: Optional[float] = None
+    statusCodes: dict[str, int] = Field(default_factory=dict)
+    requests: List[RequestDiagnostic] = Field(default_factory=list)
+    executionExitCode: Optional[int] = None
+    thresholdFailures: List[str] = Field(default_factory=list)
 
 
 class TestResultsResponse(BaseModel):
@@ -36,7 +80,12 @@ class TestResultsResponse(BaseModel):
     performanceGrade: str
     scoreLabel: str
     scoreBreakdown: ScoreBreakdown
+    scoreVersion: int = 1
+    scoreStatus: str = "LEGACY_V1"
+    scoreTargets: Optional[PerformanceTargets] = None
     bottleneckComment: str
+    analysisReport: Optional[StructuredAnalysisReport] = None
+    diagnosticMetrics: Optional[DiagnosticMetrics] = None
     points: List[ChartPoint]
     metricsStatus: str
     metricsWarning: Optional[str] = None

@@ -1,5 +1,6 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { MessageCircleQuestion } from 'lucide-react';
 import {
   CartesianGrid,
   Legend,
@@ -11,7 +12,8 @@ import {
   YAxis,
 } from 'recharts';
 import type { LoadTestResult } from '../../types/loadTest';
-import { Badge, Card, EmptyState } from '../common';
+import { useChatbotStore } from '../../store/chatbotStore';
+import { Badge, Button, Card, EmptyState } from '../common';
 import type { BadgeTone } from '../common';
 import './LoadTestResultView.css';
 
@@ -53,12 +55,32 @@ const tooltipStyle = {
   borderRadius: 'var(--radius-md)',
 };
 
+const formatStageLabel = (stage: string) => {
+  const declaredStage = /^STAGE_(\d+)_TARGET_(\d+)$/.exec(stage);
+  if (declaredStage) return `단계 ${declaredStage[1]} · 목표 ${declaredStage[2]} VU`;
+  const labels: Record<string, string> = {
+    LOW_LOAD: '저부하',
+    MEDIUM_LOAD: '중부하',
+    HIGH_LOAD: '고부하',
+    RAMP_DOWN: '부하 감소',
+  };
+  return labels[stage] || stage;
+};
+
 export function LoadTestResultView({ result }: LoadTestResultViewProps) {
   const grade = result.performanceGrade?.toUpperCase() || '-';
   const avgTps = result.avgTps ?? result.maxTps ?? 0;
   const hasMeasuredSeries = result.dataOrigin === 'MEASURED_K6' && Boolean(result.points?.length);
   const isLegacySeries = result.dataOrigin === 'LEGACY_SYNTHETIC';
   const seriesBadge = getSeriesBadge(result);
+  const openChatbotWithPrompt = useChatbotStore((state) => state.openWithPrompt);
+  const explainVerdict = () => {
+    const verdict = result.analysisReport?.verdict;
+    if (!verdict) return;
+    openChatbotWithPrompt(
+      `다음 부하 테스트 성능 분석의 종합 판정만 비전문가도 이해할 수 있도록 쉬운 한국어로 설명해 주세요.\n\n종합 판정: ${verdict}`,
+    );
+  };
 
   return (
     <section className="fc-load-result" aria-label="부하 테스트 결과">
@@ -66,7 +88,9 @@ export function LoadTestResultView({ result }: LoadTestResultViewProps) {
         <Card padding="sm" className="fc-load-result__metric-card">
           <span>성능 점수</span>
           <strong>{result.performanceScore ?? '-'}점</strong>
-          <Badge tone={getGradeTone(grade)}>등급 {grade}</Badge>
+          <Badge tone={getGradeTone(grade)}>
+            등급 {grade} · v{result.scoreVersion ?? 1}
+          </Badge>
         </Card>
         <Card padding="sm" className="fc-load-result__metric-card">
           <span>평균 처리량</span>
@@ -101,7 +125,116 @@ export function LoadTestResultView({ result }: LoadTestResultViewProps) {
           </div>
           <Badge tone={getGradeTone(grade)} size="md">{grade} 등급</Badge>
         </div>
-        {result.bottleneckComment ? (
+        {result.analysisReport ? (
+          <div className="fc-load-result__structured-report">
+            <div className="fc-load-result__verdict">
+              <div>
+                <span>종합 판정</span>
+                <p>{result.analysisReport.verdict}</p>
+              </div>
+              <div className="fc-load-result__verdict-actions">
+                <Badge tone={result.analysisReport.generationSource === 'LLM' ? 'info' : 'warning'}>
+                  {result.analysisReport.generationSource === 'LLM' ? 'AI 분석' : '검증 폴백'}
+                </Badge>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  icon={MessageCircleQuestion}
+                  onClick={explainVerdict}
+                >
+                  쉽게 설명해줘
+                </Button>
+              </div>
+            </div>
+
+            <div className="fc-load-result__report-summary">
+              <span>
+                <strong>점수 기준</strong>{' '}
+                {result.scoreStatus === 'CUSTOM_SLO' ? '사용자 SLO' : result.scoreVersion === 2 ? '기본 SLO' : '기존 기준'}
+              </span>
+              {result.analysisReport.sustainableTps != null && (
+                <span><strong>지속 가능 TPS</strong> {result.analysisReport.sustainableTps.toLocaleString()}</span>
+              )}
+              {result.scoreTargets && (
+                <span>
+                  <strong>목표</strong> p95 {result.scoreTargets.targetP95Ms.toLocaleString()}ms · 오류율 {result.scoreTargets.maxErrorRate}%
+                  {result.scoreTargets.targetTps != null ? ` · ${result.scoreTargets.targetTps.toLocaleString()} TPS` : ''}
+                </span>
+              )}
+            </div>
+
+            {result.analysisReport.stages.length > 0 && (
+              <section className="fc-load-result__report-section" aria-labelledby="stage-analysis-title">
+                <h4 id="stage-analysis-title">단계별 성능</h4>
+                <div className="fc-load-result__table-wrap">
+                  <table className="fc-load-result__stage-table">
+                    <thead>
+                      <tr>
+                        <th>부하 단계</th>
+                        <th>VU</th>
+                        <th>평균 / 최대 TPS</th>
+                        <th>평균 / p95</th>
+                        <th>오류율</th>
+                        <th>요청 수</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {result.analysisReport.stages.map((stage) => (
+                        <tr key={`${stage.stage}-${stage.startSecond}`}>
+                          <th scope="row">{formatStageLabel(stage.stage)}</th>
+                          <td>{stage.minVus}–{stage.maxVus}</td>
+                          <td>{stage.avgTps.toLocaleString()} / {stage.maxTps.toLocaleString()}</td>
+                          <td>
+                            {stage.avgResponse?.toLocaleString() ?? '-'} / {stage.p95Response?.toLocaleString() ?? '-'} ms
+                          </td>
+                          <td>{stage.errorRate?.toLocaleString() ?? '-'}%</td>
+                          <td>{stage.requestCount.toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
+
+            {result.analysisReport.bottlenecks.length > 0 && (
+              <section className="fc-load-result__report-section" aria-labelledby="bottleneck-title">
+                <h4 id="bottleneck-title">병목 징후</h4>
+                <ul className="fc-load-result__evidence-list">
+                  {result.analysisReport.bottlenecks.map((signal) => (
+                    <li key={`${signal.type}-${signal.firstObservedSecond ?? 'unknown'}`}>
+                      <Badge tone={signal.severity === 'HIGH' ? 'danger' : 'warning'}>{signal.severity}</Badge>
+                      <span>{signal.evidence}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            <section className="fc-load-result__report-section" aria-labelledby="action-title">
+              <h4 id="action-title">우선 조치</h4>
+              <ol className="fc-load-result__action-list">
+                {result.analysisReport.actions.map((action) => (
+                  <li key={`${action.priority}-${action.title}`}>
+                    <strong>{action.title}</strong>
+                    <p>{action.rationale}</p>
+                    <small>근거: {action.evidence}</small>
+                  </li>
+                ))}
+              </ol>
+            </section>
+
+            {result.analysisReport.limitations.length > 0 && (
+              <section className="fc-load-result__report-section fc-load-result__limitations" aria-labelledby="limitation-title">
+                <h4 id="limitation-title">분석 한계</h4>
+                <ul>
+                  {result.analysisReport.limitations.map((limitation) => <li key={limitation}>{limitation}</li>)}
+                </ul>
+              </section>
+            )}
+          </div>
+        ) : result.bottleneckComment ? (
           <div className={`fc-load-result__markdown grade-${grade.toLowerCase()}`}>
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{result.bottleneckComment}</ReactMarkdown>
           </div>
@@ -121,16 +254,6 @@ export function LoadTestResultView({ result }: LoadTestResultViewProps) {
         {hasMeasuredSeries ? (
           <>
             <div className="fc-load-result__series-meta" aria-label="시계열 수집 정보">
-              <span><strong>출처</strong> k6 실측</span>
-              {result.bucketSeconds != null && (
-                <span><strong>집계 간격</strong> {result.bucketSeconds}초</span>
-              )}
-              {result.totalRequests != null && (
-                <span><strong>총 요청</strong> {result.totalRequests.toLocaleString()}건</span>
-              )}
-              {result.metricsSchemaVersion != null && (
-                <span><strong>데이터 형식</strong> v{result.metricsSchemaVersion}</span>
-              )}
             </div>
 
             {result.metricsStatus === 'PARTIAL' && (
