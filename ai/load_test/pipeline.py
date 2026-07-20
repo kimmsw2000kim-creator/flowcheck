@@ -89,18 +89,20 @@ async def run_load_test_pipeline(client: Any, request: Any) -> TestResultsRespon
 
     return TestResultsResponse(
         avgTps=round(summary["real_tps"], 2),
-        maxTps=None,
+        maxTps=summary.get("max_tps"),
         avgResponse=round(summary["real_avg_response"], 2),
+        p95Response=summary.get("p95_response"),
         errorRate=round(summary["real_error_rate"], 2),
         performanceScore=assessment.score,
         performanceGrade=assessment.grade,
         scoreLabel=assessment.label,
         scoreBreakdown=assessment.breakdown,
         bottleneckComment=markdown_report,
-        points=[],
-        metricsStatus="UNAVAILABLE",
-        metricsWarning=(
-            "시간대별 실측 데이터 수집 기능이 아직 적용되지 않아 요약 지표만 제공합니다."
+        points=summary.get("chart_points", []),
+        metricsStatus=summary.get("metrics_status", "UNAVAILABLE"),
+        metricsWarning=summary.get(
+            "metrics_warning",
+            "k6 실측 시계열이 없어 전체 요약 지표만 제공합니다.",
         ),
-        dataOrigin="NOT_COLLECTED",
+        dataOrigin=summary.get("data_origin", "NOT_COLLECTED"),
     )
