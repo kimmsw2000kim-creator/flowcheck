@@ -24,7 +24,7 @@ public class ChatController {
     @Value("${fastapi.url:http://localhost:8000}")
     private String fastApiUrl;
 
-    @Value("${internal.fastapi-api-key}")
+    @Value("${internal.load-test-callback-token}")
     private String fastApiInternalApiKey;
 
     @Operation(summary = "챗봇 메시지 전달", description = "프론트엔드의 챗봇 요청을 FastAPI 서버로 전달합니다.")
