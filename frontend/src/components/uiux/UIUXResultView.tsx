@@ -200,6 +200,10 @@ const LIGHTHOUSE_DEFECT_TEXT: Record<string, { title: string; recommendation: st
     title: '초기 렌더링을 차단하는 리소스가 있습니다.',
     recommendation: '첫 화면에 필요한 CSS는 인라인 처리하고, 비핵심 CSS/JavaScript는 defer, async 또는 지연 로딩으로 전환하세요.',
   },
+  'render-blocking-insight': {
+    title: '렌더링 차단 요청이 있습니다.',
+    recommendation: '초기 렌더링을 막는 요청이 있어 LCP가 지연될 수 있습니다. 핵심 리소스는 인라인 처리하고, 비핵심 CSS/JavaScript는 defer, async 또는 지연 로딩으로 전환하세요.',
+  },
   'unused-javascript': {
     title: '사용하지 않는 JavaScript가 많습니다.',
     recommendation: '초기 화면에 필요 없는 JavaScript를 제거하거나 코드 분할하고, 필요한 시점까지 로딩을 지연하세요.',
@@ -222,11 +226,71 @@ const LIGHTHOUSE_DEFECT_TEXT: Record<string, { title: string; recommendation: st
   },
   'network-dependency-tree': {
     title: '네트워크 의존성 트리가 복잡합니다.',
-    recommendation: '렌더링에 필요한 요청 체인의 길이와 리소스 크기를 줄여 critical path를 짧게 만드세요.',
+    recommendation: '중요 요청 체인의 길이와 리소스 다운로드 크기를 줄이고, 불필요한 리소스는 지연 로드해 페이지 로딩 성능을 개선하세요.',
+  },
+  'network-dependency-tree-insight': {
+    title: '네트워크 의존성 트리가 복잡합니다.',
+    recommendation: '중요 요청 체인의 길이와 리소스 다운로드 크기를 줄이고, 불필요한 리소스는 지연 로드해 페이지 로딩 성능을 개선하세요.',
   },
   'critical-request-chains': {
     title: '중요 요청 체인이 길어 페이지 로딩이 지연됩니다.',
     recommendation: '핵심 요청 수와 다운로드 크기를 줄이고, 불필요한 리소스는 지연 로딩하세요.',
+  },
+  'cls-culprits-insight': {
+    title: '레이아웃 이동 원인이 발견되었습니다.',
+    recommendation: '이미지와 동적 콘텐츠 영역의 크기를 미리 예약하고, 웹폰트 교체나 늦게 삽입되는 요소가 화면을 밀어내지 않게 하세요.',
+  },
+  'forced-reflow-insight': {
+    title: '강제 리플로우가 발생합니다.',
+    recommendation: 'DOM 변경과 레이아웃 값 조회를 분리하고, 반복적인 offsetWidth/offsetHeight 계산을 줄여 렌더링 비용을 낮추세요.',
+  },
+  'image-delivery-insight': {
+    title: '이미지 전송 최적화가 필요합니다.',
+    recommendation: '이미지 크기, 압축률, 포맷, 캐시 정책을 최적화해 다운로드 시간과 LCP를 줄이세요.',
+  },
+  'lcp-discovery-insight': {
+    title: 'LCP 리소스 발견이 늦습니다.',
+    recommendation: 'LCP 이미지를 HTML에서 바로 발견할 수 있게 하고 lazy-loading 대상에서 제외하세요.',
+  },
+  'modern-http-insight': {
+    title: '최신 HTTP 프로토콜이 적용되지 않았습니다.',
+    recommendation: 'HTTP/2 또는 HTTP/3를 적용해 여러 리소스를 더 효율적으로 전송하세요.',
+  },
+  'uses-responsive-images': {
+    title: '이미지 표시 크기가 적절하지 않습니다.',
+    recommendation: '화면에 표시되는 크기에 맞는 이미지 파일을 제공해 전송량과 로딩 시간을 줄이세요.',
+  },
+  'uses-optimized-images': {
+    title: '이미지 압축 최적화가 필요합니다.',
+    recommendation: '이미지를 효율적으로 압축해 다운로드 시간과 데이터 사용량을 줄이세요.',
+  },
+  'modern-image-formats': {
+    title: '차세대 이미지 포맷을 사용하지 않았습니다.',
+    recommendation: 'WebP나 AVIF 같은 최신 이미지 포맷으로 전환해 다운로드 크기를 줄이세요.',
+  },
+  'uses-http2': {
+    title: 'HTTP/2가 적용되지 않았습니다.',
+    recommendation: 'HTTP/2 이상을 적용해 리소스 전송 효율을 개선하세요.',
+  },
+  'prioritize-lcp-image': {
+    title: 'LCP 이미지 우선 로드가 필요합니다.',
+    recommendation: '가장 큰 콘텐츠 이미지에 preload 또는 높은 fetch priority를 적용해 LCP 시간을 줄이세요.',
+  },
+  'total-byte-weight': {
+    title: '네트워크 전송량이 너무 큽니다.',
+    recommendation: '불필요한 리소스를 제거하고 압축, 코드 분할, 이미지 최적화로 전체 전송량을 줄이세요.',
+  },
+  'dom-size': {
+    title: 'DOM 크기가 과도합니다.',
+    recommendation: '불필요한 노드와 깊은 중첩 구조를 줄여 메모리 사용량과 레이아웃 계산 비용을 낮추세요.',
+  },
+  'mainthread-work-breakdown': {
+    title: '메인 스레드 작업이 많습니다.',
+    recommendation: 'JavaScript 파싱, 컴파일, 실행 시간을 줄이고 긴 작업을 분할하세요.',
+  },
+  'layout-shifts': {
+    title: '큰 레이아웃 이동이 발생했습니다.',
+    recommendation: '이미지/광고/동적 영역의 크기를 미리 예약하고 로딩 중 콘텐츠가 밀리지 않도록 수정하세요.',
   },
 };
 
@@ -253,6 +317,48 @@ const localizeReportText = (value: string) => {
   if (lower === 'render blocking requests') {
     return '렌더링 차단 요청';
   }
+  if (lower === 'layout shift culprits') {
+    return '레이아웃 이동 원인';
+  }
+  if (lower === 'forced reflow') {
+    return '강제 리플로우';
+  }
+  if (lower === 'improve image delivery') {
+    return '이미지 전송 최적화가 필요합니다.';
+  }
+  if (lower === 'lcp request discovery') {
+    return 'LCP 리소스 발견이 늦습니다.';
+  }
+  if (lower === 'modern http') {
+    return '최신 HTTP 프로토콜이 적용되지 않았습니다.';
+  }
+  if (lower === 'properly size images') {
+    return '이미지 표시 크기가 적절하지 않습니다.';
+  }
+  if (lower === 'efficiently encode images') {
+    return '이미지 압축 최적화가 필요합니다.';
+  }
+  if (lower === 'serve images in next-gen formats') {
+    return '차세대 이미지 포맷을 사용하세요.';
+  }
+  if (lower === 'use http/2') {
+    return 'HTTP/2를 사용하세요.';
+  }
+  if (lower === 'preload largest contentful paint image') {
+    return 'LCP 이미지를 preload하세요.';
+  }
+  if (lower === 'avoid enormous network payloads') {
+    return '네트워크 전송량이 너무 큽니다.';
+  }
+  if (lower === 'avoid an excessive dom size') {
+    return 'DOM 크기가 과도합니다.';
+  }
+  if (lower === 'minimize main-thread work') {
+    return '메인 스레드 작업을 줄이세요.';
+  }
+  if (lower === 'avoid large layout shifts') {
+    return '큰 레이아웃 이동을 줄이세요.';
+  }
   if (lower.startsWith('speed index')) {
     return '화면 콘텐츠가 표시되는 속도가 느립니다.';
   }
@@ -273,6 +379,45 @@ const localizeReportText = (value: string) => {
   }
   if (lower.includes('largest contentful paint element')) {
     return '가장 큰 콘텐츠 요소가 LCP에 영향을 줍니다. 해당 요소를 우선 로드하고 이미지 최적화와 크기 지정을 적용해야 합니다.';
+  }
+  if (lower.includes('layout shifts occur when elements move')) {
+    return '사용자 조작 없이 요소가 움직이면 레이아웃 이동이 발생합니다. 로딩 중 요소 추가/삭제, 이미지 크기 미지정, 웹폰트 변경처럼 화면을 밀어내는 원인을 확인해야 합니다.';
+  }
+  if (lower.includes('forced reflow occurs')) {
+    return 'DOM 변경 직후 JavaScript가 레이아웃 값을 다시 읽어 강제 리플로우가 발생할 수 있습니다. 읽기와 쓰기 작업을 분리하고 반복 계산을 줄여야 합니다.';
+  }
+  if (lower.includes('reducing the download time of images')) {
+    return '이미지 다운로드 시간을 줄이면 체감 로딩 속도와 LCP가 개선됩니다. 이미지 크기, 압축률, 포맷, 우선순위를 최적화해야 합니다.';
+  }
+  if (lower.includes('optimize lcp by making the lcp image discoverable')) {
+    return 'LCP 이미지를 HTML에서 즉시 발견할 수 있게 하고 lazy-loading 대상에서 제외해야 합니다.';
+  }
+  if (lower.includes('http/2 and http/3 offer') || lower.includes('http/2 offers many benefits')) {
+    return 'HTTP/2 또는 HTTP/3를 적용해 여러 리소스를 더 효율적으로 전송해야 합니다.';
+  }
+  if (lower.includes('serve images that are appropriately-sized')) {
+    return '표시 크기에 맞는 이미지 파일을 제공해 전송량과 로딩 시간을 줄여야 합니다.';
+  }
+  if (lower.includes('optimized images load faster')) {
+    return '이미지를 효율적으로 압축해 다운로드 시간과 데이터 사용량을 줄여야 합니다.';
+  }
+  if (lower.includes('image formats like webp and avif')) {
+    return 'WebP나 AVIF 같은 최신 이미지 포맷으로 전환해 다운로드 크기를 줄여야 합니다.';
+  }
+  if (lower.includes('preload the image in order to improve lcp')) {
+    return 'LCP 요소가 동적으로 추가된다면 해당 이미지를 preload해 LCP 시간을 줄여야 합니다.';
+  }
+  if (lower.includes('large network payloads')) {
+    return '불필요한 리소스를 제거하고 압축, 코드 분할, 이미지 최적화로 전체 전송량을 줄여야 합니다.';
+  }
+  if (lower.includes('large dom') && lower.includes('layout reflows')) {
+    return '불필요한 DOM 노드와 깊은 중첩 구조를 줄여 메모리 사용량과 레이아웃 계산 비용을 낮춰야 합니다.';
+  }
+  if (lower.includes('parsing, compiling and executing js')) {
+    return 'JavaScript 번들 크기를 줄이고 긴 작업을 분할해 메인 스레드 작업 시간을 낮춰야 합니다.';
+  }
+  if (lower.includes('largest layout shifts observed')) {
+    return '이미지/광고 영역 크기를 미리 예약하고 로딩 중 콘텐츠가 밀리지 않도록 레이아웃 이동 원인을 수정해야 합니다.';
   }
 
   return normalized;

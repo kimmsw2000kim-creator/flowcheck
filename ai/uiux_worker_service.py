@@ -542,6 +542,20 @@ _LIGHTHOUSE_DESC_KO: Dict[str, str] = {
     # 성능 - Lighthouse 공식 문서 기반
     "Avoid chaining critical requests by reducing the length of chains, reducing the download size of resources, or deferring the download of unnecessary resources to improve page load.": "중요 요청 체인의 길이와 리소스 다운로드 크기를 줄이고, 불필요한 리소스는 지연 로드해 페이지 로딩 성능을 개선하세요.",
     "Requests are blocking the page's initial render, which may delay LCP. Deferring or inlining can move these network requests out of the critical path.": "초기 렌더링을 막는 요청이 있어 LCP가 지연될 수 있습니다. 핵심 리소스는 인라인 처리하고, 비핵심 CSS/JavaScript는 defer, async 또는 지연 로딩으로 critical path 밖으로 이동하세요.",
+    "Layout shifts occur when elements move absent any user interaction. Investigate the causes of layout shifts, such as elements being added, removed, or their fonts changing as the page loads.": "사용자 조작 없이 요소가 움직이면 레이아웃 이동이 발생합니다. 로딩 중 요소 추가/삭제, 이미지 크기 미지정, 웹폰트 변경처럼 화면을 밀어내는 원인을 확인하세요.",
+    "A forced reflow occurs when JavaScript queries geometric properties (such as offsetWidth) after styles have been invalidated by a change to the DOM state. This can result in poor performance. Learn more about forced reflows and possible mitigations.": "DOM 변경 직후 JavaScript가 offsetWidth 같은 레이아웃 값을 다시 읽으면 강제 리플로우가 발생할 수 있습니다. 읽기와 쓰기 작업을 분리하고 반복적인 레이아웃 계산을 줄이세요.",
+    "Reducing the download time of images can improve the perceived load time of the page and LCP. Learn more about optimizing image size": "이미지 다운로드 시간을 줄이면 체감 로딩 속도와 LCP가 개선됩니다. 이미지 크기, 압축률, 포맷, 우선순위를 최적화하세요.",
+    "Optimize LCP by making the LCP image discoverable from the HTML immediately, and avoiding lazy-loading": "LCP 이미지를 HTML에서 즉시 발견할 수 있게 하고 lazy-loading 대상에서 제외해 가장 큰 콘텐츠가 더 빨리 표시되게 하세요.",
+    "HTTP/2 and HTTP/3 offer many benefits over HTTP/1.1, such as multiplexing. Learn more about using modern HTTP.": "HTTP/2 또는 HTTP/3를 사용하면 멀티플렉싱 등으로 여러 리소스를 더 효율적으로 전송할 수 있습니다.",
+    "Serve images that are appropriately-sized to save cellular data and improve load time. Learn how to size images.": "표시 크기에 맞는 이미지 파일을 제공해 전송량을 줄이고 로딩 속도를 개선하세요.",
+    "Optimized images load faster and consume less cellular data. Learn how to efficiently encode images.": "이미지를 효율적으로 압축하면 더 빠르게 로드되고 데이터 사용량도 줄어듭니다.",
+    "Image formats like WebP and AVIF often provide better compression than PNG or JPEG, which means faster downloads and less data consumption. Learn more about modern image formats.": "WebP나 AVIF 같은 최신 이미지 포맷은 PNG/JPEG보다 압축 효율이 좋아 다운로드 시간과 데이터 사용량을 줄일 수 있습니다.",
+    "HTTP/2 offers many benefits over HTTP/1.1, including binary headers and multiplexing. Learn more about HTTP/2.": "HTTP/2는 바이너리 헤더와 멀티플렉싱을 제공해 HTTP/1.1보다 리소스를 더 효율적으로 전송합니다.",
+    "If the LCP element is dynamically added to the page, you should preload the image in order to improve LCP. Learn more about preloading LCP elements.": "LCP 요소가 동적으로 추가된다면 해당 이미지를 preload해 LCP 시간을 줄이세요.",
+    "Large network payloads cost users real money and are highly correlated with long load times. Learn how to reduce payload sizes.": "네트워크 전송량이 크면 로딩 시간이 길어집니다. 불필요한 리소스를 제거하고 압축, 코드 분할, 이미지 최적화를 적용하세요.",
+    "A large DOM will increase memory usage, cause longer style calculations, and produce costly layout reflows. Learn how to avoid an excessive DOM size.": "DOM이 너무 크면 메모리 사용량과 스타일 계산 시간이 늘고 리플로우 비용이 커집니다. 불필요한 노드와 깊은 중첩 구조를 줄이세요.",
+    "Consider reducing the time spent parsing, compiling and executing JS. You may find delivering smaller JS payloads helps with this. Learn how to minimize main-thread work": "JavaScript 파싱, 컴파일, 실행 시간을 줄이세요. 번들 크기를 줄이고 긴 작업을 분할하면 메인 스레드 부담이 낮아집니다.",
+    "These are the largest layout shifts observed on the page. Each table item represents a single layout shift, and shows the element that shifted the most. Below each item are possible root causes that led to the layout shift. Some of these layout shifts may not be included in the CLS metric value due to windowing. Learn how to improve CLS": "페이지에서 관찰된 큰 레이아웃 이동입니다. 이동한 요소와 원인을 확인해 이미지/광고 영역 크기를 예약하고, 로딩 중 콘텐츠가 밀리지 않도록 수정하세요.",
 }
 
 
@@ -642,6 +656,20 @@ def localize_uiux_text(text: Optional[str]) -> Optional[str]:
         "Time to Interactive": "페이지가 상호작용 가능한 상태가 되기까지 시간이 오래 걸립니다.",
         "Network dependency tree": "네트워크 의존성 트리",
         "Render blocking requests": "렌더링 차단 요청",
+        "Layout shift culprits": "레이아웃 이동 원인",
+        "Forced reflow": "강제 리플로우",
+        "Improve image delivery": "이미지 전송 최적화가 필요합니다.",
+        "LCP request discovery": "LCP 리소스 발견이 늦습니다.",
+        "Modern HTTP": "최신 HTTP 프로토콜이 적용되지 않았습니다.",
+        "Properly size images": "이미지 표시 크기가 적절하지 않습니다.",
+        "Efficiently encode images": "이미지 압축 최적화가 필요합니다.",
+        "Serve images in next-gen formats": "차세대 이미지 포맷을 사용하세요.",
+        "Use HTTP/2": "HTTP/2를 사용하세요.",
+        "Preload Largest Contentful Paint image": "LCP 이미지를 preload하세요.",
+        "Avoid enormous network payloads": "네트워크 전송량이 너무 큽니다.",
+        "Avoid an excessive DOM size": "DOM 크기가 과도합니다.",
+        "Minimize main-thread work": "메인 스레드 작업을 줄이세요.",
+        "Avoid large layout shifts": "큰 레이아웃 이동을 줄이세요.",
     }
     for source, target in replacements.items():
         if normalized == source:
@@ -669,6 +697,32 @@ def localize_uiux_text(text: Optional[str]) -> Optional[str]:
         return "중요 요청 체인의 길이와 리소스 다운로드 크기를 줄이고, 불필요한 리소스는 지연 로드해 페이지 로딩 성능을 개선하세요."
     if "Requests are blocking the page's initial render" in normalized or "render-blocking" in normalized:
         return "초기 렌더링을 차단하는 요청이 있어 LCP가 지연될 수 있습니다. 핵심 리소스는 인라인 처리하고, 비핵심 CSS/JavaScript는 defer, async 또는 지연 로딩으로 전환하세요."
+    if "Layout shifts occur when elements move" in normalized:
+        return "사용자 조작 없이 요소가 움직이면 레이아웃 이동이 발생합니다. 로딩 중 요소 추가/삭제, 이미지 크기 미지정, 웹폰트 변경처럼 화면을 밀어내는 원인을 확인하세요."
+    if "forced reflow occurs" in normalized.lower():
+        return "DOM 변경 직후 JavaScript가 레이아웃 값을 다시 읽어 강제 리플로우가 발생할 수 있습니다. 읽기와 쓰기 작업을 분리하고 반복 계산을 줄이세요."
+    if "Reducing the download time of images" in normalized:
+        return "이미지 다운로드 시간을 줄이면 체감 로딩 속도와 LCP가 개선됩니다. 이미지 크기, 압축률, 포맷, 우선순위를 최적화하세요."
+    if "Optimize LCP by making the LCP image discoverable" in normalized:
+        return "LCP 이미지를 HTML에서 즉시 발견할 수 있게 하고 lazy-loading 대상에서 제외하세요."
+    if "HTTP/2 and HTTP/3 offer" in normalized or "HTTP/2 offers many benefits" in normalized:
+        return "HTTP/2 또는 HTTP/3를 적용해 여러 리소스를 더 효율적으로 전송하세요."
+    if "Serve images that are appropriately-sized" in normalized:
+        return "표시 크기에 맞는 이미지 파일을 제공해 전송량을 줄이고 로딩 속도를 개선하세요."
+    if "Optimized images load faster" in normalized:
+        return "이미지를 효율적으로 압축해 다운로드 시간과 데이터 사용량을 줄이세요."
+    if "Image formats like WebP and AVIF" in normalized:
+        return "WebP나 AVIF 같은 최신 이미지 포맷으로 전환해 다운로드 크기를 줄이세요."
+    if "preload the image in order to improve LCP" in normalized:
+        return "LCP 요소가 동적으로 추가된다면 해당 이미지를 preload해 LCP 시간을 줄이세요."
+    if "Large network payloads" in normalized:
+        return "불필요한 리소스를 제거하고 압축, 코드 분할, 이미지 최적화로 전체 전송량을 줄이세요."
+    if "large DOM" in normalized and "layout reflows" in normalized:
+        return "불필요한 DOM 노드와 깊은 중첩 구조를 줄여 메모리 사용량과 레이아웃 계산 비용을 낮추세요."
+    if "parsing, compiling and executing JS" in normalized:
+        return "JavaScript 번들 크기를 줄이고 긴 작업을 분할해 메인 스레드 작업 시간을 낮추세요."
+    if "largest layout shifts observed" in normalized:
+        return "이미지/광고 영역 크기를 미리 예약하고 로딩 중 콘텐츠가 밀리지 않도록 레이아웃 이동 원인을 수정하세요."
     if "ARIA roles must be contained" in normalized:
         return "일부 ARIA 역할은 정해진 부모 요소 안에 배치되어야 합니다."
     if "one main landmark" in normalized:
@@ -744,10 +798,27 @@ def localize_lighthouse_finding(finding: dict) -> tuple[str, str]:
         "max-potential-fid": ("최대 입력 지연 가능 시간이 깁니다.", "가장 오래 걸리는 JavaScript 작업을 줄이고, 긴 작업을 분할해 사용자의 첫 입력 지연을 낮추세요."),
         "critical-request-chains": ("중요 요청 체인이 길어 페이지 로딩이 지연됩니다.", "렌더링에 필요한 핵심 요청 수와 다운로드 크기를 줄이고, 불필요한 리소스는 지연 로딩하세요."),
         "render-blocking-resources": ("초기 렌더링을 차단하는 리소스가 있습니다.", "첫 화면에 필요한 CSS는 인라인 처리하고, 비핵심 CSS/JavaScript는 defer, async 또는 지연 로딩으로 전환하세요."),
+        "render-blocking-insight": ("렌더링 차단 요청이 있습니다.", "초기 렌더링을 막는 요청이 있어 LCP가 지연될 수 있습니다. 핵심 리소스는 인라인 처리하고, 비핵심 CSS/JavaScript는 defer, async 또는 지연 로딩으로 전환하세요."),
         "unused-javascript": ("사용하지 않는 JavaScript가 많습니다.", "초기 화면에 필요 없는 JavaScript를 제거하거나 코드 분할하고, 필요한 시점까지 로딩을 지연하세요."),
         "uses-text-compression": ("텍스트 리소스 압축이 적용되지 않았습니다.", "HTML, CSS, JavaScript 같은 텍스트 기반 리소스에 gzip, deflate 또는 Brotli 압축을 적용하세요."),
         "uses-rel-preconnect": ("중요 외부 출처에 대한 사전 연결이 없습니다.", "중요한 외부 도메인에는 preconnect 또는 dns-prefetch 리소스 힌트를 추가해 연결 시간을 줄이세요."),
         "largest-contentful-paint-element": ("가장 큰 콘텐츠 요소가 LCP에 영향을 줍니다.", "LCP 대상 이미지나 텍스트 블록을 우선 로드하고, 크기 지정과 이미지 최적화를 적용하세요."),
+        "network-dependency-tree": ("네트워크 의존성 트리가 복잡합니다.", "중요 요청 체인의 길이와 리소스 다운로드 크기를 줄이고, 불필요한 리소스는 지연 로드해 페이지 로딩 성능을 개선하세요."),
+        "network-dependency-tree-insight": ("네트워크 의존성 트리가 복잡합니다.", "중요 요청 체인의 길이와 리소스 다운로드 크기를 줄이고, 불필요한 리소스는 지연 로드해 페이지 로딩 성능을 개선하세요."),
+        "cls-culprits-insight": ("레이아웃 이동 원인이 발견되었습니다.", "이미지와 동적 콘텐츠 영역의 크기를 미리 예약하고, 웹폰트 교체나 늦게 삽입되는 요소가 화면을 밀어내지 않게 하세요."),
+        "forced-reflow-insight": ("강제 리플로우가 발생합니다.", "DOM 변경과 레이아웃 값 조회를 분리하고, 반복적인 offsetWidth/offsetHeight 계산을 줄여 렌더링 비용을 낮추세요."),
+        "image-delivery-insight": ("이미지 전송 최적화가 필요합니다.", "이미지 크기, 압축률, 포맷, 캐시 정책을 최적화해 다운로드 시간과 LCP를 줄이세요."),
+        "lcp-discovery-insight": ("LCP 리소스 발견이 늦습니다.", "LCP 이미지를 HTML에서 바로 발견할 수 있게 하고 lazy-loading 대상에서 제외하세요."),
+        "modern-http-insight": ("최신 HTTP 프로토콜이 적용되지 않았습니다.", "HTTP/2 또는 HTTP/3를 적용해 여러 리소스를 더 효율적으로 전송하세요."),
+        "uses-responsive-images": ("이미지 표시 크기가 적절하지 않습니다.", "화면에 표시되는 크기에 맞는 이미지 파일을 제공해 전송량과 로딩 시간을 줄이세요."),
+        "uses-optimized-images": ("이미지 압축 최적화가 필요합니다.", "이미지를 효율적으로 압축해 다운로드 시간과 데이터 사용량을 줄이세요."),
+        "modern-image-formats": ("차세대 이미지 포맷을 사용하지 않았습니다.", "WebP나 AVIF 같은 최신 이미지 포맷으로 전환해 다운로드 크기를 줄이세요."),
+        "uses-http2": ("HTTP/2가 적용되지 않았습니다.", "HTTP/2 이상을 적용해 리소스 전송 효율을 개선하세요."),
+        "prioritize-lcp-image": ("LCP 이미지 우선 로드가 필요합니다.", "가장 큰 콘텐츠 이미지에 preload 또는 높은 fetch priority를 적용해 LCP 시간을 줄이세요."),
+        "total-byte-weight": ("네트워크 전송량이 너무 큽니다.", "불필요한 리소스를 제거하고 압축, 코드 분할, 이미지 최적화로 전체 전송량을 줄이세요."),
+        "dom-size": ("DOM 크기가 과도합니다.", "불필요한 노드와 깊은 중첩 구조를 줄여 메모리 사용량과 레이아웃 계산 비용을 낮추세요."),
+        "mainthread-work-breakdown": ("메인 스레드 작업이 많습니다.", "JavaScript 파싱, 컴파일, 실행 시간을 줄이고 긴 작업을 분할하세요."),
+        "layout-shifts": ("큰 레이아웃 이동이 발생했습니다.", "이미지/광고/동적 영역의 크기를 미리 예약하고 로딩 중 콘텐츠가 밀리지 않도록 수정하세요."),
     }
     # 접근성 audit → 한글 제목/권장사항 직접 매핑
     # 출처: https://github.com/GoogleChrome/lighthouse/blob/main/core/audits/accessibility/

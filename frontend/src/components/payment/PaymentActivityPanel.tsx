@@ -76,7 +76,7 @@ function getLedgerLabel(type: string): Pick<ActivityRow, 'title' | 'badge' | 'ba
 
 function cleanLedgerDescription(description: string | undefined): string {
   if (!description) return '';
-  return description.split(' - 주문번호:')[0].split(' - 二쇰Ц踰덊샇:')[0];
+  return description.split(' - 주문번호:')[0];
 }
 
 function buildPaymentRow(payment: PaymentHistoryItem): ActivityRow {
