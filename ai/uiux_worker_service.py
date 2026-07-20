@@ -971,6 +971,38 @@ def summarize_defect_group(defects: List[UIUXTestDefect], category_label: str) -
         return f"- {category_label}: {description}. 개선 방향: {recommendation}."
     return f"- {category_label}: {description}."
 
+def select_balanced_defect_groups(grouped_defects: List[List[UIUXTestDefect]], limit: int = 5) -> List[List[UIUXTestDefect]]:
+    """최종 보고서에 표시할 결함 그룹을 카테고리 편중 없이 고릅니다.
+
+    접근성 DOM 규칙은 한 화면에서 작은 터치 대상처럼 반복 결함이 많이 나올 수 있습니다.
+    단순히 심각도순 상위 N개만 자르면 접근성 항목만 보이고 사용성/성능/탐색 효율 문제가 가려지므로,
+    먼저 카테고리별 대표 그룹을 하나씩 넣고 남은 칸을 전체 우선순위 순서로 채웁니다.
+    """
+    selected: List[List[UIUXTestDefect]] = []
+    seen_keys = set()
+    seen_categories = set()
+
+    for group in grouped_defects:
+        category = group[0].category
+        if category in seen_categories:
+            continue
+        selected.append(group)
+        seen_categories.add(category)
+        seen_keys.add((category, group[0].rule_id or group[0].description))
+        if len(selected) >= limit:
+            return selected
+
+    for group in grouped_defects:
+        key = (group[0].category, group[0].rule_id or group[0].description)
+        if key in seen_keys:
+            continue
+        selected.append(group)
+        seen_keys.add(key)
+        if len(selected) >= limit:
+            break
+
+    return selected
+
 def find_chromium_executable() -> Optional[str]:
     """Lighthouse가 사용할 Chromium 실행 파일 경로를 찾습니다.
 
@@ -1698,7 +1730,7 @@ def build_report_markdown(scores, breakdown, defects):
             grouped_defects.append([defect])
         else:
             grouped_defects[grouped_index[group_key]].append(defect)
-    top_groups = grouped_defects[:5]
+    top_groups = select_balanced_defect_groups(grouped_defects, limit=5)
 
     if scores["overall"] >= 85:
         summary = "주요 흐름은 전반적으로 안정적입니다. 일부 세부 항목을 보완하면 더 완성도 높은 경험이 됩니다."
@@ -1725,10 +1757,15 @@ def build_report_markdown(scores, breakdown, defects):
     if not top_groups:
         lines.append("- 이번 테스트에서 즉시 조치가 필요한 주요 결함은 감지되지 않았습니다.")
     else:
+        groups_by_category = {}
         for group in top_groups:
-            defect = group[0]
-            label = category_labels.get(defect.category, "Quality")
-            lines.append(summarize_defect_group(group, label))
+            groups_by_category.setdefault(group[0].category, []).append(group)
+
+        for category, groups in groups_by_category.items():
+            label = category_labels.get(category, "Quality")
+            lines.append(f"#### {label}")
+            for group in groups:
+                lines.append(summarize_defect_group(group, label).replace(f"- {label}: ", "- ", 1))
 
     lines.extend([
         "",

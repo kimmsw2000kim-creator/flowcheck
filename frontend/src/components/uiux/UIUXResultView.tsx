@@ -1,4 +1,4 @@
-import { useCallback, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { UIUXTestStatusResponse } from '../../api/UIUXTestApi';
 import UIUXScoreBarChart from '../dashboard/UIUXScoreBarChart';
 import UIUXScoreRadarChart from '../dashboard/UIUXScoreRadarChart';
@@ -30,7 +30,12 @@ interface EngineSummary {
   tone: BadgeTone;
 }
 
-const formatStepNumber = (step: number) => String(step).padStart(2, '0');
+interface ReportItemGroup {
+  category: string;
+  items: string[];
+}
+
+const CATEGORY_ORDER = ['USABILITY', 'ACCESSIBILITY', 'EFFICIENCY', 'PERFORMANCE', 'BEST_PRACTICES'];
 
 const formatTimeForDisplay = (time: number) => {
   if (Number.isNaN(time)) return '0:00';
@@ -105,6 +110,23 @@ const getEngineLabel = (source?: string) => {
   }
 };
 
+const getCategoryLabel = (category?: string) => {
+  switch (category) {
+    case 'USABILITY':
+      return '사용성';
+    case 'ACCESSIBILITY':
+      return '접근성';
+    case 'EFFICIENCY':
+      return '탐색 효율';
+    case 'PERFORMANCE':
+      return '성능';
+    case 'BEST_PRACTICES':
+      return '기술 품질';
+    default:
+      return category || '품질';
+  }
+};
+
 const getScoreGrade = (score?: number) => {
   if (score == null) return '대기';
   if (score >= 90) return '우수';
@@ -156,16 +178,118 @@ const getSeverityTone = (severity?: string): BadgeTone => {
   return 'neutral';
 };
 
+const getReportItemsByTitle = (cards: ReportCard[], pattern: RegExp) =>
+  cards
+    .filter((card) => pattern.test(card.title))
+    .flatMap((card) => card.items);
+
+const groupReportItems = (
+  items: string[],
+  fallbackCategory: string,
+  maxItemsPerGroup = 6,
+): ReportItemGroup[] => {
+  const grouped = new Map<string, string[]>();
+  items.forEach((item) => {
+    const categoryMatch = item.match(/^([^:：]{1,20})[:：]\s*(.+)$/);
+    const category = categoryMatch?.[1]?.trim() || fallbackCategory;
+    const text = categoryMatch?.[2]?.trim() || item;
+    if (!grouped.has(category)) {
+      grouped.set(category, []);
+    }
+    grouped.get(category)?.push(text);
+  });
+
+  return Array.from(grouped.entries()).map(([category, groupItems]) => ({
+    category,
+    items: groupItems.slice(0, maxItemsPerGroup),
+  }));
+};
+
+const groupDefectItems = (
+  defects: UIUXTestStatusResponse['defects'],
+  getItemText: (defect: NonNullable<UIUXTestStatusResponse['defects']>[number]) => string | undefined,
+): ReportItemGroup[] => {
+  const grouped = new Map<string, string[]>();
+  defects?.forEach((defect) => {
+    const text = getItemText(defect)?.trim();
+    if (!text) return;
+
+    const category = getCategoryLabel(defect.category);
+    if (!grouped.has(category)) {
+      grouped.set(category, []);
+    }
+    grouped.get(category)?.push(text);
+  });
+
+  const categoryRank = (category: string) => {
+    const rawCategory = Object.fromEntries(CATEGORY_ORDER.map((key) => [getCategoryLabel(key), key]))[category];
+    const rank = CATEGORY_ORDER.indexOf(rawCategory);
+    return rank === -1 ? CATEGORY_ORDER.length : rank;
+  };
+
+  return Array.from(grouped.entries())
+    .sort(([a], [b]) => categoryRank(a) - categoryRank(b))
+    .map(([category, items]) => ({
+      category,
+      items: Array.from(new Set(items)).slice(0, 6),
+    }));
+};
+
 export function UIUXResultView({ result }: UIUXResultViewProps) {
   // 완료된 UI/UX 테스트 결과 전용 뷰입니다.
   // 점수 차트, 엔진 상태, 녹화 영상, 결함 타임라인, 마크다운 상세 보고서를 한 화면에서 연결해 보여줍니다.
   const [activeDefectId, setActiveDefectId] = useState<number | null>(null);
-  const [showHeuristics, setShowHeuristics] = useState(false);
   const customVideoRef = useRef<CustomVideoPlayerRef>(null);
-  const reportDetailsId = `fc-uiux-report-${useId().replace(/:/g, '')}`;
   const reportCards = useMemo(() => parseReportCards(result.report), [result.report]);
   const engineSummary = useMemo(() => getEngineSummary(result.scoreBreakdown), [result.scoreBreakdown]);
   const overallScore = result.scores?.overall;
+  const reportImprovementItems = useMemo(
+    () => getReportItemsByTitle(reportCards, /개선|문제|결함|권장|진단/),
+    [reportCards],
+  );
+  const reportCriteriaItems = useMemo(
+    () => getReportItemsByTitle(reportCards, /평가|기준|버전/),
+    [reportCards],
+  );
+  const fixTargetGroups = useMemo(() => {
+    const defectGroups = groupDefectItems(result.defects, (defect) => defect.description);
+
+    if (defectGroups.length) return defectGroups;
+    if (reportImprovementItems.length) return groupReportItems(reportImprovementItems, '수정 필요 항목');
+    return [{ category: '수정 필요 항목', items: ['이번 테스트에서 우선 수정이 필요한 항목이 별도로 기록되지 않았습니다.'] }];
+  }, [reportImprovementItems, result.defects]);
+  const fixActionGroups = useMemo(() => {
+    const recommendationGroups = groupDefectItems(result.defects, (defect) => defect.recommendation);
+
+    if (recommendationGroups.length) return recommendationGroups;
+
+    const directionItems = reportImprovementItems
+      .filter((item) => /개선 방향|권장|하세요|필요|제공|추가|수정/.test(item))
+      .slice(0, 6);
+
+    if (directionItems.length) return groupReportItems(directionItems, '개선 방향');
+    return [{ category: '개선 방향', items: ['결함 타임라인과 최종 결과 영상을 함께 확인해 사용자가 막히는 지점을 먼저 수정하세요.'] }];
+  }, [reportImprovementItems, result.defects]);
+  const criteriaItems = useMemo(() => {
+    const baseCriteria = [
+      '사용성 25%, 접근성 25%, 성능 20%, 탐색 효율 15%, 기술 품질 15% 가중치로 종합 점수를 산정했습니다.',
+      'Lighthouse, axe-core, Playwright 기반 검사와 브라우저 DOM 규칙을 함께 반영했습니다.',
+    ];
+
+    return [
+      ...baseCriteria,
+      ...reportCriteriaItems
+        .filter((item) => !baseCriteria.includes(item) && !/버전|version/i.test(item))
+        .slice(0, 3),
+    ];
+  }, [reportCriteriaItems]);
+  const criteriaRows = useMemo(
+    () => criteriaItems.map((item, index) => ({
+      category: index === 0 ? '점수 산정' : index === 1 ? '검사 도구' : '참고 기준',
+      item,
+    })),
+    [criteriaItems],
+  );
 
   const selectDefectAt = useCallback((offset: number) => {
     // 결함 타임라인 항목을 클릭하면 영상 위치도 함께 이동합니다.
@@ -288,59 +412,76 @@ export function UIUXResultView({ result }: UIUXResultViewProps) {
       </div>
 
       <Card padding="none" className="fc-uiux-result__report-card">
-        <button
-          className="fc-uiux-result__report-toggle"
-          type="button"
-          aria-expanded={showHeuristics}
-          aria-controls={reportDetailsId}
-          onClick={() => setShowHeuristics((isVisible) => !isVisible)}
-        >
+        <div className="fc-uiux-result__report-header">
           <span>상세 보고서</span>
-          <small>{showHeuristics ? '접기' : '펼치기'}</small>
-        </button>
+        </div>
 
-        <div
-          className="fc-uiux-result__report-details"
-          id={reportDetailsId}
-          hidden={!showHeuristics}
-        >
-            {result.scoreBreakdown && (
-              <article className="fc-uiux-result__detail-card">
-                <div className="fc-uiux-result__detail-index">EV</div>
-                <div>
-                  <strong>평가 기준 버전 {result.evaluationVersion || 'v1'}</strong>
-                  <p>사용성 25%, 접근성 25%, 성능 20%, 탐색 효율 15%, 기술 품질 15% 가중치로 종합 점수를 산정했습니다.</p>
-                </div>
-              </article>
-            )}
-            <article className="fc-uiux-result__detail-card">
-              <div className="fc-uiux-result__detail-index">EN</div>
-              <div>
-                <strong>검사 엔진 상태</strong>
-                <ul className="fc-uiux-result__detail-list">
-                  {engineSummary.map((engine) => (
-                    <li key={`engine-${engine.label}`}>{engine.label} {engine.value}: {engine.detail}</li>
-                  ))}
-                </ul>
+        <div className="fc-uiux-result__report-details">
+          <article className="fc-uiux-result__detail-card">
+            <div className="fc-uiux-result__detail-card-head">
+              <div className="fc-uiux-result__detail-title">
+                <strong>수정 필요 항목</strong>
+                <p>테스트 중 확인된 품질 저하 요인을 분류별로 정리했습니다.</p>
               </div>
-            </article>
-            {reportCards.length ? (
-              reportCards.map((card, index) => (
-                <article className="fc-uiux-result__detail-card" key={card.id}>
-                  <div className="fc-uiux-result__detail-index">{formatStepNumber(index + 1)}</div>
-                  <div>
-                    <strong>{card.title}</strong>
-                    <ul className="fc-uiux-result__detail-list">
-                      {card.items.map((item, itemIndex) => (
-                        <li key={`${card.id}-${itemIndex}`}>{item}</li>
-                      ))}
-                    </ul>
+              <Badge tone="warning">{fixTargetGroups.reduce((sum, group) => sum + group.items.length, 0)}건</Badge>
+            </div>
+            <div className="fc-uiux-result__report-groups" aria-label="수정 필요 항목">
+              {fixTargetGroups.map((group) => (
+                <section className="fc-uiux-result__report-group" key={`fix-target-${group.category}`}>
+                  <h4>{group.category}</h4>
+                  <div className="fc-uiux-result__report-group-list">
+                    {group.items.map((item, index) => (
+                      <p key={`fix-target-${group.category}-${index}`}>{item}</p>
+                    ))}
                   </div>
-                </article>
-              ))
-            ) : (
-              <EmptyState title="상세 보고서가 없습니다." description="평가 보고서가 생성되지 않았습니다." />
-            )}
+                </section>
+              ))}
+            </div>
+          </article>
+
+          <article className="fc-uiux-result__detail-card">
+            <div className="fc-uiux-result__detail-card-head">
+              <div className="fc-uiux-result__detail-title">
+                <strong>개선 방향</strong>
+                <p>동일 패턴은 묶어서 수정하고, 사용자 행동을 막는 항목부터 우선 처리합니다.</p>
+              </div>
+              <Badge tone="info">{fixActionGroups.reduce((sum, group) => sum + group.items.length, 0)}건</Badge>
+            </div>
+            <div className="fc-uiux-result__report-groups" aria-label="개선 방향">
+              {fixActionGroups.map((group) => (
+                <section className="fc-uiux-result__report-group" key={`fix-action-${group.category}`}>
+                  <h4>{group.category}</h4>
+                  <div className="fc-uiux-result__report-group-list">
+                    {group.items.map((item, index) => (
+                      <p key={`fix-action-${group.category}-${index}`}>{item}</p>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          </article>
+
+          <article className="fc-uiux-result__detail-card">
+            <div className="fc-uiux-result__detail-card-head">
+              <div className="fc-uiux-result__detail-title">
+                <strong>평가 기준</strong>
+                <p>점수는 정해진 가중치와 브라우저 기반 검사 결과로 산정됩니다.</p>
+              </div>
+              <Badge tone="neutral">기준</Badge>
+            </div>
+            <div className="fc-uiux-result__report-table" role="table" aria-label="평가 기준">
+              <div className="fc-uiux-result__report-table-head" role="row">
+                <span role="columnheader">항목</span>
+                <span role="columnheader">기준</span>
+              </div>
+              {criteriaRows.map((row, index) => (
+                <div className="fc-uiux-result__report-table-row" role="row" key={`criteria-${index}`}>
+                  <span className="fc-uiux-result__report-table-category" role="cell">{row.category}</span>
+                  <span className="fc-uiux-result__report-table-text" role="cell">{row.item}</span>
+                </div>
+              ))}
+            </div>
+          </article>
         </div>
       </Card>
     </section>
