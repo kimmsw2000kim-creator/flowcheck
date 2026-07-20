@@ -388,7 +388,11 @@ export function UIUXResultView({ result }: UIUXResultViewProps) {
     return [
       ...baseCriteria,
       ...reportCriteriaItems
-        .filter((item) => !baseCriteria.includes(item) && !/버전|version/i.test(item))
+        .filter((item) => (
+          !baseCriteria.includes(item)
+          && !/버전|version/i.test(item)
+          && !/Lighthouse.*axe-core.*Playwright.*검사/i.test(item)
+        ))
         .slice(0, 3),
     ];
   }, [reportCriteriaItems]);

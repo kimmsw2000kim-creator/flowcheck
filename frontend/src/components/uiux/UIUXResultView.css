@@ -240,7 +240,6 @@
   justify-content: space-between;
   gap: var(--space-3);
   padding: var(--space-4) var(--space-5);
-  border-bottom: 1px solid var(--color-border-default);
   background: var(--color-bg-surface);
   color: var(--color-text-primary);
   font-size: var(--font-size-base);
@@ -312,13 +311,7 @@
 }
 
 .fc-uiux-result__report-group::before {
-  content: '';
-  position: absolute;
-  top: 0.65em;
-  bottom: 0.9em;
-  left: 11px;
-  width: 1px;
-  background: var(--color-border-default);
+  display: none;
 }
 
 .fc-uiux-result__report-group h4 {
@@ -333,7 +326,7 @@
 .fc-uiux-result__report-group h4::before {
   content: '';
   position: absolute;
-  top: 0.48em;
+  top: 50%;
   left: -28px;
   z-index: 1;
   width: 11px;
@@ -342,6 +335,17 @@
   border-radius: var(--radius-full);
   background: var(--color-action-primary);
   box-shadow: 0 0 0 3px var(--color-action-primary-subtle);
+  transform: translateY(-50%);
+}
+
+.fc-uiux-result__report-group h4::after {
+  content: '';
+  position: absolute;
+  top: calc(50% + 7px);
+  left: -23px;
+  width: 1px;
+  height: calc(var(--space-3) + 1.05em);
+  background: var(--color-border-default);
 }
 
 .fc-uiux-result__report-group-list {
@@ -370,7 +374,13 @@
 }
 
 .fc-uiux-result__report-group-list p:not(:last-child)::after {
-  display: none;
+  content: '';
+  position: absolute;
+  top: 1.05em;
+  bottom: -1.05em;
+  left: -23px;
+  width: 1px;
+  background: var(--color-border-default);
 }
 
 .fc-uiux-result__report-table {

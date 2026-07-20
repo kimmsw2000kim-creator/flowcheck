@@ -236,13 +236,7 @@
 }
 
 .uiux-step-list::before {
-  content: '';
-  position: absolute;
-  top: 14px;
-  bottom: 24px;
-  left: 13px;
-  width: 1px;
-  background: var(--color-border-default);
+  display: none;
 }
 
 .uiux-step-item {
@@ -275,7 +269,7 @@
 
 .uiux-step-line {
   position: absolute;
-  top: 14px;
+  top: 16px;
   left: 18px;
   width: 14px;
   height: 1px;
@@ -283,7 +277,13 @@
 }
 
 .uiux-step-marker::after {
-  display: none;
+  content: '';
+  position: absolute;
+  top: 16px;
+  bottom: -24px;
+  left: 13px;
+  width: 1px;
+  background: var(--color-border-default);
 }
 
 .uiux-step-item:last-child .uiux-step-marker::after {
