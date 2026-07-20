@@ -92,7 +92,7 @@
 
 .fc-load-result__chart-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4);
 }
 
@@ -263,10 +263,6 @@
 @media (max-width: 1180px) {
   .fc-load-result__metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .fc-load-result__chart-grid {
-    grid-template-columns: 1fr;
   }
 }
 
