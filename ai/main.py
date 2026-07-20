@@ -38,15 +38,16 @@ ENV_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env")
 load_dotenv(ENV_PATH)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 LOAD_TEST_CALLBACK_TOKEN = os.getenv("LOAD_TEST_CALLBACK_TOKEN")
-UIUX_TEST_CALLBACK_TOKEN = os.getenv("UIUX_TEST_CALLBACK_TOKEN")
-INTERNAL_API_KEY = (
-    os.getenv("FASTAPI_INTERNAL_API_KEY")
-    or UIUX_TEST_CALLBACK_TOKEN
-    or LOAD_TEST_CALLBACK_TOKEN
-)
+INTERNAL_API_KEY = os.getenv("FASTAPI_INTERNAL_API_KEY") or LOAD_TEST_CALLBACK_TOKEN
 
 if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY가 .env 파일에 설정되지 않았습니다.")
+
+if not LOAD_TEST_CALLBACK_TOKEN:
+    raise ValueError("LOAD_TEST_CALLBACK_TOKEN이 설정되지 않았습니다.")
+
+if not INTERNAL_API_KEY:
+    raise ValueError("FASTAPI_INTERNAL_API_KEY 또는 LOAD_TEST_CALLBACK_TOKEN이 설정되지 않았습니다.")
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 
@@ -75,8 +76,6 @@ class LoadTestRequest(BaseModel):
     performanceTargets: Optional[PerformanceTargets] = None
 
 def require_internal_api_key(x_internal_api_key: Optional[str] = Header(default=None)) -> None:
-    if not INTERNAL_API_KEY:
-        raise HTTPException(status_code=503, detail="Internal API key is not configured")
     if not x_internal_api_key or not hmac.compare_digest(x_internal_api_key, INTERNAL_API_KEY):
         raise HTTPException(status_code=401, detail="Invalid internal API key")
 
