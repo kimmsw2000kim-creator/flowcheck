@@ -12,7 +12,7 @@ import Button from '../components/common/Button';
 import MypageProfileSection from './mypage/MypageProfileSection';
 import MypageVerifiedSitesSection from './mypage/MypageVerifiedSitesSection';
 import MypageTestHistorySection from './mypage/MypageTestHistorySection';
-import MypagePointHistorySection from './mypage/MypagePointHistorySection';
+import MypageCreditHistorySection from './mypage/MypageCreditHistorySection';
 import MypageCouponHistorySection from './mypage/MypageCouponHistorySection';
 import MypageMyPostsSection from './mypage/MypageMyPostsSection';
 import MypageTestDetailSection from './mypage/MypageTestDetailSection';
@@ -128,8 +128,8 @@ function Mypage() {
 
             {/* 쿠폰·포인트 종합 화면은 숨기고, 사용 내역 화면만 유지합니다. */}
             <Route
-              path="point-history"
-              element={<MypagePointHistorySection />}
+              path="credit-history"
+              element={<MypageCreditHistorySection />}
             />
 
             <Route
