@@ -25,6 +25,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class LoadTestStreamService {
 
     private final TestRequestRepository testRequestRepository;
+    private final LoadTestRefundService loadTestRefundService;
     private final Map<UUID, Set<SseEmitter>> emitters = new ConcurrentHashMap<>();
 
     @Transactional(readOnly = true)
@@ -78,11 +79,13 @@ public class LoadTestStreamService {
 
     @Transactional
     public void updateProgress(UUID requestId, LoadTestProgressUpdateRequest request) {
-        TestRequest testRequest = testRequestRepository.findById(requestId)
+        TestRequest testRequest = "FAILED".equals(request.status())
+                ? testRequestRepository.findByIdForUpdate(requestId)
+                        .orElseThrow(() -> new IllegalArgumentException("Invalid request ID"))
+                : testRequestRepository.findById(requestId)
                 .orElseThrow(() -> new IllegalArgumentException("Invalid request ID"));
 
-        if (isTerminal(testRequest.getTestStatus())
-                && !testRequest.getTestStatus().equals(request.status())) {
+        if (isTerminal(testRequest.getTestStatus())) {
             log.warn(
                     "Ignored load test progress after terminal state: requestId={}, currentStatus={}, incomingStatus={}, incomingPhase={}",
                     requestId,
@@ -90,6 +93,10 @@ public class LoadTestStreamService {
                     request.status(),
                     request.phase());
             return;
+        }
+
+        if ("FAILED".equals(request.status())) {
+            loadTestRefundService.refundIfNeeded(testRequest, request.message());
         }
 
         testRequest.changeStatus(request.status());

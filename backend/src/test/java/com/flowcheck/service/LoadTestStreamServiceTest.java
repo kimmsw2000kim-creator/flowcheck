@@ -19,6 +19,7 @@ import static org.mockito.Mockito.when;
 class LoadTestStreamServiceTest {
 
     private TestRequestRepository repository;
+    private LoadTestRefundService refundService;
     private LoadTestStreamService service;
     private UUID userId;
     private UUID requestId;
@@ -26,7 +27,8 @@ class LoadTestStreamServiceTest {
     @BeforeEach
     void setUp() {
         repository = mock(TestRequestRepository.class);
-        service = new LoadTestStreamService(repository);
+        refundService = mock(LoadTestRefundService.class);
+        service = new LoadTestStreamService(repository, refundService);
         userId = UUID.randomUUID();
         requestId = UUID.randomUUID();
     }
@@ -83,6 +85,45 @@ class LoadTestStreamServiceTest {
                 "RUNNING", "PROCESSING_RESULTS", 80, "late"));
 
         assertThat(request.getTestStatus()).isEqualTo("FAILED");
+        verify(repository, never()).save(request);
+    }
+
+    @Test
+    void refundsBeforeStoringFailedStatus() {
+        TestRequest request = activeRequest();
+        when(repository.findByIdForUpdate(requestId)).thenReturn(Optional.of(request));
+
+        service.updateProgress(requestId, new LoadTestProgressUpdateRequest(
+                "FAILED", "TIMEOUT", 100, "timed out"));
+
+        verify(refundService).refundIfNeeded(request, "timed out");
+        verify(repository).save(request);
+        assertThat(request.getTestStatus()).isEqualTo("FAILED");
+        assertThat(request.getTestPhase()).isEqualTo("TIMEOUT");
+    }
+
+    @Test
+    void ignoresFailedUpdateAfterCompletedStatusWithoutRefunding() {
+        TestRequest request = terminalRequest("COMPLETED");
+        when(repository.findByIdForUpdate(requestId)).thenReturn(Optional.of(request));
+
+        service.updateProgress(requestId, new LoadTestProgressUpdateRequest(
+                "FAILED", "FAILED", 100, "late failure"));
+
+        verify(refundService, never()).refundIfNeeded(request, "late failure");
+        verify(repository, never()).save(request);
+        assertThat(request.getTestStatus()).isEqualTo("COMPLETED");
+    }
+
+    @Test
+    void ignoresDuplicateFailedUpdateWithoutRefunding() {
+        TestRequest request = terminalRequest("FAILED");
+        when(repository.findByIdForUpdate(requestId)).thenReturn(Optional.of(request));
+
+        service.updateProgress(requestId, new LoadTestProgressUpdateRequest(
+                "FAILED", "TIMEOUT", 100, "duplicate failure"));
+
+        verify(refundService, never()).refundIfNeeded(request, "duplicate failure");
         verify(repository, never()).save(request);
     }
 

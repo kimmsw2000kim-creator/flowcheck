@@ -211,15 +211,11 @@ public class AsyncLoadTestWorker {
             } else {
                 log.error("Load test failed for request {}", requestId, e);
             }
-            testHistory.changeStatus("FAILED");
-            testHistory.changePhase(timedOut ? "TIMEOUT" : "FAILED");
-            testHistory.changeProgress(100);
             String failureMessage = timedOut
                     ? "부하 테스트 서버의 응답 제한 시간을 초과했습니다. 잠시 후 다시 시도해 주세요."
                     : e.getMessage() != null
                             ? e.getMessage()
                             : "부하 테스트 처리 중 오류가 발생했습니다.";
-            testRequestRepository.save(testHistory);
             loadTestStreamService.updateProgress(requestId,
                     new com.flowcheck.dto.LoadTest.LoadTestProgressUpdateRequest(
                             "FAILED",
