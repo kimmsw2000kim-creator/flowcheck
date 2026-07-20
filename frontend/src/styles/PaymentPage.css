@@ -43,7 +43,7 @@
   border-top: 3px solid var(--color-action-primary);
 }
 
-.payment-balance__primary > span {
+.payment-balance__primary>span {
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-bold);
@@ -51,7 +51,7 @@
   text-transform: uppercase;
 }
 
-.payment-balance__primary > strong {
+.payment-balance__primary>strong {
   display: block;
   margin: var(--space-1) 0;
   color: var(--color-action-primary);
@@ -60,7 +60,7 @@
   line-height: 1;
 }
 
-.payment-balance__primary > strong small {
+.payment-balance__primary>strong small {
   color: var(--color-text-secondary);
   font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-semibold);
@@ -78,7 +78,7 @@
   gap: var(--space-3);
 }
 
-.payment-balance__stats > div {
+.payment-balance__stats>div {
   padding: var(--space-4);
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-md);
@@ -115,14 +115,14 @@
   margin-bottom: var(--space-4);
 }
 
-.payment-section-heading > svg {
+.payment-section-heading>svg {
   margin-top: var(--space-1);
   color: var(--color-action-primary);
 }
 
 .payment-section-heading span,
-.payment-order__heading > div > span,
-.payment-virtual-account__heading > div > span {
+.payment-order__heading>div>span,
+.payment-virtual-account__heading>div>span {
   display: block;
   margin-bottom: var(--space-1);
   color: var(--color-text-muted);
@@ -200,7 +200,7 @@
   font-weight: var(--font-weight-extrabold);
 }
 
-.payment-product__button > p {
+.payment-product__button>p {
   margin: 0 0 var(--space-5);
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
@@ -221,8 +221,8 @@
   background: var(--color-bg-subtle);
 }
 
-.payment-product__credits > span,
-.payment-product__price > span {
+.payment-product__credits>span,
+.payment-product__price>span {
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
 }
@@ -272,17 +272,17 @@
   text-align: center;
 }
 
-.payment-coupon-card > strong,
-.payment-coupon-card > span {
+.payment-coupon-card>strong,
+.payment-coupon-card>span {
   display: block;
 }
 
-.payment-coupon-card > strong {
+.payment-coupon-card>strong {
   color: var(--color-text-primary);
   font-size: var(--font-size-base);
 }
 
-.payment-coupon-card > span {
+.payment-coupon-card>span {
   margin: var(--space-1) 0 var(--space-4);
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
@@ -313,7 +313,6 @@
 }
 
 .payment-ledger__amount {
-  color: var(--color-status-error);
   font-weight: var(--font-weight-extrabold);
   text-align: right;
   white-space: nowrap;
@@ -321,6 +320,10 @@
 
 .payment-ledger__amount[data-positive='true'] {
   color: var(--color-status-success);
+}
+
+.payment-ledger__amount[data-positive='false'] {
+  color: var(--color-status-error);
 }
 
 .payment-ledger__date {
@@ -483,7 +486,7 @@
   color: var(--color-status-error);
 }
 
-.payment-virtual-account > p {
+.payment-virtual-account>p {
   margin: var(--space-4) 0 0;
   padding-top: var(--space-4);
   border-top: 1px solid var(--color-border-default);
@@ -504,7 +507,7 @@
 }
 
 @media (max-width: 720px) {
-  .payment-balance__primary > strong {
+  .payment-balance__primary>strong {
     font-size: var(--font-size-4xl);
   }
 
@@ -525,6 +528,7 @@
 }
 
 @media (max-width: 560px) {
+
   .payment-balance__stats,
   .payment-order__summary {
     grid-template-columns: 1fr;
