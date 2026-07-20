@@ -526,6 +526,26 @@
   font-size: var(--font-size-md);
 }
 
+.account-password-row {
+  align-items: flex-start;
+}
+
+.account-password-copy {
+  min-width: 12rem;
+  flex: 1 1 16rem;
+}
+
+.account-password-form {
+  display: grid;
+  width: min(100%, 30rem);
+  flex: 1 1 24rem;
+  gap: var(--space-4);
+}
+
+.account-password-form :global(.fc-field) {
+  margin: 0;
+}
+
 @media (max-width: 900px) {
   .mypage-layout {
     grid-template-columns: 1fr;
@@ -565,6 +585,10 @@
   .account-row {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .account-password-form {
+    width: 100%;
   }
 }
 

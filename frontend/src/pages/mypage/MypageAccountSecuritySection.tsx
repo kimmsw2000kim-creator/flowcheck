@@ -1,18 +1,31 @@
 import { useState } from 'react';
+import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { changePassword } from '../../api/authApi';
 import { deactivateMypageAccount } from '../../api/mypageApi';
-import { Button, Card, PageHeader } from '../../components/common';
+import { Button, Card, PageHeader, TextField } from '../../components/common';
 import { useAlertStore } from '../../store/alertStore';
 import { useUserStore } from '../../store/userStore';
 import styles from '../../styles/mypage.module.css';
 
-interface MypageAccountSecuritySectionProps { email: string; }
+interface MypageAccountSecuritySectionProps {
+  email: string;
+  canChangePassword: boolean;
+}
 
-function MypageAccountSecuritySection({ email }: MypageAccountSecuritySectionProps) {
+function MypageAccountSecuritySection({ email, canChangePassword }: MypageAccountSecuritySectionProps) {
   const navigate = useNavigate();
   const logout = useUserStore((state) => state.logout);
   const showAlert = useAlertStore((state) => state.showAlert);
   const [deactivating, setDeactivating] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
+
+  const passwordConfirmTouched = newPasswordConfirm.length > 0;
+  const passwordMatched = newPassword === newPasswordConfirm;
+  const passwordTooShort = newPassword.length > 0 && newPassword.length < 6;
 
   const handleLogout = async () => {
     await logout();
@@ -44,12 +57,98 @@ function MypageAccountSecuritySection({ email }: MypageAccountSecuritySectionPro
     }
   };
 
+  const handlePasswordChange = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (newPassword.length < 6) {
+      showAlert('새 비밀번호는 6자 이상이어야 합니다.', 'error');
+      return;
+    }
+    if (!passwordMatched) {
+      showAlert('새 비밀번호가 일치하지 않습니다.', 'error');
+      return;
+    }
+    if (currentPassword === newPassword) {
+      showAlert('현재 비밀번호와 다른 새 비밀번호를 입력해 주세요.', 'error');
+      return;
+    }
+
+    try {
+      setChangingPassword(true);
+      await changePassword(currentPassword, newPassword);
+
+      // 변경 후 기존 세션을 종료해 새 비밀번호로 다시 본인 인증을 받습니다.
+      await logout();
+      showAlert('비밀번호가 변경되었습니다. 새 비밀번호로 로그인해 주세요.', 'success');
+      navigate('/login', { replace: true });
+    } catch (error: unknown) {
+      showAlert(error instanceof Error ? error.message : '비밀번호를 변경하지 못했습니다.', 'error');
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
   return (
     <section className={styles['mypage-section']}>
       <PageHeader headingLevel={1} eyebrow="ACCOUNT" title="계정 · 보안" description="로그인 계정과 현재 세션을 관리합니다." />
       <div className={styles['account-panel']}>
         <Card className={styles['account-row']}>
           <div><strong>이메일</strong><p>{email || '로그인 정보 없음'}</p></div>
+        </Card>
+        <Card className={`${styles['account-row']} ${styles['account-password-row']}`} variant="outlined">
+          <div className={styles['account-password-copy']}>
+            <strong>비밀번호 변경</strong>
+            <p>
+              {canChangePassword
+                ? '현재 비밀번호를 확인한 뒤 새 비밀번호로 변경합니다.'
+                : 'Google 전용 계정은 Google 계정 보안 설정에서 비밀번호를 관리합니다.'}
+            </p>
+          </div>
+          {canChangePassword && (
+            <form className={styles['account-password-form']} onSubmit={handlePasswordChange}>
+              <TextField
+                label="현재 비밀번호"
+                type="password"
+                autoComplete="current-password"
+                value={currentPassword}
+                onChange={(event) => setCurrentPassword(event.target.value)}
+                required
+                disabled={changingPassword}
+              />
+              <TextField
+                label="새 비밀번호"
+                type="password"
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={(event) => setNewPassword(event.target.value)}
+                minLength={6}
+                error={passwordTooShort ? '새 비밀번호는 6자 이상이어야 합니다.' : undefined}
+                required
+                disabled={changingPassword}
+              />
+              <TextField
+                label="새 비밀번호 확인"
+                type="password"
+                autoComplete="new-password"
+                value={newPasswordConfirm}
+                onChange={(event) => setNewPasswordConfirm(event.target.value)}
+                minLength={6}
+                error={passwordConfirmTouched && !passwordMatched ? '새 비밀번호가 일치하지 않습니다.' : undefined}
+                description={passwordConfirmTouched && passwordMatched ? '새 비밀번호가 일치합니다.' : undefined}
+                required
+                disabled={changingPassword}
+              />
+              <Button
+                type="submit"
+                fullWidth
+                isLoading={changingPassword}
+                loadingText="변경 중..."
+                disabled={passwordTooShort || !passwordMatched || currentPassword.length === 0}
+              >
+                비밀번호 변경
+              </Button>
+            </form>
+          )}
         </Card>
         <Card className={styles['account-row']} variant="outlined">
           <div><strong>로그아웃</strong><p>현재 기기에서 FlowCheck 세션을 종료합니다.</p></div>
