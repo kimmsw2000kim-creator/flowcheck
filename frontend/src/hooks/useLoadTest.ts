@@ -190,6 +190,7 @@ export function useLoadTest(
                     metricsWarning: testResults.metricsWarning || null,
                     dataOrigin: testResults.dataOrigin || 'LEGACY_SYNTHETIC',
                     bucketSeconds: testResults.bucketSeconds ?? null,
+                    metricsSchemaVersion: testResults.metricsSchemaVersion ?? null,
                   });
                   showAlert('k6 부하 테스트가 완료되었습니다!', 'success');
                 }

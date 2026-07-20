@@ -1,8 +1,10 @@
 package com.flowcheck.dto.LoadTest;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.util.List;
 
@@ -19,6 +21,8 @@ public class LoadTestResponse {
 
     @Getter
     @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class TestResults {
         private Long totalRequests;
         private Double avgTps;
@@ -37,10 +41,13 @@ public class LoadTestResponse {
         private String metricsWarning;
         private String dataOrigin;
         private Integer bucketSeconds;
+        private Integer metricsSchemaVersion;
     }
 
     @Getter
     @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class ScoreBreakdown {
         private Integer reliabilityScore;
         private Integer latencyScore;
@@ -48,6 +55,8 @@ public class LoadTestResponse {
 
     @Getter
     @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class ChartPoint {
         private String time;
         private Integer elapsedSeconds;

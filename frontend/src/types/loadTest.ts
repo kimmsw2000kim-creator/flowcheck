@@ -28,4 +28,5 @@ export interface LoadTestResult {
   metricsWarning?: string | null;
   dataOrigin: string;
   bucketSeconds?: number | null;
+  metricsSchemaVersion?: number | null;
 }
