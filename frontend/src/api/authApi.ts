@@ -2,11 +2,34 @@ import type { Session } from '@supabase/supabase-js';
 import apiClient, { getAccountAccessCode, getAccountAccessMessage } from './client';
 import { supabase } from "../lib/supabaseClient";
 import { useUserStore } from "../store/userStore";
+import {
+    getEmailValidationError,
+    getNicknameValidationError,
+    getPasswordValidationError,
+    normalizeEmail,
+    normalizeNickname,
+} from '../utils/authValidation';
 
 export interface AuthParams {
     email: string;
     password?: string;
     nickname?: string;
+}
+
+function getLoginErrorMessage(error: { code?: string; message?: string }): string {
+    // Supabase의 인증 실패 응답은 400이 정상이며, 코드별로 사용자에게 필요한 조치를 안내합니다.
+    switch (error.code) {
+        case 'invalid_credentials':
+            return '이메일 또는 비밀번호가 올바르지 않습니다. Google로 가입한 계정은 Google 로그인을 이용해 주세요.';
+        case 'email_not_confirmed':
+            return '이메일 인증이 완료되지 않았습니다. 받은 메일의 인증 링크를 확인해 주세요.';
+        case 'user_banned':
+            return '현재 로그인이 제한된 계정입니다. 관리자에게 문의해 주세요.';
+        case 'over_request_rate_limit':
+            return '로그인 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.';
+        default:
+            return error.message || '로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.';
+    }
 }
 
 export async function requestPasswordReset(email: string): Promise<void> {
@@ -20,13 +43,17 @@ export async function requestPasswordReset(email: string): Promise<void> {
 }
 
 export async function updatePassword(password: string): Promise<void> {
+    const validationError = getPasswordValidationError(password);
+    if (validationError) throw new Error(validationError);
+
     const { error } = await supabase.auth.updateUser({ password });
     if (error) throw new Error(error.message);
 }
 
 export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
     if (!currentPassword) throw new Error("현재 비밀번호를 입력해 주세요.");
-    if (!newPassword) throw new Error("새 비밀번호를 입력해 주세요.");
+    const validationError = getPasswordValidationError(newPassword);
+    if (validationError) throw new Error(validationError);
 
     // 복구 링크와 달리 로그인 중 변경은 현재 비밀번호를 함께 보내
     // 세션을 탈취한 사용자가 비밀번호를 임의로 바꾸지 못하게 합니다.
@@ -39,14 +66,25 @@ export async function changePassword(currentPassword: string, newPassword: strin
 }
 
 export async function signup({ email, password, nickname }: AuthParams): Promise<any> {
-    if (!password) throw new Error("비밀번호가 필요합니다.");
+    const normalizedEmail = normalizeEmail(email);
+    const normalizedNickname = normalizeNickname(nickname ?? '');
+    const validationError = getEmailValidationError(normalizedEmail)
+        ?? getPasswordValidationError(password ?? '')
+        ?? getNicknameValidationError(normalizedNickname);
+    if (validationError) throw new Error(validationError);
+
+    const availabilityResponse = await apiClient.get<{ available: boolean }>(
+        '/api/public/nicknames/availability',
+        { params: { nickname: normalizedNickname } },
+    );
+    if (!availabilityResponse.data.available) throw new Error("이미 사용 중인 닉네임입니다.");
 
     const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
+        email: normalizedEmail,
+        password: password!,
         options: {
             data: {
-                nickname
+                nickname: normalizedNickname,
             },
         },
     });
@@ -67,11 +105,11 @@ export async function login({ email, password }: AuthParams): Promise<any> {
     if (!password) throw new Error("비밀번호가 필요합니다.");
 
     const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: normalizeEmail(email),
         password,
     });
 
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(getLoginErrorMessage(error));
 
     if (data.session) {
         await validateActiveSession(data.session);

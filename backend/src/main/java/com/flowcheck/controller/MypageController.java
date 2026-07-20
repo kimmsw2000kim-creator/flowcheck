@@ -9,6 +9,10 @@ import com.flowcheck.dto.mypage.MypageTestHistoryResponseDTO;
 import com.flowcheck.dto.uiuxtest.UIUXTestStatusResponse;
 import com.flowcheck.service.MypageService;
 import lombok.RequiredArgsConstructor;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -50,6 +54,21 @@ public class MypageController {
         UUID userId = UUID.fromString(jwt.getSubject());
         String avatarUrl = myPageService.updateAvatarUrl(userId, request.avatarUrl());
         return ResponseEntity.ok(new ProfileImageResponse(avatarUrl));
+    }
+
+    @GetMapping("/api/public/nicknames/availability")
+    public ResponseEntity<NicknameAvailabilityResponse> checkNicknameAvailability(
+            @RequestParam String nickname) {
+        return ResponseEntity.ok(new NicknameAvailabilityResponse(myPageService.isNicknameAvailable(nickname)));
+    }
+
+    @PatchMapping("/api/mypage/nickname")
+    public ResponseEntity<NicknameResponse> updateNickname(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody NicknameRequest request) {
+        UUID userId = UUID.fromString(jwt.getSubject());
+        String nickname = myPageService.updateNickname(userId, request.nickname());
+        return ResponseEntity.ok(new NicknameResponse(nickname));
     }
 
     @PatchMapping("/api/mypage/account/deactivate")
@@ -120,4 +139,14 @@ public class MypageController {
     public record ProfileImageRequest(String avatarUrl) {}
 
     public record ProfileImageResponse(String avatarUrl) {}
+
+    public record NicknameRequest(
+            @NotBlank(message = "닉네임을 입력해 주세요.")
+            @Size(min = 2, max = 20, message = "닉네임은 2~20자로 입력해 주세요.")
+            @Pattern(regexp = "^[가-힣A-Za-z0-9_]+$", message = "닉네임은 한글, 영문, 숫자, 밑줄만 사용할 수 있습니다.")
+            String nickname) {}
+
+    public record NicknameResponse(String nickname) {}
+
+    public record NicknameAvailabilityResponse(boolean available) {}
 }

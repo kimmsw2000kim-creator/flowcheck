@@ -13,6 +13,10 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     Optional<User> findByEmail(String email);
 
+    boolean existsByNicknameIgnoreCase(String nickname);
+
+    boolean existsByNicknameIgnoreCaseAndUserIdNot(String nickname, UUID userId);
+
     long countByStatus(UserStatus status);
 
     long countByCreatedAtGreaterThanEqualAndCreatedAtLessThan(

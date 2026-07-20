@@ -1,23 +1,39 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { FormEvent } from 'react';
 import { Activity, CreditCard, Globe, ImagePlus, Ticket, Trash2 } from 'lucide-react';
 import { removeProfileImage, uploadProfileImage } from '../../api/profileApi';
+import { updateMypageNickname } from '../../api/mypageApi';
 import MypageStatCard from '../../components/MypageStatCard';
 import MypageSiteList from '../../components/MypageSiteList';
-import { Button, Card, PageHeader } from '../../components/common';
+import { Button, Card, PageHeader, TextField } from '../../components/common';
 import { useAlertStore } from '../../store/alertStore';
 import type { MypageData } from '../../types/mypage';
+import {
+  NICKNAME_MAX_LENGTH,
+  getNicknameValidationError,
+  normalizeNickname,
+} from '../../utils/authValidation';
 import styles from '../../styles/mypage.module.css';
 
 interface MypageProfileSectionProps {
   data: MypageData;
   onAvatarChange: (avatarUrl: string) => void;
+  onNicknameChange: (nickname: string) => void;
 }
 
-function MypageProfileSection({ data, onAvatarChange }: MypageProfileSectionProps) {
+function MypageProfileSection({ data, onAvatarChange, onNicknameChange }: MypageProfileSectionProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [pendingAction, setPendingAction] = useState<'upload' | 'remove' | null>(null);
+  const [pendingAction, setPendingAction] = useState<'upload' | 'remove' | 'nickname' | null>(null);
+  const [nicknameDraft, setNicknameDraft] = useState(data.nickname ?? '');
   const showAlert = useAlertStore((state) => state.showAlert);
-  const avatarLabel = data.email.charAt(0).toUpperCase() || 'F';
+  const nicknameValidationError = nicknameDraft.length > 0
+    ? getNicknameValidationError(nicknameDraft)
+    : undefined;
+  const avatarLabel = (data.nickname || data.email).charAt(0).toUpperCase() || 'F';
+
+  useEffect(() => {
+    setNicknameDraft(data.nickname ?? '');
+  }, [data.nickname]);
 
   const handleFileChange = async (file: File | undefined) => {
     if (!file) return;
@@ -47,11 +63,35 @@ function MypageProfileSection({ data, onAvatarChange }: MypageProfileSectionProp
     }
   };
 
+  const handleNicknameSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const validationError = getNicknameValidationError(nicknameDraft);
+    if (validationError) {
+      showAlert(validationError, 'error');
+      return;
+    }
+
+    const normalizedNickname = normalizeNickname(nicknameDraft);
+    if (normalizedNickname === data.nickname) return;
+
+    setPendingAction('nickname');
+    try {
+      const savedNickname = await updateMypageNickname(normalizedNickname);
+      onNicknameChange(savedNickname);
+      setNicknameDraft(savedNickname);
+      showAlert('닉네임이 변경되었습니다.', 'success');
+    } catch (error) {
+      showAlert(error instanceof Error ? error.message : '닉네임을 변경하지 못했습니다.', 'error');
+    } finally {
+      setPendingAction(null);
+    }
+  };
+
   return (
     <section className={styles['mypage-section']}>
       <Card className={styles['mypage-profile-card']} variant="subtle">
         <div className={styles['profile-avatar-editor']}>
-          <div className={styles['profile-avatar']} aria-label={`${data.email} 프로필 사진`}>
+          <div className={styles['profile-avatar']} aria-label={`${data.nickname || data.email} 프로필 사진`}>
             <span aria-hidden="true">{avatarLabel}</span>
             {data.avatarUrl && (
               <img
@@ -99,12 +139,43 @@ function MypageProfileSection({ data, onAvatarChange }: MypageProfileSectionProp
             <small>JPG, PNG, WebP, GIF · 최대 5MB</small>
           </div>
         </div>
-        <PageHeader
-          headingLevel={1}
-          eyebrow="MY FLOWCHECK"
-          title="마이페이지"
-          description={data.email}
-        />
+        <div className={styles['profile-identity']}>
+          <PageHeader
+            headingLevel={1}
+            eyebrow="MY FLOWCHECK"
+            title={data.nickname || '마이페이지'}
+            description={data.email}
+          />
+          <form className={styles['profile-nickname-form']} onSubmit={handleNicknameSubmit}>
+            <TextField
+              label="닉네임"
+              type="text"
+              autoComplete="nickname"
+              value={nicknameDraft}
+              onChange={(event) => setNicknameDraft(event.target.value)}
+              maxLength={NICKNAME_MAX_LENGTH}
+              error={nicknameValidationError}
+              description={!nicknameValidationError && nicknameDraft.length > 0
+                ? '사용 가능한 형식입니다.'
+                : '2~20자의 한글, 영문, 숫자, 밑줄을 사용할 수 있습니다.'}
+              required
+              disabled={pendingAction !== null}
+            />
+            <Button
+              type="submit"
+              size="sm"
+              variant="secondary"
+              isLoading={pendingAction === 'nickname'}
+              loadingText="저장 중..."
+              disabled={pendingAction !== null
+                || normalizeNickname(nicknameDraft).length === 0
+                || Boolean(nicknameValidationError)
+                || normalizeNickname(nicknameDraft) === (data.nickname ?? '')}
+            >
+              닉네임 저장
+            </Button>
+          </form>
+        </div>
       </Card>
 
       <div className={styles['mypage-stats']} aria-label="사용 현황">

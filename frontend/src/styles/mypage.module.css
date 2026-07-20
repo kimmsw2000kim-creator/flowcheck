@@ -95,6 +95,31 @@
   gap: var(--space-3);
 }
 
+.profile-identity {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.profile-nickname-form {
+  display: grid;
+  max-width: 32rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3);
+}
+
+.profile-nickname-form :global(.fc-field) {
+  margin: 0;
+}
+
+/* 라벨과 버튼 높이 차이를 보정해 버튼을 입력 상자 오른쪽 중앙에 맞춥니다. */
+.profile-nickname-form>button {
+  margin-top: calc(var(--space-6) + var(--space-2));
+}
+
 .profile-avatar {
   position: relative;
   display: grid;
@@ -604,6 +629,20 @@
 
   .mypage-profile-card {
     flex-direction: column;
+  }
+
+  .profile-identity,
+  .profile-nickname-form {
+    width: 100%;
+  }
+
+  .profile-nickname-form {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-nickname-form>button {
+    width: 100%;
+    margin-top: 0;
   }
 
   .test-history-item {

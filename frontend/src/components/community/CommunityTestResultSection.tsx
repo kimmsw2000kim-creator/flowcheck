@@ -18,8 +18,8 @@ interface CommunityTestResultSectionProps {
  * 커뮤니티에 공개된 UI/UX 결과를
  * 기존 UIUXResultView의 입력 형태로 변환합니다.
  *
- * 공개하지 않는 URL, 영상, 테스트 단계, 결함 자료는
- * 빈 값으로 전달합니다.
+ * 공유 영상은 전달하고 공개하지 않는 대상 URL, 테스트 단계,
+ * 결함 자료는 빈 값으로 전달합니다.
  */
 function toUiuxViewResult(
     result: SharedUiuxResult
@@ -51,11 +51,8 @@ function toUiuxViewResult(
         evaluationVersion:
             result.evaluationVersion ?? undefined,
 
-        /*
-         * 커뮤니티에는 영상과 결함의 민감한 세부 정보를
-         * 공개하지 않습니다.
-         */
-        videoUrl: undefined,
+        // 작성자가 공유한 최종 영상만 공개하고 결함 상세 자료는 제외합니다.
+        videoUrl: result.videoUrl ?? undefined,
         defects: [],
     };
 }
@@ -155,7 +152,7 @@ export default function CommunityTestResultSection({
                 />
             )}
 
-            {/* UI/UX 결과는 공개 가능한 데이터만 변환해서 표시합니다. */}
+            {/* UI/UX 결과는 공유 영상과 공개 가능한 데이터만 변환해서 표시합니다. */}
             {result.testType === 'UIUX' && (
                 <UIUXResultView
                     result={toUiuxViewResult(

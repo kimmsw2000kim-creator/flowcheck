@@ -8,6 +8,7 @@ export interface SiteSummary {
 
 export interface MypageData {
   email: string;
+  nickname?: string | null;
   avatarUrl?: string | null;
   role?: string;
   status?: string;
