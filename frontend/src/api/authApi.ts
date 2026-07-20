@@ -9,6 +9,21 @@ export interface AuthParams {
     nickname?: string;
 }
 
+export async function requestPasswordReset(email: string): Promise<void> {
+    // Supabase 대시보드의 Redirect URLs에도 이 경로가 정확히 등록되어 있어야 합니다.
+    const redirectTo = new URL('/reset-password', window.location.origin).toString();
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo,
+    });
+
+    if (error) throw new Error(error.message);
+}
+
+export async function updatePassword(password: string): Promise<void> {
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) throw new Error(error.message);
+}
+
 export async function signup({ email, password, nickname }: AuthParams): Promise<any> {
     if (!password) throw new Error("비밀번호가 필요합니다.");
 
@@ -76,11 +91,23 @@ export async function validateActiveSession(session: Session): Promise<void> {
     }
 }
 
-export async function reactivateAccount(session: Session): Promise<void> {
+export async function reactivateAccount(session: Session): Promise<Session> {
     await apiClient.post('/api/mypage/account/reactivate', undefined, {
         headers: { Authorization: `Bearer ${session.access_token}` },
     });
-    await validateActiveSession(session);
+
+    // 재활성화는 백엔드 DB 상태만 바꾸므로 기존 Supabase 토큰은 그대로입니다.
+    // 토큰을 명시적으로 갱신해 세션 부트스트랩이 ACTIVE 계정을 다시 조회하게 합니다.
+    const { data, error } = await supabase.auth.refreshSession({
+        refresh_token: session.refresh_token,
+    });
+
+    if (error || !data.session) {
+        throw new Error(error?.message ?? '재활성화된 로그인 세션을 갱신하지 못했습니다.');
+    }
+
+    await validateActiveSession(data.session);
+    return data.session;
 }
 
 export async function logout(): Promise<void> {

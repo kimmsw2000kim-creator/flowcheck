@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent, KeyboardEvent } from 'react';
 import type { Session } from '@supabase/supabase-js';
+import { Link } from 'react-router-dom';
 import { AccountDeactivatedError, login, reactivateAccount, signup, validateActiveSession } from '../api/authApi';
 import { supabase } from '../lib/supabaseClient';
 import { Button, Card, PageHeader, TextField } from '../components/common';
@@ -75,10 +76,11 @@ export default function AuthPage({ setActiveTab, initialMode = 'login' }: AuthPa
       return;
     }
     googleSessionHandledRef.current = true;
+    let activeSession = session;
 
     try {
       try {
-        await validateActiveSession(session);
+        await validateActiveSession(activeSession);
       } catch (error) {
         if (!(error instanceof AccountDeactivatedError)) throw error;
 
@@ -88,13 +90,13 @@ export default function AuthPage({ setActiveTab, initialMode = 'login' }: AuthPa
           showAlert('계정 재활성화를 취소했습니다.', 'info');
           return;
         }
-        await reactivateAccount(error.session);
+        activeSession = await reactivateAccount(error.session);
       }
-      localStorage.setItem('accessToken', session.access_token);
-      localStorage.setItem('refreshToken', session.refresh_token);
+      localStorage.setItem('accessToken', activeSession.access_token);
+      localStorage.setItem('refreshToken', activeSession.refresh_token);
       localStorage.setItem('email', user.email);
       localStorage.setItem('userId', user.id);
-      loginSuccess(user.email, session.access_token, user.id);
+      loginSuccess(user.email, activeSession.access_token, user.id);
       showAlert('Google 계정으로 로그인되었습니다.', 'success');
       setActiveTab('dashboard');
       window.history.replaceState({}, document.title, window.location.origin);
@@ -145,8 +147,8 @@ export default function AuthPage({ setActiveTab, initialMode = 'login' }: AuthPa
             return;
           }
 
-          await reactivateAccount(error.session);
-          data = { session: error.session, user: error.session.user };
+          const reactivatedSession = await reactivateAccount(error.session);
+          data = { session: reactivatedSession, user: reactivatedSession.user };
           reactivated = true;
         }
         if (data.session && data.user) {
@@ -203,19 +205,22 @@ export default function AuthPage({ setActiveTab, initialMode = 'login' }: AuthPa
           <TextField label="이메일 주소" type="email" autoComplete="email" placeholder="example@flowcheck.com" value={email} onChange={(event) => setEmail(event.target.value)} required disabled={loadingAction !== null} />
           <TextField label="비밀번호" type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} placeholder="비밀번호를 입력하세요" value={password} onChange={(event) => setPassword(event.target.value)} required disabled={loadingAction !== null} />
           {mode === 'login' && (
-            <label className="auth-remember-email">
-              <input
-                type="checkbox"
-                checked={rememberEmail}
-                disabled={loadingAction !== null}
-                onChange={(event) => {
-                  const checked = event.target.checked;
-                  setRememberEmail(checked);
-                  if (!checked) localStorage.removeItem(REMEMBERED_EMAIL_STORAGE_KEY);
-                }}
-              />
-              <span>아이디 기억하기</span>
-            </label>
+            <div className="auth-login-options">
+              <label className="auth-remember-email">
+                <input
+                  type="checkbox"
+                  checked={rememberEmail}
+                  disabled={loadingAction !== null}
+                  onChange={(event) => {
+                    const checked = event.target.checked;
+                    setRememberEmail(checked);
+                    if (!checked) localStorage.removeItem(REMEMBERED_EMAIL_STORAGE_KEY);
+                  }}
+                />
+                <span>아이디 기억하기</span>
+              </label>
+              <Link className="auth-link" to="/forgot-password">비밀번호를 잊으셨나요?</Link>
+            </div>
           )}
           {mode === 'signup' && <TextField label="비밀번호 확인" type="password" autoComplete="new-password" placeholder="비밀번호를 다시 입력하세요" value={passwordConfirm} onChange={(event) => setPasswordConfirm(event.target.value)} error={passwordError} description={passwordConfirmTouched && passwordMatched ? '비밀번호가 일치합니다.' : undefined} required disabled={loadingAction !== null} />}
           {mode === 'signup' && <TextField label="닉네임" type="text" autoComplete="nickname" placeholder="사용하실 닉네임" value={nickname} onChange={(event) => setNickname(event.target.value)} required disabled={loadingAction !== null} />}

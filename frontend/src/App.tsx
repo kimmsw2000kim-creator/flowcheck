@@ -20,6 +20,8 @@ import SupportPage from './pages/SupportPage';
 import Mypage from './pages/Mypage';
 import AuthPage from './pages/AuthPage';
 import AuthCallback from './pages/AuthCallback';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import LandingPage from './pages/LandingPage';
 import CommentPage from "./pages/CommentPage";
 import CommunityHubPage from './pages/community/CommunityHubPage';
@@ -86,6 +88,7 @@ function App() {
 
   const isLoggedIn = authStatus === 'authenticated';
   const isLandingPage = !isLoggedIn && location.pathname === '/';
+  const isPasswordResetPage = location.pathname === '/reset-password';
   const [authModalMode, setAuthModalMode] = useState<'login' | 'signup' | null>(null);
 
   const [selectedUIUXTestDomain, setSelectedUIUXTestDomain] = useState<number>(1);
@@ -106,7 +109,7 @@ function App() {
     showAlert("신고가 접수되었습니다.");
   };
 
-  if (authStatus === 'checking') {
+  if (authStatus === 'checking' && !isPasswordResetPage) {
     return (
       <div className="app-container">
         {alertMsg && <Toast message={alertMsg.message} type={alertMsg.type} />}
@@ -146,6 +149,8 @@ function App() {
 
       <main id="main-content" className={isLandingPage ? "landing-main" : "main-content"}>
         <Routes>
+          {/* 복구 링크는 Supabase 세션을 만들기 때문에 로그인 판정과 관계없이 접근 가능해야 합니다. */}
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           {isLoggedIn ? (
             <>
               {/* 로그인 상태인 경우 대시보드로 이동 */}
@@ -305,6 +310,7 @@ function App() {
                   />
                 }
               />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/auth/callback" element={<AuthCallback />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </>
