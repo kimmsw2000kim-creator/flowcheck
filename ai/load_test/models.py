@@ -1,12 +1,16 @@
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel
 
 
 class ChartPoint(BaseModel):
     time: str
+    elapsedSeconds: Optional[int] = None
     tps: int
-    avgResponse: float
+    avgResponse: Optional[float] = None
+    p95Response: Optional[float] = None
+    errorRate: Optional[float] = None
+    vus: Optional[int] = None
 
 
 class ScoreBreakdown(BaseModel):
@@ -22,8 +26,11 @@ class PerformanceAssessment(BaseModel):
 
 
 class TestResultsResponse(BaseModel):
-    maxTps: int
+    totalRequests: int
+    avgTps: float
+    maxTps: Optional[int] = None
     avgResponse: float
+    p95Response: Optional[float] = None
     errorRate: float
     performanceScore: int
     performanceGrade: str
@@ -31,6 +38,10 @@ class TestResultsResponse(BaseModel):
     scoreBreakdown: ScoreBreakdown
     bottleneckComment: str
     points: List[ChartPoint]
+    metricsStatus: str
+    metricsWarning: Optional[str] = None
+    dataOrigin: str
+    bucketSeconds: Optional[int] = None
 
 
 class LoadTestProgressUpdate(BaseModel):

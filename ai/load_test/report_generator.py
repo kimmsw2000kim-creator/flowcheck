@@ -108,7 +108,7 @@ def build_analysis_prompt(
     - 추가 요구사항: {load_prompt}
 
     [k6 요약]
-    - maxTps: {summary.get('real_tps', 0)}
+    - avgTps: {summary.get('real_tps', 0)}
     - avgResponse: {summary.get('real_avg_response', 0)}
     - errorRate: {summary.get('real_error_rate', 0)}
     - isServerDead: {summary.get('is_server_dead', False)}

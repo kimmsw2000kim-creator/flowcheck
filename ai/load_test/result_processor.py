@@ -1,8 +1,7 @@
 import math
-import random
-from typing import Any, Dict, List
+from typing import Any, Dict
 
-from .models import ChartPoint, PerformanceAssessment, ScoreBreakdown
+from .models import PerformanceAssessment, ScoreBreakdown
 
 LoadTestSummary = Dict[str, Any]
 
@@ -26,6 +25,7 @@ def parse_k6_summary(summary_data: Dict[str, Any], duration: int) -> LoadTestSum
     real_error_rate = 100.0 if is_server_dead else real_error_rate_raw * 100
 
     return {
+        "real_request_count": total_count,
         "real_tps": real_tps,
         "real_avg_response": real_avg_response,
         "real_error_rate": real_error_rate,
@@ -85,41 +85,3 @@ def calculate_performance_assessment(
             latencyScore=latency_score,
         ),
     )
-
-
-def build_chart_points(
-    duration: int,
-    real_tps: float,
-    real_avg_response: float,
-    is_server_dead: bool,
-) -> List[ChartPoint]:
-    chart_points: List[ChartPoint] = []
-    num_points = min(duration, 15) if duration > 0 else 10
-    interval = duration / num_points
-
-    for index in range(num_points + 1):
-        current_time_sec = int(index * interval)
-        minutes = current_time_sec // 60
-        seconds = current_time_sec % 60
-        time_label = f"{minutes:02d}:{seconds:02d}"
-
-        if is_server_dead:
-            point_tps = 0
-            point_avg_res = 0.0
-        else:
-            progress_weight = 0.5 + (0.5 * (index / num_points))
-            point_tps = int(real_tps * progress_weight * random.uniform(0.85, 1.15))
-            point_avg_res = round(
-                real_avg_response * progress_weight * random.uniform(0.9, 1.1),
-                2,
-            )
-
-        chart_points.append(
-            ChartPoint(
-                time=time_label,
-                tps=point_tps,
-                avgResponse=point_avg_res,
-            )
-        )
-
-    return chart_points

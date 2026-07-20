@@ -1,3 +1,4 @@
+import gzip
 import io
 import json
 import os
@@ -112,9 +113,36 @@ class AwsExecutorTest(unittest.TestCase):
                 "http_req_failed": {"value": 0.1},
             }
         }
-        s3.get_object.return_value = {
-            "Body": io.BytesIO(json.dumps(summary).encode("utf-8"))
-        }
+        metric_lines = [
+            {
+                "type": "Point",
+                "metric": "http_reqs",
+                "data": {"time": "2026-01-01T00:00:00Z", "value": 10},
+            },
+            {
+                "type": "Point",
+                "metric": "http_req_duration",
+                "data": {"time": "2026-01-01T00:00:00Z", "value": 120},
+            },
+            {
+                "type": "Point",
+                "metric": "http_req_failed",
+                "data": {"time": "2026-01-01T00:00:00Z", "value": 0.1},
+            },
+        ]
+        compressed_metrics = gzip.compress(
+            "\n".join(json.dumps(item) for item in metric_lines).encode("utf-8")
+        )
+
+        def get_object(*, Bucket, Key):
+            self.assertEqual("bucket", Bucket)
+            if Key.endswith("summary.json"):
+                return {"Body": io.BytesIO(json.dumps(summary).encode("utf-8"))}
+            if Key.endswith("metrics.json.gz"):
+                return {"Body": io.BytesIO(compressed_metrics)}
+            raise AssertionError(f"unexpected S3 key: {Key}")
+
+        s3.get_object.side_effect = get_object
         return s3, ecs, waiter
 
     def test_settings_require_all_environment_variables(self):
@@ -144,12 +172,19 @@ class AwsExecutorTest(unittest.TestCase):
             tasks=["task-arn"],
             WaiterConfig={"Delay": 10, "MaxAttempts": 60},
         )
-        s3.get_object.assert_called_once_with(
-            Bucket="bucket",
-            Key="tasks/request-1/summary.json",
+        self.assertEqual(
+            [
+                call(Bucket="bucket", Key="tasks/request-1/summary.json"),
+                call(Bucket="bucket", Key="tasks/request-1/metrics.json.gz"),
+            ],
+            s3.get_object.call_args_list,
         )
         self.assertEqual(5, result["real_tps"])
         self.assertEqual(10.0, result["real_error_rate"])
+        self.assertEqual("COMPLETE", result["metrics_status"])
+        self.assertEqual("MEASURED_K6", result["data_origin"])
+        self.assertEqual(10, result["max_tps"])
+        self.assertEqual(1, len(result["chart_points"]))
 
     def test_client_error_is_converted(self):
         s3, ecs, _waiter = self.build_clients()
@@ -162,6 +197,29 @@ class AwsExecutorTest(unittest.TestCase):
         ):
             with self.assertRaisesRegex(LoadTestExecutionError, "AWS 리소스"):
                 run_k6_aws_fargate("script", 20, "request-1")
+
+    def test_missing_metric_file_keeps_summary_available(self):
+        s3, ecs, _waiter = self.build_clients()
+        original_get_object = s3.get_object.side_effect
+
+        def get_object(*, Bucket, Key):
+            if Key.endswith("metrics.json.gz"):
+                raise ClientError(
+                    {"Error": {"Code": "NoSuchKey", "Message": "missing"}},
+                    "GetObject",
+                )
+            return original_get_object(Bucket=Bucket, Key=Key)
+
+        s3.get_object.side_effect = get_object
+        with patch.dict(os.environ, AWS_ENV, clear=True), patch(
+            "load_test.aws_executor.boto3.client", side_effect=[s3, ecs]
+        ):
+            result = run_k6_aws_fargate("script", 20, "request-1")
+
+        self.assertEqual(5, result["real_tps"])
+        self.assertEqual("UNAVAILABLE", result["metrics_status"])
+        self.assertEqual("NOT_COLLECTED", result["data_origin"])
+        self.assertEqual([], result["chart_points"])
 
     def test_unknown_error_is_converted(self):
         s3, ecs, _waiter = self.build_clients()
@@ -232,7 +290,6 @@ class ProgressPublisherTest(unittest.IsolatedAsyncioTestCase):
 
 
 class PipelineTest(unittest.IsolatedAsyncioTestCase):
-    @patch("load_test.pipeline.build_chart_points")
     @patch("load_test.pipeline.build_markdown_report", return_value="report")
     @patch("load_test.pipeline.generate_analysis_report", new_callable=AsyncMock, return_value="analysis")
     @patch("load_test.pipeline.run_k6_aws_fargate")
@@ -247,19 +304,33 @@ class PipelineTest(unittest.IsolatedAsyncioTestCase):
         execute,
         generate_analysis,
         _build_report,
-        build_points,
     ):
-        from load_test.models import ChartPoint
         from load_test.pipeline import run_load_test_pipeline
 
         execute.return_value = {
+            "real_request_count": 129,
             "real_tps": 12.9,
             "real_avg_response": 120.456,
             "real_error_rate": 1.234,
             "is_server_dead": False,
             "duration": 10,
+            "chart_points": [
+                {
+                    "time": "00:00",
+                    "elapsedSeconds": 0,
+                    "tps": 13,
+                    "avgResponse": 120.46,
+                    "p95Response": 180.0,
+                    "errorRate": 1.23,
+                    "vus": 2,
+                }
+            ],
+            "max_tps": 13,
+            "p95_response": 180.0,
+            "metrics_status": "COMPLETE",
+            "metrics_warning": None,
+            "data_origin": "MEASURED_K6",
         }
-        build_points.return_value = [ChartPoint(time="00:00", tps=1, avgResponse=2)]
         request = SimpleNamespace(
             requestId="request-1",
             targetUrl="https://example.com",
@@ -273,9 +344,16 @@ class PipelineTest(unittest.IsolatedAsyncioTestCase):
         validate_target.assert_awaited_once_with("https://example.com")
         generate_analysis.assert_awaited_once()
         self.assertIsInstance(result, TestResultsResponse)
-        self.assertEqual(12, result.maxTps)
+        self.assertEqual(129, result.totalRequests)
+        self.assertEqual(12.9, result.avgTps)
+        self.assertEqual(13, result.maxTps)
         self.assertEqual(120.46, result.avgResponse)
+        self.assertEqual(180.0, result.p95Response)
         self.assertEqual(1.23, result.errorRate)
+        self.assertEqual(1, len(result.points))
+        self.assertEqual("COMPLETE", result.metricsStatus)
+        self.assertEqual("MEASURED_K6", result.dataOrigin)
+        self.assertEqual(1, result.bucketSeconds)
         self.assertEqual(
             ["GENERATING_SCRIPT", "PROVISIONING_INFRA", "PROCESSING_RESULTS", "RESULT_READY"],
             [item.args[1].phase for item in publish.await_args_list],
