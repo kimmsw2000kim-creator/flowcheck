@@ -1,8 +1,12 @@
+import logging
 import re
 from typing import Any, Optional
 
 from .models import PerformanceAssessment
 from .result_processor import LoadTestSummary
+
+
+logger = logging.getLogger(__name__)
 
 
 def build_fallback_analysis(summary: LoadTestSummary) -> str:
@@ -108,8 +112,11 @@ def build_analysis_prompt(
     - 추가 요구사항: {load_prompt}
 
     [k6 요약]
+    - totalRequests: {summary.get('real_request_count', 0)}
     - avgTps: {summary.get('real_tps', 0)}
+    - maxTps: {summary.get('max_tps')}
     - avgResponse: {summary.get('real_avg_response', 0)}
+    - p95Response: {summary.get('p95_response')}
     - errorRate: {summary.get('real_error_rate', 0)}
     - isServerDead: {summary.get('is_server_dead', False)}
     - score: {assessment.score}/100
@@ -152,9 +159,12 @@ async def generate_analysis_report(
         analysis_text = response.text.strip() if response.text is not None else ""
         sanitized_analysis = sanitize_analysis_markdown(analysis_text)
         if sanitized_analysis is None or len(sanitized_analysis) > 1500:
+            logger.warning("Load-test analysis fell back because the model output was invalid")
             return fallback
+        logger.info("Load-test analysis generated successfully with the language model")
         return sanitized_analysis
     except Exception:
+        logger.exception("Load-test analysis fell back because model generation failed")
         return fallback
 
 
@@ -163,9 +173,18 @@ def build_markdown_report(
     assessment: PerformanceAssessment,
     analysis: str,
 ) -> str:
-    max_tps = float(summary.get("real_tps", 0))
+    total_requests = int(summary.get("real_request_count", 0))
+    avg_tps = float(summary.get("real_tps", 0))
+    max_tps_value = summary.get("max_tps")
+    p95_response_value = summary.get("p95_response")
     avg_response = float(summary.get("real_avg_response", 0))
     error_rate = float(summary.get("real_error_rate", 0))
+    max_tps = f"{float(max_tps_value):.0f} req/s" if max_tps_value is not None else "측정 불가"
+    p95_response = (
+        f"{float(p95_response_value):.2f} ms"
+        if p95_response_value is not None
+        else "측정 불가"
+    )
 
     if summary.get("is_server_dead"):
         latency_label = "측정 불가"
@@ -199,8 +218,11 @@ def build_markdown_report(
 
 | 항목 | 측정 결과 | 판정 |
 | --- | ---: | --- |
-| 최대 TPS | **{max_tps:.0f} req/s** | 목표치 미설정 · 채점 제외 |
+| 총 요청 수 | **{total_requests:,}건** | - |
+| 평균 TPS | **{avg_tps:.2f} req/s** | - |
+| 최대 TPS | **{max_tps}** | 목표치 미설정 · 채점 제외 |
 | 평균 응답시간 | **{avg_response:.2f} ms** | {latency_label} |
+| p95 응답시간 | **{p95_response}** | - |
 | 오류율 | **{error_rate:.2f}%** | {reliability_label} |
 
 **점수 구성:** 안정성 {assessment.breakdown.reliabilityScore}/60 · 응답성 {assessment.breakdown.latencyScore}/40
