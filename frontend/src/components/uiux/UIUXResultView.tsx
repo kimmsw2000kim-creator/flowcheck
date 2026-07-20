@@ -178,6 +178,114 @@ const getSeverityTone = (severity?: string): BadgeTone => {
   return 'neutral';
 };
 
+const getSeverityLabel = (severity?: string) => {
+  switch (severity) {
+    case 'CRITICAL':
+      return '긴급';
+    case 'MAJOR':
+      return '중요';
+    case 'MINOR':
+      return '경미';
+    default:
+      return severity || '확인 필요';
+  }
+};
+
+const LIGHTHOUSE_DEFECT_TEXT: Record<string, { title: string; recommendation: string }> = {
+  'max-potential-fid': {
+    title: '최대 입력 지연 가능 시간이 깁니다.',
+    recommendation: '가장 오래 걸리는 JavaScript 작업을 줄이고, 긴 작업을 분할해 사용자의 첫 입력 지연을 낮추세요.',
+  },
+  'render-blocking-resources': {
+    title: '초기 렌더링을 차단하는 리소스가 있습니다.',
+    recommendation: '첫 화면에 필요한 CSS는 인라인 처리하고, 비핵심 CSS/JavaScript는 defer, async 또는 지연 로딩으로 전환하세요.',
+  },
+  'unused-javascript': {
+    title: '사용하지 않는 JavaScript가 많습니다.',
+    recommendation: '초기 화면에 필요 없는 JavaScript를 제거하거나 코드 분할하고, 필요한 시점까지 로딩을 지연하세요.',
+  },
+  'uses-text-compression': {
+    title: '텍스트 리소스 압축이 적용되지 않았습니다.',
+    recommendation: 'HTML, CSS, JavaScript 같은 텍스트 기반 리소스에 gzip, deflate 또는 Brotli 압축을 적용하세요.',
+  },
+  'uses-rel-preconnect': {
+    title: '중요 외부 출처에 대한 사전 연결이 없습니다.',
+    recommendation: '중요한 외부 도메인에는 preconnect 또는 dns-prefetch 리소스 힌트를 추가해 연결 시간을 줄이세요.',
+  },
+  'largest-contentful-paint-element': {
+    title: '가장 큰 콘텐츠 요소가 LCP에 영향을 줍니다.',
+    recommendation: 'LCP 대상 이미지나 텍스트 블록을 우선 로드하고, 크기 지정과 이미지 최적화를 적용하세요.',
+  },
+  'speed-index': {
+    title: '화면 콘텐츠가 표시되는 속도가 느립니다.',
+    recommendation: '첫 화면에 필요한 리소스만 우선 로드하고 나머지는 지연 로딩하세요.',
+  },
+  'network-dependency-tree': {
+    title: '네트워크 의존성 트리가 복잡합니다.',
+    recommendation: '렌더링에 필요한 요청 체인의 길이와 리소스 크기를 줄여 critical path를 짧게 만드세요.',
+  },
+  'critical-request-chains': {
+    title: '중요 요청 체인이 길어 페이지 로딩이 지연됩니다.',
+    recommendation: '핵심 요청 수와 다운로드 크기를 줄이고, 불필요한 리소스는 지연 로딩하세요.',
+  },
+};
+
+const stripMarkdownLinks = (value: string) =>
+  value
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/https?:\/\/\S+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const localizeReportText = (value: string) => {
+  const normalized = stripMarkdownLinks(value);
+  const lower = normalized.toLowerCase();
+
+  if (lower.includes('avoid chaining critical requests')) {
+    return '중요 요청 체인의 길이와 리소스 다운로드 크기를 줄이고, 불필요한 리소스는 지연 로드해 페이지 로딩 성능을 개선해야 합니다.';
+  }
+  if (lower.includes("requests are blocking the page's initial render") || lower.includes('render-blocking')) {
+    return '초기 렌더링을 차단하는 요청이 있어 LCP가 지연될 수 있습니다. 핵심 리소스는 인라인 처리하고, 비핵심 CSS/JavaScript는 defer, async 또는 지연 로딩으로 전환해야 합니다.';
+  }
+  if (lower === 'network dependency tree') {
+    return '네트워크 의존성 트리';
+  }
+  if (lower === 'render blocking requests') {
+    return '렌더링 차단 요청';
+  }
+  if (lower.startsWith('speed index')) {
+    return '화면 콘텐츠가 표시되는 속도가 느립니다.';
+  }
+  if (lower.includes('maximum potential first input delay') || lower.includes('max potential first input delay')) {
+    return '최대 입력 지연 가능 시간이 깁니다. 가장 오래 걸리는 작업을 줄여 사용자의 첫 입력 지연을 낮춰야 합니다.';
+  }
+  if (lower.includes('eliminate render-blocking resources') || lower.includes('resources are blocking the first paint')) {
+    return '초기 렌더링을 차단하는 리소스가 있습니다. 핵심 CSS/JS는 인라인 처리하고 비핵심 리소스는 지연 로딩해야 합니다.';
+  }
+  if (lower.includes('reduce unused javascript') || lower.includes('unused javascript')) {
+    return '사용하지 않는 JavaScript를 줄이고, 필요한 시점까지 스크립트 로딩을 지연해야 합니다.';
+  }
+  if (lower.includes('enable text compression') || lower.includes('served with compression')) {
+    return '텍스트 기반 리소스에 gzip, deflate 또는 Brotli 압축을 적용해 전송 크기를 줄여야 합니다.';
+  }
+  if (lower.includes('preconnect to required origins') || lower.includes('preconnect') || lower.includes('dns-prefetch')) {
+    return '중요한 외부 출처에는 preconnect 또는 dns-prefetch를 추가해 연결 시간을 줄여야 합니다.';
+  }
+  if (lower.includes('largest contentful paint element')) {
+    return '가장 큰 콘텐츠 요소가 LCP에 영향을 줍니다. 해당 요소를 우선 로드하고 이미지 최적화와 크기 지정을 적용해야 합니다.';
+  }
+
+  return normalized;
+};
+
+const getLocalizedDefectText = (
+  defect: NonNullable<UIUXTestStatusResponse['defects']>[number],
+  field: 'description' | 'recommendation',
+) => {
+  const mapped = defect.ruleId ? LIGHTHOUSE_DEFECT_TEXT[defect.ruleId]?.[field === 'description' ? 'title' : 'recommendation'] : undefined;
+  return mapped || localizeReportText(defect[field] || '');
+};
+
 const getReportItemsByTitle = (cards: ReportCard[], pattern: RegExp) =>
   cards
     .filter((card) => pattern.test(card.title))
@@ -190,9 +298,10 @@ const groupReportItems = (
 ): ReportItemGroup[] => {
   const grouped = new Map<string, string[]>();
   items.forEach((item) => {
-    const categoryMatch = item.match(/^([^:：]{1,20})[:：]\s*(.+)$/);
+    const localizedItem = localizeReportText(item);
+    const categoryMatch = localizedItem.match(/^([^:：]{1,20})[:：]\s*(.+)$/);
     const category = categoryMatch?.[1]?.trim() || fallbackCategory;
-    const text = categoryMatch?.[2]?.trim() || item;
+    const text = categoryMatch?.[2]?.trim() || localizedItem;
     if (!grouped.has(category)) {
       grouped.set(category, []);
     }
@@ -231,7 +340,7 @@ const groupDefectItems = (
     .sort(([a], [b]) => categoryRank(a) - categoryRank(b))
     .map(([category, items]) => ({
       category,
-      items: Array.from(new Set(items)).slice(0, 6),
+      items: Array.from(new Set(items.map(localizeReportText))).slice(0, 6),
     }));
 };
 
@@ -252,14 +361,14 @@ export function UIUXResultView({ result }: UIUXResultViewProps) {
     [reportCards],
   );
   const fixTargetGroups = useMemo(() => {
-    const defectGroups = groupDefectItems(result.defects, (defect) => defect.description);
+    const defectGroups = groupDefectItems(result.defects, (defect) => getLocalizedDefectText(defect, 'description'));
 
     if (defectGroups.length) return defectGroups;
     if (reportImprovementItems.length) return groupReportItems(reportImprovementItems, '수정 필요 항목');
     return [{ category: '수정 필요 항목', items: ['이번 테스트에서 우선 수정이 필요한 항목이 별도로 기록되지 않았습니다.'] }];
   }, [reportImprovementItems, result.defects]);
   const fixActionGroups = useMemo(() => {
-    const recommendationGroups = groupDefectItems(result.defects, (defect) => defect.recommendation);
+    const recommendationGroups = groupDefectItems(result.defects, (defect) => getLocalizedDefectText(defect, 'recommendation'));
 
     if (recommendationGroups.length) return recommendationGroups;
 
@@ -393,14 +502,14 @@ export function UIUXResultView({ result }: UIUXResultViewProps) {
                 >
                   <div className="fc-uiux-result__defect-heading">
                     <Badge tone="neutral">{getEngineLabel(defect.source)}</Badge>
-                    <strong>{defect.category}</strong>
+                    <strong>{getCategoryLabel(defect.category)}</strong>
                   </div>
                   <div className="fc-uiux-result__defect-meta">
-                    <Badge tone={getSeverityTone(defect.severity)}>{defect.severity}</Badge>
+                    <Badge tone={getSeverityTone(defect.severity)}>{getSeverityLabel(defect.severity)}</Badge>
                     {defect.ruleId && <Badge tone="neutral">{defect.ruleId}</Badge>}
                   </div>
-                  <p>{defect.description}</p>
-                  {defect.recommendation && <em>{defect.recommendation}</em>}
+                  <p>{getLocalizedDefectText(defect, 'description')}</p>
+                  {defect.recommendation && <em>{getLocalizedDefectText(defect, 'recommendation')}</em>}
                   <small>{formatTimeForDisplay(defect.timestampOffset)}</small>
                 </button>
               ))}
