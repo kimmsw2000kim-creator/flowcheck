@@ -31,9 +31,6 @@ public class AsyncUIUXTestWorker {
     @Value("${fastapi.url}")
     private String fastApiUrl;
 
-    @Value("${internal.load-test-callback-token}")
-    private String fastApiInternalApiKey;
-
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void executeTestAsync(UIUXTestSubmittedEvent event) {
@@ -63,7 +60,6 @@ public class AsyncUIUXTestWorker {
             log.info("Dispatching UIUX request {} to FastAPI", requestId);
             restClient.post()
                     .uri(fastApiUrl + "/api/uiux-tests")
-                    .header("X-Internal-Api-Key", fastApiInternalApiKey)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(payload)
                     .retrieve()

@@ -82,9 +82,6 @@ public class User {
      * 크레딧(잔액) 사용
      */
     public void deductBalance(int amount) {
-        if (amount <= 0) {
-            throw new IllegalArgumentException("차감 금액은 0보다 커야 합니다.");
-        }
         if (this.balance < amount) {
             throw new IllegalStateException("잔액이 부족합니다.");
         }
