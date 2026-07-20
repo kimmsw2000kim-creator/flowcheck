@@ -73,6 +73,9 @@ export function useSessionBootstrap(): void {
 
       const userId = session.user.id;
       const email = session.user.email ?? '';
+      const metadataNickname = typeof session.user.user_metadata?.nickname === 'string'
+        ? session.user.user_metadata.nickname
+        : '';
       const role = getSupabaseRole(session);
       const previousUserId = useUserStore.getState().currentUser.id;
 
@@ -127,6 +130,7 @@ export function useSessionBootstrap(): void {
 
         finishSession(userId, {
           email: profile.email ?? email,
+          nickname: profile.nickname ?? metadataNickname,
           avatarUrl: profile.avatarUrl || avatarUrl,
           role: profile.role ?? role,
           status: profile.status ?? 'ACTIVE',

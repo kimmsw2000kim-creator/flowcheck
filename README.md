@@ -14,6 +14,14 @@
 이메일 템플릿을 직접 수정한 경우에는 링크가 `{{ .SiteURL }}`이 아니라
 `{{ .RedirectTo }}`를 사용하도록 확인합니다.
 
+## 닉네임 정책
+
+닉네임 기능을 사용하기 전에 Supabase SQL Editor에서
+`backend/src/main/resources/db/manual/user_nickname.sql`을 실행해야 합니다.
+닉네임은 2~20자의 한글, 영문, 숫자, 밑줄만 사용할 수 있으며 대소문자를 구분하지 않고 중복을 막습니다.
+SQL은 기존 Supabase 회원 메타데이터의 유효한 닉네임을 `public.users`로 이전하고,
+새 이메일 회원가입 시 닉네임을 동기화하는 트리거를 설치합니다.
+
 ## 계정 상태 정책
 
 - `ACTIVE`: 정상 이용 계정

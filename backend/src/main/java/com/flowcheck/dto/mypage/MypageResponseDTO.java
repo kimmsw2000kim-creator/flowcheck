@@ -7,6 +7,7 @@ import java.util.List;
 public record MypageResponseDTO(
 
                 String email,
+                String nickname,
                 Role role,
                 String status,
                 String avatarUrl,

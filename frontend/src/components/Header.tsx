@@ -137,7 +137,7 @@ export default function Header({ activeTab, onOpenAuth }: HeaderProps) {
                           {currentUser.avatarUrl && <img src={currentUser.avatarUrl} alt="" onError={(event) => { event.currentTarget.hidden = true; }} />}
                         </span>
                         <div className="app-header__profile-details">
-                          <strong>{currentUser.email}</strong>
+                          <strong>{currentUser.nickname || currentUser.email}</strong>
                           <Badge tone={currentUser.role === 'ADMIN' ? 'warning' : 'neutral'}>
                             {currentUser.role === 'ADMIN' ? '관리자' : '사용자'}
                           </Badge>

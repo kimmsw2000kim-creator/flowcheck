@@ -7,6 +7,14 @@ import { supabase } from '../lib/supabaseClient';
 import { Button, Card, PageHeader, TextField } from '../components/common';
 import { useAlertStore } from '../store/alertStore';
 import { useUserStore } from '../store/userStore';
+import {
+  EMAIL_MAX_LENGTH,
+  NICKNAME_MAX_LENGTH,
+  PASSWORD_MAX_LENGTH,
+  getEmailValidationError,
+  getNicknameValidationError,
+  getPasswordValidationError,
+} from '../utils/authValidation';
 
 export interface AuthPageProps {
   setActiveTab: (tab: string) => void;
@@ -37,7 +45,11 @@ export default function AuthPage({ setActiveTab, initialMode = 'login' }: AuthPa
 
   const passwordConfirmTouched = passwordConfirm.length > 0;
   const passwordMatched = password === passwordConfirm;
-  const passwordError = mode === 'signup' && passwordConfirmTouched && !passwordMatched ? '비밀번호가 일치하지 않습니다.' : undefined;
+  const emailError = mode === 'signup' && email.length > 0 ? getEmailValidationError(email) : undefined;
+  const passwordStrengthError = mode === 'signup' && password.length > 0 ? getPasswordValidationError(password) : undefined;
+  const passwordConfirmError = mode === 'signup' && passwordConfirmTouched && !passwordMatched ? '비밀번호가 일치하지 않습니다.' : undefined;
+  const nicknameError = mode === 'signup' && nickname.length > 0 ? getNicknameValidationError(nickname) : undefined;
+  const signupFormInvalid = Boolean(emailError || passwordStrengthError || passwordConfirmError || nicknameError);
 
   const changeMode = (nextMode: AuthMode) => {
     setMode(nextMode);
@@ -126,9 +138,15 @@ export default function AuthPage({ setActiveTab, initialMode = 'login' }: AuthPa
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (mode === 'signup' && !passwordMatched) {
-      showAlert('비밀번호가 일치하지 않습니다.', 'error');
-      return;
+    if (mode === 'signup') {
+      const validationError = getEmailValidationError(email)
+        ?? getPasswordValidationError(password)
+        ?? getNicknameValidationError(nickname)
+        ?? (!passwordMatched ? '비밀번호가 일치하지 않습니다.' : undefined);
+      if (validationError) {
+        showAlert(validationError, 'error');
+        return;
+      }
     }
     setLoadingAction('form');
     try {
@@ -202,8 +220,8 @@ export default function AuthPage({ setActiveTab, initialMode = 'login' }: AuthPa
           ))}
         </div>
         <form id={`auth-panel-${mode}`} role="tabpanel" aria-labelledby={`auth-tab-${mode}`} onSubmit={handleSubmit}>
-          <TextField label="이메일 주소" type="email" autoComplete="email" placeholder="example@flowcheck.com" value={email} onChange={(event) => setEmail(event.target.value)} required disabled={loadingAction !== null} />
-          <TextField label="비밀번호" type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} placeholder="비밀번호를 입력하세요" value={password} onChange={(event) => setPassword(event.target.value)} required disabled={loadingAction !== null} />
+          <TextField label="이메일 주소" type="email" autoComplete="email" placeholder="example@flowcheck.com" value={email} onChange={(event) => setEmail(event.target.value)} maxLength={EMAIL_MAX_LENGTH} error={emailError} required disabled={loadingAction !== null} />
+          <TextField label="비밀번호" type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} placeholder="비밀번호를 입력하세요" value={password} onChange={(event) => setPassword(event.target.value)} maxLength={mode === 'signup' ? PASSWORD_MAX_LENGTH : undefined} error={passwordStrengthError} description={mode === 'signup' && !passwordStrengthError ? '8자 이상, 영문과 숫자를 포함해 주세요.' : undefined} required disabled={loadingAction !== null} />
           {mode === 'login' && (
             <div className="auth-login-options">
               <label className="auth-remember-email">
@@ -222,9 +240,9 @@ export default function AuthPage({ setActiveTab, initialMode = 'login' }: AuthPa
               <Link className="auth-link" to="/forgot-password">비밀번호를 잊으셨나요?</Link>
             </div>
           )}
-          {mode === 'signup' && <TextField label="비밀번호 확인" type="password" autoComplete="new-password" placeholder="비밀번호를 다시 입력하세요" value={passwordConfirm} onChange={(event) => setPasswordConfirm(event.target.value)} error={passwordError} description={passwordConfirmTouched && passwordMatched ? '비밀번호가 일치합니다.' : undefined} required disabled={loadingAction !== null} />}
-          {mode === 'signup' && <TextField label="닉네임" type="text" autoComplete="nickname" placeholder="사용하실 닉네임" value={nickname} onChange={(event) => setNickname(event.target.value)} required disabled={loadingAction !== null} />}
-          <Button type="submit" fullWidth isLoading={loadingAction === 'form'} loadingText="처리 중..." disabled={loadingAction !== null || Boolean(passwordError)}>{mode === 'login' ? '로그인' : '회원가입 완료'}</Button>
+          {mode === 'signup' && <TextField label="비밀번호 확인" type="password" autoComplete="new-password" placeholder="비밀번호를 다시 입력하세요" value={passwordConfirm} onChange={(event) => setPasswordConfirm(event.target.value)} maxLength={PASSWORD_MAX_LENGTH} error={passwordConfirmError} description={passwordConfirmTouched && passwordMatched ? '비밀번호가 일치합니다.' : undefined} required disabled={loadingAction !== null} />}
+          {mode === 'signup' && <TextField label="닉네임" type="text" autoComplete="nickname" placeholder="사용하실 닉네임" value={nickname} onChange={(event) => setNickname(event.target.value)} maxLength={NICKNAME_MAX_LENGTH} error={nicknameError} description={!nicknameError && nickname.length > 0 ? '사용 가능한 형식입니다.' : '2~20자의 한글, 영문, 숫자, 밑줄을 사용할 수 있습니다.'} required disabled={loadingAction !== null} />}
+          <Button type="submit" fullWidth isLoading={loadingAction === 'form'} loadingText="처리 중..." disabled={loadingAction !== null || signupFormInvalid}>{mode === 'login' ? '로그인' : '회원가입 완료'}</Button>
         </form>
         <div className="auth-divider" aria-hidden="true">또는</div>
         <Button type="button" variant="secondary" fullWidth onClick={googleLogin} isLoading={loadingAction === 'google'} loadingText="Google 연결 중..." disabled={loadingAction !== null}>Google 계정으로 로그인</Button>

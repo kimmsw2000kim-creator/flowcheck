@@ -95,6 +95,26 @@
   gap: var(--space-3);
 }
 
+.profile-identity {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.profile-nickname-form {
+  display: grid;
+  max-width: 32rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--space-3);
+}
+
+.profile-nickname-form :global(.fc-field) {
+  margin: 0;
+}
+
 .profile-avatar {
   position: relative;
   display: grid;
@@ -604,6 +624,19 @@
 
   .mypage-profile-card {
     flex-direction: column;
+  }
+
+  .profile-identity,
+  .profile-nickname-form {
+    width: 100%;
+  }
+
+  .profile-nickname-form {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-nickname-form>button {
+    width: 100%;
   }
 
   .test-history-item {
