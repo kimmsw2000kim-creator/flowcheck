@@ -23,7 +23,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/payment")
 @RequiredArgsConstructor
-@CrossOrigin(origins = { "http://localhost:5173", "https://flow-check.duckdns.org" })
+@CrossOrigin(origins = { "http://localhost:5173", "https://flowcheck.kr" })
 public class PaymentController {
 
     private final PaymentService paymentService;
