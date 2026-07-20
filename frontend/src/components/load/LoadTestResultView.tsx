@@ -53,6 +53,18 @@ const tooltipStyle = {
   borderRadius: 'var(--radius-md)',
 };
 
+const formatStageLabel = (stage: string) => {
+  const declaredStage = /^STAGE_(\d+)_TARGET_(\d+)$/.exec(stage);
+  if (declaredStage) return `단계 ${declaredStage[1]} · 목표 ${declaredStage[2]} VU`;
+  const labels: Record<string, string> = {
+    LOW_LOAD: '저부하',
+    MEDIUM_LOAD: '중부하',
+    HIGH_LOAD: '고부하',
+    RAMP_DOWN: '부하 감소',
+  };
+  return labels[stage] || stage;
+};
+
 export function LoadTestResultView({ result }: LoadTestResultViewProps) {
   const grade = result.performanceGrade?.toUpperCase() || '-';
   const avgTps = result.avgTps ?? result.maxTps ?? 0;
@@ -66,7 +78,9 @@ export function LoadTestResultView({ result }: LoadTestResultViewProps) {
         <Card padding="sm" className="fc-load-result__metric-card">
           <span>성능 점수</span>
           <strong>{result.performanceScore ?? '-'}점</strong>
-          <Badge tone={getGradeTone(grade)}>등급 {grade}</Badge>
+          <Badge tone={getGradeTone(grade)}>
+            등급 {grade} · v{result.scoreVersion ?? 1}
+          </Badge>
         </Card>
         <Card padding="sm" className="fc-load-result__metric-card">
           <span>평균 처리량</span>
@@ -101,7 +115,105 @@ export function LoadTestResultView({ result }: LoadTestResultViewProps) {
           </div>
           <Badge tone={getGradeTone(grade)} size="md">{grade} 등급</Badge>
         </div>
-        {result.bottleneckComment ? (
+        {result.analysisReport ? (
+          <div className="fc-load-result__structured-report">
+            <div className="fc-load-result__verdict">
+              <div>
+                <span>종합 판정</span>
+                <p>{result.analysisReport.verdict}</p>
+              </div>
+              <Badge tone={result.analysisReport.generationSource === 'LLM' ? 'info' : 'warning'}>
+                {result.analysisReport.generationSource === 'LLM' ? 'AI 분석' : '검증 폴백'}
+              </Badge>
+            </div>
+
+            <div className="fc-load-result__report-summary">
+              <span>
+                <strong>점수 기준</strong>{' '}
+                {result.scoreStatus === 'CUSTOM_SLO' ? '사용자 SLO' : result.scoreVersion === 2 ? '기본 SLO' : '기존 기준'}
+              </span>
+              {result.analysisReport.sustainableTps != null && (
+                <span><strong>지속 가능 TPS</strong> {result.analysisReport.sustainableTps.toLocaleString()}</span>
+              )}
+              {result.scoreTargets && (
+                <span>
+                  <strong>목표</strong> p95 {result.scoreTargets.targetP95Ms.toLocaleString()}ms · 오류율 {result.scoreTargets.maxErrorRate}%
+                  {result.scoreTargets.targetTps != null ? ` · ${result.scoreTargets.targetTps.toLocaleString()} TPS` : ''}
+                </span>
+              )}
+            </div>
+
+            {result.analysisReport.stages.length > 0 && (
+              <section className="fc-load-result__report-section" aria-labelledby="stage-analysis-title">
+                <h4 id="stage-analysis-title">단계별 성능</h4>
+                <div className="fc-load-result__table-wrap">
+                  <table className="fc-load-result__stage-table">
+                    <thead>
+                      <tr>
+                        <th>부하 단계</th>
+                        <th>VU</th>
+                        <th>평균 / 최대 TPS</th>
+                        <th>평균 / p95</th>
+                        <th>오류율</th>
+                        <th>요청 수</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {result.analysisReport.stages.map((stage) => (
+                        <tr key={`${stage.stage}-${stage.startSecond}`}>
+                          <th scope="row">{formatStageLabel(stage.stage)}</th>
+                          <td>{stage.minVus}–{stage.maxVus}</td>
+                          <td>{stage.avgTps.toLocaleString()} / {stage.maxTps.toLocaleString()}</td>
+                          <td>
+                            {stage.avgResponse?.toLocaleString() ?? '-'} / {stage.p95Response?.toLocaleString() ?? '-'} ms
+                          </td>
+                          <td>{stage.errorRate?.toLocaleString() ?? '-'}%</td>
+                          <td>{stage.requestCount.toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
+
+            {result.analysisReport.bottlenecks.length > 0 && (
+              <section className="fc-load-result__report-section" aria-labelledby="bottleneck-title">
+                <h4 id="bottleneck-title">병목 징후</h4>
+                <ul className="fc-load-result__evidence-list">
+                  {result.analysisReport.bottlenecks.map((signal) => (
+                    <li key={`${signal.type}-${signal.firstObservedSecond ?? 'unknown'}`}>
+                      <Badge tone={signal.severity === 'HIGH' ? 'danger' : 'warning'}>{signal.severity}</Badge>
+                      <span>{signal.evidence}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            <section className="fc-load-result__report-section" aria-labelledby="action-title">
+              <h4 id="action-title">우선 조치</h4>
+              <ol className="fc-load-result__action-list">
+                {result.analysisReport.actions.map((action) => (
+                  <li key={`${action.priority}-${action.title}`}>
+                    <strong>{action.title}</strong>
+                    <p>{action.rationale}</p>
+                    <small>근거: {action.evidence}</small>
+                  </li>
+                ))}
+              </ol>
+            </section>
+
+            {result.analysisReport.limitations.length > 0 && (
+              <section className="fc-load-result__report-section fc-load-result__limitations" aria-labelledby="limitation-title">
+                <h4 id="limitation-title">분석 한계</h4>
+                <ul>
+                  {result.analysisReport.limitations.map((limitation) => <li key={limitation}>{limitation}</li>)}
+                </ul>
+              </section>
+            )}
+          </div>
+        ) : result.bottleneckComment ? (
           <div className={`fc-load-result__markdown grade-${grade.toLowerCase()}`}>
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{result.bottleneckComment}</ReactMarkdown>
           </div>

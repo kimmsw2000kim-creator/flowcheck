@@ -42,6 +42,9 @@ export function useLoadTest(
   const [vusers, setVusers] = useState<number>(100);
   const [duration, setDuration] = useState<number>(300);
   const [loadPrompt, setLoadPrompt] = useState<string>('');
+  const [targetTps, setTargetTps] = useState<number | ''>('');
+  const [targetP95Ms, setTargetP95Ms] = useState<number>(500);
+  const [maxErrorRate, setMaxErrorRate] = useState<number>(1);
   const [loadStatus, setLoadStatus] = useState<LoadStatus>('idle');
   const [loadPhase, setLoadPhase] = useState<string>('');
   const [loadProgress, setLoadProgress] = useState<number>(0);
@@ -263,6 +266,11 @@ export function useLoadTest(
       vusers,
       duration,
       loadPrompt,
+      performanceTargets: {
+        ...(targetTps !== '' ? { targetTps } : {}),
+        targetP95Ms,
+        maxErrorRate,
+      },
     };
 
     setLoadStatus('running');
@@ -293,6 +301,12 @@ export function useLoadTest(
     setDuration,
     loadPrompt,
     setLoadPrompt,
+    targetTps,
+    setTargetTps,
+    targetP95Ms,
+    setTargetP95Ms,
+    maxErrorRate,
+    setMaxErrorRate,
     loadStatus,
     loadPhase,
     loadProgress,
