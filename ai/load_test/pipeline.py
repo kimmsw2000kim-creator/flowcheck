@@ -6,7 +6,7 @@ from .aws_executor import run_k6_aws_fargate
 from .models import LoadTestProgressUpdate, TestResultsResponse
 from .progress_publisher import publish_progress
 from .report_generator import generate_analysis_report, build_markdown_report
-from .result_processor import build_chart_points, calculate_performance_assessment
+from .result_processor import calculate_performance_assessment
 from .script_generator import generate_k6_script
 from .target_validator import validate_target_server
 
@@ -65,13 +65,6 @@ async def run_load_test_pipeline(client: Any, request: Any) -> TestResultsRespon
         ),
     )
 
-    chart_points = build_chart_points(
-        duration=request.duration,
-        real_tps=summary["real_tps"],
-        real_avg_response=summary["real_avg_response"],
-        is_server_dead=summary["is_server_dead"],
-    )
-
     assessment = calculate_performance_assessment(summary)
     analysis = await generate_analysis_report(
         client=client,
@@ -95,7 +88,8 @@ async def run_load_test_pipeline(client: Any, request: Any) -> TestResultsRespon
     )
 
     return TestResultsResponse(
-        maxTps=int(summary["real_tps"]),
+        avgTps=round(summary["real_tps"], 2),
+        maxTps=None,
         avgResponse=round(summary["real_avg_response"], 2),
         errorRate=round(summary["real_error_rate"], 2),
         performanceScore=assessment.score,
@@ -103,5 +97,10 @@ async def run_load_test_pipeline(client: Any, request: Any) -> TestResultsRespon
         scoreLabel=assessment.label,
         scoreBreakdown=assessment.breakdown,
         bottleneckComment=markdown_report,
-        points=chart_points,
+        points=[],
+        metricsStatus="UNAVAILABLE",
+        metricsWarning=(
+            "시간대별 실측 데이터 수집 기능이 아직 적용되지 않아 요약 지표만 제공합니다."
+        ),
+        dataOrigin="NOT_COLLECTED",
     )

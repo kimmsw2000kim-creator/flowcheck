@@ -20,8 +20,10 @@ public class LoadTestResponse {
     @Getter
     @Builder
     public static class TestResults {
+        private Double avgTps;
         private Integer maxTps;
         private Double avgResponse;
+        private Double p95Response;
         private Double errorRate;
         private Integer performanceScore;
         private String performanceGrade;
@@ -30,6 +32,9 @@ public class LoadTestResponse {
         @JsonAlias("bottleneck_comment")
         private String bottleneckComment;
         private List<ChartPoint> points;
+        private String metricsStatus;
+        private String metricsWarning;
+        private String dataOrigin;
     }
 
     @Getter
@@ -43,8 +48,12 @@ public class LoadTestResponse {
     @Builder
     public static class ChartPoint {
         private String time;
+        private Integer elapsedSeconds;
         private Integer tps;
-        private double avgResponse;
+        private Double avgResponse;
+        private Double p95Response;
+        private Double errorRate;
+        private Integer vus;
     }
 
     @Getter

@@ -30,6 +30,14 @@ const getGradeTone = (grade?: string): BadgeTone => {
 
 export function LoadTestResultView({ result }: LoadTestResultViewProps) {
   const grade = result.performanceGrade?.toUpperCase() || '-';
+  const avgTps = result.avgTps ?? result.maxTps ?? 0;
+  const hasMeasuredSeries = result.dataOrigin === 'MEASURED_K6';
+  const isLegacySeries = result.dataOrigin === 'LEGACY_SYNTHETIC';
+  const seriesBadge = hasMeasuredSeries
+    ? { label: '실측 k6 데이터', tone: 'success' as const }
+    : isLegacySeries
+      ? { label: '이전 측정 형식', tone: 'warning' as const }
+      : { label: '시계열 미수집', tone: 'neutral' as const };
 
   return (
     <section className="fc-load-result" aria-label="부하 테스트 결과">
@@ -40,9 +48,9 @@ export function LoadTestResultView({ result }: LoadTestResultViewProps) {
           <Badge tone={getGradeTone(grade)}>등급 {grade}</Badge>
         </Card>
         <Card padding="sm" className="fc-load-result__metric-card">
-          <span>최대 처리량</span>
-          <strong>{result.maxTps.toLocaleString()} TPS</strong>
-          <small>{result.scoreLabel || '측정 완료'}</small>
+          <span>평균 처리량</span>
+          <strong>{avgTps.toLocaleString()} TPS</strong>
+          <small>{result.maxTps != null ? `최대 ${result.maxTps.toLocaleString()} TPS` : '전체 요청 평균'}</small>
         </Card>
         <Card padding="sm" className="fc-load-result__metric-card">
           <span>평균 응답 시간</span>
@@ -79,6 +87,7 @@ export function LoadTestResultView({ result }: LoadTestResultViewProps) {
             <span>Timeline</span>
             <h3>응답 시간 및 처리량</h3>
           </div>
+          <Badge tone={seriesBadge.tone}>{seriesBadge.label}</Badge>
         </div>
         {result.points?.length ? (
           <div className="fc-load-result__chart">
@@ -115,7 +124,10 @@ export function LoadTestResultView({ result }: LoadTestResultViewProps) {
             </ResponsiveContainer>
           </div>
         ) : (
-          <EmptyState title="차트 데이터가 없습니다." description="시간대별 측정 결과가 기록되지 않았습니다." />
+          <EmptyState
+            title={isLegacySeries ? '실측 시계열을 제공하지 않는 이전 결과입니다.' : '시계열 측정 데이터가 없습니다.'}
+            description={result.metricsWarning || '전체 테스트 요약 지표만 제공됩니다.'}
+          />
         )}
       </Card>
     </section>

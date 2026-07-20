@@ -96,8 +96,30 @@ public class AsyncLoadTestWorker {
                 aiReview = "AI 분석 결과가 비어 있습니다.";
             }
 
+            Double effectiveAvgTps = testResults.getAvgTps();
+            if (effectiveAvgTps == null && testResults.getMaxTps() != null) {
+                effectiveAvgTps = testResults.getMaxTps().doubleValue();
+            }
+            if (effectiveAvgTps == null) {
+                effectiveAvgTps = 0.0;
+            }
+
             Map<String, Object> rawMetrics = new HashMap<>();
+            rawMetrics.put("schemaVersion", 2);
             rawMetrics.put("points", testResults.getPoints());
+            rawMetrics.put("metricsStatus", testResults.getMetricsStatus());
+            rawMetrics.put("metricsWarning", testResults.getMetricsWarning());
+            rawMetrics.put("dataOrigin", testResults.getDataOrigin());
+
+            Map<String, Object> summaryMetrics = new HashMap<>();
+            summaryMetrics.put("avgTps", effectiveAvgTps);
+            if (testResults.getMaxTps() != null) {
+                summaryMetrics.put("maxTps", testResults.getMaxTps());
+            }
+            if (testResults.getP95Response() != null) {
+                summaryMetrics.put("p95Response", testResults.getP95Response());
+            }
+            rawMetrics.put("summary", summaryMetrics);
             if (testResults.getPerformanceScore() != null) {
                 rawMetrics.put("performanceScore", testResults.getPerformanceScore());
                 rawMetrics.put("performanceGrade", testResults.getPerformanceGrade());
@@ -115,7 +137,7 @@ public class AsyncLoadTestWorker {
             LoadTestReport report = LoadTestReport.builder()
                     .testRequest(testHistory)
                     .vusers(request.getVusers())
-                    .totalTps(BigDecimal.valueOf(testResults.getMaxTps()))
+                    .totalTps(BigDecimal.valueOf(effectiveAvgTps))
                     .avgLatency((int) (testResults.getAvgResponse() * 1000))
                     .errorRate(BigDecimal.valueOf(testResults.getErrorRate()))
                     .rawMetrics(rawMetrics)

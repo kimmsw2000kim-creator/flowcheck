@@ -232,7 +232,6 @@ class ProgressPublisherTest(unittest.IsolatedAsyncioTestCase):
 
 
 class PipelineTest(unittest.IsolatedAsyncioTestCase):
-    @patch("load_test.pipeline.build_chart_points")
     @patch("load_test.pipeline.build_markdown_report", return_value="report")
     @patch("load_test.pipeline.generate_analysis_report", new_callable=AsyncMock, return_value="analysis")
     @patch("load_test.pipeline.run_k6_aws_fargate")
@@ -247,9 +246,7 @@ class PipelineTest(unittest.IsolatedAsyncioTestCase):
         execute,
         generate_analysis,
         _build_report,
-        build_points,
     ):
-        from load_test.models import ChartPoint
         from load_test.pipeline import run_load_test_pipeline
 
         execute.return_value = {
@@ -259,7 +256,6 @@ class PipelineTest(unittest.IsolatedAsyncioTestCase):
             "is_server_dead": False,
             "duration": 10,
         }
-        build_points.return_value = [ChartPoint(time="00:00", tps=1, avgResponse=2)]
         request = SimpleNamespace(
             requestId="request-1",
             targetUrl="https://example.com",
@@ -273,9 +269,13 @@ class PipelineTest(unittest.IsolatedAsyncioTestCase):
         validate_target.assert_awaited_once_with("https://example.com")
         generate_analysis.assert_awaited_once()
         self.assertIsInstance(result, TestResultsResponse)
-        self.assertEqual(12, result.maxTps)
+        self.assertEqual(12.9, result.avgTps)
+        self.assertIsNone(result.maxTps)
         self.assertEqual(120.46, result.avgResponse)
         self.assertEqual(1.23, result.errorRate)
+        self.assertEqual([], result.points)
+        self.assertEqual("UNAVAILABLE", result.metricsStatus)
+        self.assertEqual("NOT_COLLECTED", result.dataOrigin)
         self.assertEqual(
             ["GENERATING_SCRIPT", "PROVISIONING_INFRA", "PROCESSING_RESULTS", "RESULT_READY"],
             [item.args[1].phase for item in publish.await_args_list],

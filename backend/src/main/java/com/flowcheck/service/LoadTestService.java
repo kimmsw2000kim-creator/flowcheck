@@ -16,7 +16,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -132,11 +134,35 @@ public class LoadTestService {
                                 .orElseThrow(() -> new IllegalStateException(
                                                 "Report should exist for COMPLETED request"));
 
-                Object pointsObj = report.getRawMetrics().get("points");
-                List<LoadTestResponse.ChartPoint> chartPoints = objectMapper.convertValue(
-                                pointsObj,
-                                new TypeReference<List<LoadTestResponse.ChartPoint>>() {
-                                });
+                Map<String, Object> rawMetrics = report.getRawMetrics();
+                int schemaVersion = getIntValue(rawMetrics.get("schemaVersion"), 1);
+                boolean hasMeasuredSeriesContract = schemaVersion >= 2;
+
+                List<LoadTestResponse.ChartPoint> chartPoints = Collections.emptyList();
+                Object pointsObj = rawMetrics.get("points");
+                if (hasMeasuredSeriesContract && pointsObj != null) {
+                        chartPoints = objectMapper.convertValue(
+                                        pointsObj,
+                                        new TypeReference<List<LoadTestResponse.ChartPoint>>() {
+                                        });
+                }
+
+                Map<String, Object> summaryMetrics = getMapValue(rawMetrics.get("summary"));
+                double avgTps = getDoubleValue(
+                                summaryMetrics.get("avgTps"),
+                                report.getTotalTps().doubleValue());
+                Integer maxTps = getNullableIntValue(summaryMetrics.get("maxTps"));
+                Double p95Response = getNullableDoubleValue(summaryMetrics.get("p95Response"));
+
+                String metricsStatus = hasMeasuredSeriesContract
+                                ? getStringValue(rawMetrics.get("metricsStatus"), "UNAVAILABLE")
+                                : "LEGACY_UNVERIFIED";
+                String metricsWarning = hasMeasuredSeriesContract
+                                ? getStringValue(rawMetrics.get("metricsWarning"), null)
+                                : "이 결과는 이전 측정 형식으로 생성되어 실제 시계열을 제공하지 않습니다.";
+                String dataOrigin = hasMeasuredSeriesContract
+                                ? getStringValue(rawMetrics.get("dataOrigin"), "NOT_COLLECTED")
+                                : "LEGACY_SYNTHETIC";
 
                 double avgResponse = report.getAvgLatency() / 1000.0;
                 double errorRate = report.getErrorRate().doubleValue();
@@ -145,8 +171,10 @@ public class LoadTestService {
                                 errorRate);
 
                 LoadTestResponse.TestResults resultsDto = LoadTestResponse.TestResults.builder()
-                                .maxTps(report.getTotalTps().intValue())
+                                .avgTps(avgTps)
+                                .maxTps(maxTps)
                                 .avgResponse(avgResponse)
+                                .p95Response(p95Response)
                                 .errorRate(errorRate)
                                 .performanceScore(assessment.score())
                                 .performanceGrade(assessment.grade())
@@ -157,6 +185,9 @@ public class LoadTestService {
                                                 .build())
                                 .bottleneckComment(report.getAiPerformanceReview())
                                 .points(chartPoints)
+                                .metricsStatus(metricsStatus)
+                                .metricsWarning(metricsWarning)
+                                .dataOrigin(dataOrigin)
                                 .build();
 
                 return LoadTestResponse.builder()
@@ -166,6 +197,38 @@ public class LoadTestService {
                                 .message("부하 테스트가 완료되었습니다.")
                                 .testResults(resultsDto)
                                 .build();
+        }
+
+        private Map<String, Object> getMapValue(Object value) {
+                if (value instanceof Map<?, ?> mapValue) {
+                        return objectMapper.convertValue(
+                                        mapValue,
+                                        new TypeReference<Map<String, Object>>() {
+                                        });
+                }
+                return Collections.emptyMap();
+        }
+
+        private double getDoubleValue(Object value, double fallback) {
+                return value instanceof Number number ? number.doubleValue() : fallback;
+        }
+
+        private Double getNullableDoubleValue(Object value) {
+                return value instanceof Number number ? number.doubleValue() : null;
+        }
+
+        private int getIntValue(Object value, int fallback) {
+                return value instanceof Number number ? number.intValue() : fallback;
+        }
+
+        private Integer getNullableIntValue(Object value) {
+                return value instanceof Number number ? number.intValue() : null;
+        }
+
+        private String getStringValue(Object value, String fallback) {
+                return value instanceof String stringValue && !stringValue.isBlank()
+                                ? stringValue
+                                : fallback;
         }
 
         private PerformanceAssessment calculatePerformanceAssessment(double avgResponse, double errorRate) {

@@ -171,11 +171,13 @@ export function useLoadTest(
               .then((resultResponse) => {
                 const { testResults } = resultResponse.data;
 
-                if (testResults && testResults.maxTps !== undefined) {
+                if (testResults && (testResults.avgTps !== undefined || testResults.maxTps !== undefined)) {
                   setLoadStatus('success');
                   setLoadResult({
-                    maxTps: testResults.maxTps,
+                    avgTps: testResults.avgTps ?? testResults.maxTps ?? 0,
+                    maxTps: testResults.maxTps ?? null,
                     avgResponse: testResults.avgResponse,
+                    p95Response: testResults.p95Response ?? null,
                     errorRate: testResults.errorRate,
                     performanceScore: testResults.performanceScore,
                     performanceGrade: testResults.performanceGrade,
@@ -183,6 +185,9 @@ export function useLoadTest(
                     scoreBreakdown: testResults.scoreBreakdown,
                     bottleneckComment: testResults.bottleneckComment,
                     points: testResults.points || [],
+                    metricsStatus: testResults.metricsStatus || 'LEGACY_UNVERIFIED',
+                    metricsWarning: testResults.metricsWarning || null,
+                    dataOrigin: testResults.dataOrigin || 'LEGACY_SYNTHETIC',
                   });
                   showAlert('k6 부하 테스트가 완료되었습니다!', 'success');
                 }

@@ -1,12 +1,10 @@
 import os
 import sys
 import unittest
-from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from load_test.result_processor import (
-    build_chart_points,
     calculate_performance_assessment,
     extract_metric,
     parse_k6_summary,
@@ -77,20 +75,6 @@ class ResultProcessorTest(unittest.TestCase):
         self.assertEqual(0, assessment.score)
         self.assertEqual(0, assessment.breakdown.reliabilityScore)
         self.assertEqual(0, assessment.breakdown.latencyScore)
-
-    @patch("load_test.result_processor.random.uniform", return_value=1.0)
-    def test_chart_points_are_deterministic_when_randomness_is_fixed(self, _uniform):
-        points = build_chart_points(2, 100, 200, False)
-        self.assertEqual(3, len(points))
-        self.assertEqual("00:00", points[0].time)
-        self.assertEqual(50, points[0].tps)
-        self.assertEqual(100, points[-1].tps)
-
-    def test_dead_server_chart_is_zeroed(self):
-        points = build_chart_points(1, 100, 200, True)
-        self.assertTrue(all(point.tps == 0 for point in points))
-        self.assertTrue(all(point.avgResponse == 0 for point in points))
-
 
 if __name__ == "__main__":
     unittest.main()
