@@ -10,7 +10,7 @@ import {
     fetchCommunityPostLikeStatus,
     toggleCommunityPostLike,
 } from '../../api/communityPostApi';
-import { Button, EmptyState } from '../../components/common';
+import { Button, Card, EmptyState } from '../../components/common';
 import CommunityPostActions from '../../components/community/CommunityPostActions';
 import { CommunityAuthor } from '../../components/community/CommunityPostList';
 import CommunityTestResultSection from '../../components/community/CommunityTestResultSection';
@@ -238,22 +238,29 @@ export default function CommunityPostDetailPage() {
         : '/community?tab=tests';
 
     return (
-        <div style={{ maxWidth: '900px', margin: '0 auto', textAlign: 'left' }}>
+        <div className="community-page community-page--narrow community-post-detail-page">
             <Button type="button" variant="secondary" onClick={() => navigate(listPath)}>
                 목록으로
             </Button>
 
-            <article className="card" style={{ marginTop: '1.5rem' }}>
-                <header style={{ borderBottom: '1px solid var(--border)', paddingBottom: '1rem', marginBottom: '1.5rem' }}>
+            <Card as="article" padding="lg" className="community-post-detail">
+                <header className="community-post-detail__header">
                     <h1>{post.title}</h1>
-                    <small className="community-post-meta">
+                    <div className="community-post-detail__meta">
                         <CommunityAuthor email={post.writerEmail} avatarUrl={post.writerAvatarUrl} />
-                        <time dateTime={post.createdAt}>{formatDate(post.createdAt)}</time>
-                    </small>
+                        <div className="community-post-detail__controls">
+                            <CommunityPostActions
+                                post={post}
+                                onUpdated={setPost}
+                                onDeleted={() => navigate(listPath, { replace: true })}
+                            />
+                            <time dateTime={post.createdAt}>{formatDate(post.createdAt)}</time>
+                        </div>
+                    </div>
                 </header>
 
                 {post.content.trim() && (
-                    <p style={{ minHeight: '160px', whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>
+                    <p className="community-post-detail__content">
                         {post.content}
                     </p>
                 )}
@@ -261,7 +268,7 @@ export default function CommunityPostDetailPage() {
                     <CommunityTestResultSection postId={post.id} />
                 )}
 
-                <div className="community-actions" style={{ marginTop: '1rem' }}>
+                <div className="community-actions community-post-detail__engagement">
                     <Button
                         type="button"
                         variant={liked ? 'primary' : 'secondary'}
@@ -275,12 +282,7 @@ export default function CommunityPostDetailPage() {
                     </Button>
                 </div>
 
-                <CommunityPostActions
-                    post={post}
-                    onUpdated={setPost}
-                    onDeleted={() => navigate(listPath, { replace: true })}
-                />
-            </article>
+            </Card>
 
             <ForumCommentThread
                 comments={comments}
