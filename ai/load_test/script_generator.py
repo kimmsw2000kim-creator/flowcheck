@@ -16,6 +16,29 @@ def load_default_k6_template() -> Template:
     return Template(DEFAULT_K6_TEMPLATE_PATH.read_text(encoding="utf-8"))
 
 
+def build_default_stages(vusers: int, duration: int) -> list[dict[str, str | int]]:
+    total_duration_ms = int(duration) * 1000
+    stage_weights = (20, 20, 20, 30)
+    stage_durations_ms = [
+        total_duration_ms * weight // 100 for weight in stage_weights
+    ]
+    stage_durations_ms.append(total_duration_ms - sum(stage_durations_ms))
+
+    maximum_vus = int(vusers)
+    stage_targets = (
+        max(1, (maximum_vus + 3) // 4),
+        max(1, (maximum_vus + 1) // 2),
+        maximum_vus,
+        maximum_vus,
+        0,
+    )
+
+    return [
+        {"duration": f"{stage_duration_ms}ms", "target": target}
+        for stage_duration_ms, target in zip(stage_durations_ms, stage_targets)
+    ]
+
+
 def render_default_k6_script(
     target_url: str,
     vusers: int,
@@ -23,8 +46,7 @@ def render_default_k6_script(
 ) -> str:
     return load_default_k6_template().substitute(
         target_url=json.dumps(target_url),
-        vusers=str(int(vusers)),
-        duration=json.dumps(f"{int(duration)}s"),
+        stages=json.dumps(build_default_stages(vusers, duration)),
     )
 
 

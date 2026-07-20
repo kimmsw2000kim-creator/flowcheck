@@ -15,6 +15,7 @@ from load_test.report_generator import (
 )
 from load_test.result_processor import calculate_performance_assessment
 from load_test.script_generator import (
+    build_default_stages,
     clean_k6_script,
     generate_k6_script,
     load_default_k6_template,
@@ -35,6 +36,19 @@ class ScriptGeneratorTest(unittest.IsolatedAsyncioTestCase):
     def test_clean_k6_script_removes_markdown_fences(self):
         self.assertEqual("export default {}", clean_k6_script("```js\nexport default {}\n```"))
 
+    def test_default_stages_ramp_up_hold_and_ramp_down(self):
+        stages = build_default_stages(vusers=17, duration=42)
+
+        self.assertEqual([5, 9, 17, 17, 0], [stage["target"] for stage in stages])
+        self.assertEqual(
+            ["8400ms", "8400ms", "8400ms", "12600ms", "4200ms"],
+            [stage["duration"] for stage in stages],
+        )
+        self.assertEqual(
+            42_000,
+            sum(int(str(stage["duration"]).removesuffix("ms")) for stage in stages),
+        )
+
     async def test_empty_prompts_render_default_template_without_llm(self):
         target_url = 'https://example.com/path?value="quoted"\\next\nline'
 
@@ -49,8 +63,9 @@ class ScriptGeneratorTest(unittest.IsolatedAsyncioTestCase):
                     load_prompt,
                 )
 
-                self.assertIn("vus: 17", result)
-                self.assertIn('duration: "42s"', result)
+                self.assertIn('stages: [{"duration": "8400ms", "target": 5}', result)
+                self.assertIn('{"duration": "4200ms", "target": 0}]', result)
+                self.assertNotIn("vus:", result)
                 self.assertIn("discardResponseBodies: true", result)
                 self.assertIn(f"http.get({json.dumps(target_url)})", result)
                 client.aio.models.generate_content.assert_not_awaited()

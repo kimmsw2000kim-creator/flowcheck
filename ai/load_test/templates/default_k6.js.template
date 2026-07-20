@@ -1,8 +1,7 @@
 import http from 'k6/http';
 
 export const options = {
-  vus: $vusers,
-  duration: $duration,
+  stages: $stages,
   discardResponseBodies: true,
 };
 
