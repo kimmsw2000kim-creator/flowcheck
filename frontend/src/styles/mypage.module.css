@@ -207,17 +207,17 @@
   min-width: 42rem;
 }
 
-.amount-positive,
-.amount-negative {
+:global(.fc-table) .amount-positive,
+:global(.fc-table) .amount-negative {
   font-weight: var(--font-weight-bold);
   white-space: nowrap;
 }
 
-.amount-positive {
+:global(.fc-table) .amount-positive {
   color: var(--color-status-success);
 }
 
-.amount-negative {
+:global(.fc-table) .amount-negative {
   color: var(--color-status-error);
 }
 
