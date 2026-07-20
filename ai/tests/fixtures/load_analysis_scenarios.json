@@ -1,0 +1,31 @@
+{
+  "healthy": {
+    "expectedSignals": [],
+    "points": [
+      {"time": "00:00", "elapsedSeconds": 0, "tps": 10, "avgResponse": 90, "p95Response": 140, "errorRate": 0, "vus": 5},
+      {"time": "00:01", "elapsedSeconds": 1, "tps": 10, "avgResponse": 95, "p95Response": 145, "errorRate": 0, "vus": 5},
+      {"time": "00:02", "elapsedSeconds": 2, "tps": 20, "avgResponse": 100, "p95Response": 150, "errorRate": 0, "vus": 10},
+      {"time": "00:03", "elapsedSeconds": 3, "tps": 20, "avgResponse": 105, "p95Response": 155, "errorRate": 0, "vus": 10}
+    ]
+  },
+  "saturationTailAndErrors": {
+    "expectedSignals": ["THROUGHPUT_SATURATION", "TAIL_LATENCY_DEGRADATION", "ERROR_RATE_INCREASE"],
+    "points": [
+      {"time": "00:00", "elapsedSeconds": 0, "tps": 20, "avgResponse": 100, "p95Response": 150, "errorRate": 0, "vus": 10},
+      {"time": "00:01", "elapsedSeconds": 1, "tps": 20, "avgResponse": 100, "p95Response": 150, "errorRate": 0, "vus": 10},
+      {"time": "00:02", "elapsedSeconds": 2, "tps": 22, "avgResponse": 300, "p95Response": 400, "errorRate": 2, "vus": 20},
+      {"time": "00:03", "elapsedSeconds": 3, "tps": 22, "avgResponse": 350, "p95Response": 450, "errorRate": 3, "vus": 20}
+    ]
+  },
+  "partial": {
+    "expectedCoverage": 0.5,
+    "points": [
+      {"time": "00:00", "elapsedSeconds": 0, "tps": 10, "avgResponse": 100, "p95Response": 150, "errorRate": 0, "vus": 5},
+      {"time": "00:01", "elapsedSeconds": 1, "tps": 0, "avgResponse": null, "p95Response": null, "errorRate": null, "vus": 5}
+    ]
+  },
+  "unavailable": {
+    "expectedSignals": [],
+    "points": []
+  }
+}

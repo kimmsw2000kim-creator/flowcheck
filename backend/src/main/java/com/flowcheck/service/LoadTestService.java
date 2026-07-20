@@ -136,12 +136,13 @@ public class LoadTestService {
 
                 Map<String, Object> rawMetrics = report.getRawMetrics();
                 int schemaVersion = getIntValue(rawMetrics.get("schemaVersion"), 1);
-                boolean hasCurrentSeriesContract =
-                                schemaVersion == LoadTestMetricsDocument.CURRENT_SCHEMA_VERSION;
+                boolean hasSupportedSeriesContract =
+                                schemaVersion >= LoadTestMetricsDocument.MIN_SUPPORTED_SCHEMA_VERSION
+                                                && schemaVersion <= LoadTestMetricsDocument.CURRENT_SCHEMA_VERSION;
                 boolean hasUnsupportedFutureContract =
                                 schemaVersion > LoadTestMetricsDocument.CURRENT_SCHEMA_VERSION;
 
-                LoadTestMetricsDocument metricsDocument = hasCurrentSeriesContract
+                LoadTestMetricsDocument metricsDocument = hasSupportedSeriesContract
                                 ? objectMapper.convertValue(rawMetrics, LoadTestMetricsDocument.class)
                                 : null;
                 LoadTestMetricsDocument.Summary storedSummary = metricsDocument != null
@@ -165,7 +166,7 @@ public class LoadTestService {
                 String metricsStatus;
                 String metricsWarning;
                 String dataOrigin;
-                if (hasCurrentSeriesContract) {
+                if (hasSupportedSeriesContract) {
                         metricsStatus = getStringValue(metricsDocument.metricsStatus(), "UNAVAILABLE");
                         metricsWarning = getStringValue(metricsDocument.metricsWarning(), null);
                         dataOrigin = getStringValue(metricsDocument.dataOrigin(), "NOT_COLLECTED");
@@ -184,6 +185,28 @@ public class LoadTestService {
                 PerformanceAssessment assessment = calculatePerformanceAssessment(
                                 avgResponse,
                                 errorRate);
+                LoadTestMetricsDocument.ScoreBreakdown storedBreakdown = metricsDocument != null
+                                ? metricsDocument.scoreBreakdown()
+                                : null;
+                LoadTestResponse.ScoreBreakdown responseBreakdown = storedBreakdown != null
+                                ? LoadTestResponse.ScoreBreakdown.builder()
+                                                .reliabilityScore(storedBreakdown.reliabilityScore())
+                                                .latencyScore(storedBreakdown.latencyScore())
+                                                .scalabilityScore(storedBreakdown.scalabilityScore())
+                                                .build()
+                                : LoadTestResponse.ScoreBreakdown.builder()
+                                                .reliabilityScore(assessment.reliabilityScore())
+                                                .latencyScore(assessment.latencyScore())
+                                                .build();
+                int performanceScore = metricsDocument != null && metricsDocument.performanceScore() != null
+                                ? metricsDocument.performanceScore()
+                                : assessment.score();
+                String performanceGrade = metricsDocument != null && metricsDocument.performanceGrade() != null
+                                ? metricsDocument.performanceGrade()
+                                : assessment.grade();
+                String scoreLabel = metricsDocument != null && metricsDocument.scoreLabel() != null
+                                ? metricsDocument.scoreLabel()
+                                : assessment.label();
 
                 LoadTestResponse.TestResults resultsDto = LoadTestResponse.TestResults.builder()
                                 .totalRequests(totalRequests)
@@ -192,14 +215,20 @@ public class LoadTestService {
                                 .avgResponse(avgResponse)
                                 .p95Response(p95Response)
                                 .errorRate(errorRate)
-                                .performanceScore(assessment.score())
-                                .performanceGrade(assessment.grade())
-                                .scoreLabel(assessment.label())
-                                .scoreBreakdown(LoadTestResponse.ScoreBreakdown.builder()
-                                                .reliabilityScore(assessment.reliabilityScore())
-                                                .latencyScore(assessment.latencyScore())
-                                                .build())
+                                .performanceScore(performanceScore)
+                                .performanceGrade(performanceGrade)
+                                .scoreLabel(scoreLabel)
+                                .scoreBreakdown(responseBreakdown)
+                                .scoreVersion(metricsDocument != null && metricsDocument.scoreVersion() != null
+                                                ? metricsDocument.scoreVersion()
+                                                : 1)
+                                .scoreStatus(metricsDocument != null
+                                                ? getStringValue(metricsDocument.scoreStatus(), "LEGACY_V1")
+                                                : "LEGACY_V1")
+                                .scoreTargets(metricsDocument != null ? metricsDocument.scoreTargets() : null)
                                 .bottleneckComment(report.getAiPerformanceReview())
+                                .analysisReport(metricsDocument != null ? metricsDocument.analysisReport() : null)
+                                .diagnosticMetrics(metricsDocument != null ? metricsDocument.diagnosticMetrics() : null)
                                 .points(chartPoints)
                                 .metricsStatus(metricsStatus)
                                 .metricsWarning(metricsWarning)

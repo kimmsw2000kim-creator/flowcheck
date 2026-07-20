@@ -76,6 +76,7 @@ except ModuleNotFoundError:
     sys.modules["botocore.exceptions"] = botocore_exceptions
 
 from load_test.aws_executor import AwsSettings, run_k6_aws_fargate
+from load_test.analysis_engine import AnalysisAction, StructuredAnalysisReport
 from load_test.exceptions import LoadTestExecutionError, TargetUnavailableError
 from load_test.models import LoadTestProgressUpdate, TestResultsResponse
 from load_test.progress_publisher import publish_progress
@@ -96,6 +97,19 @@ def progress_payload():
         phase="TEST",
         progress=10,
         message="testing",
+    )
+
+
+def structured_report():
+    return StructuredAnalysisReport(
+        generationSource="LLM",
+        verdict="안정적입니다.",
+        actions=[AnalysisAction(
+            priority=1,
+            title="회귀 기준 저장",
+            rationale="현재 결과를 비교 기준으로 사용합니다.",
+            evidence="평균 TPS 10.00입니다.",
+        )],
     )
 
 
@@ -138,6 +152,8 @@ class AwsExecutorTest(unittest.TestCase):
             self.assertEqual("bucket", Bucket)
             if Key.endswith("summary.json"):
                 return {"Body": io.BytesIO(json.dumps(summary).encode("utf-8"))}
+            if Key.endswith("execution.json"):
+                return {"Body": io.BytesIO(b'{"exitCode":0}')}
             if Key.endswith("metrics.json.gz"):
                 return {"Body": io.BytesIO(compressed_metrics)}
             raise AssertionError(f"unexpected S3 key: {Key}")
@@ -175,6 +191,7 @@ class AwsExecutorTest(unittest.TestCase):
         self.assertEqual(
             [
                 call(Bucket="bucket", Key="tasks/request-1/summary.json"),
+                call(Bucket="bucket", Key="tasks/request-1/execution.json"),
                 call(Bucket="bucket", Key="tasks/request-1/metrics.json.gz"),
             ],
             s3.get_object.call_args_list,
@@ -185,6 +202,7 @@ class AwsExecutorTest(unittest.TestCase):
         self.assertEqual("MEASURED_K6", result["data_origin"])
         self.assertEqual(10, result["max_tps"])
         self.assertEqual(1, len(result["chart_points"]))
+        self.assertEqual(0, result["diagnostic_metrics"].executionExitCode)
 
     def test_client_error_is_converted(self):
         s3, ecs, _waiter = self.build_clients()
@@ -291,7 +309,8 @@ class ProgressPublisherTest(unittest.IsolatedAsyncioTestCase):
 
 class PipelineTest(unittest.IsolatedAsyncioTestCase):
     @patch("load_test.pipeline.build_markdown_report", return_value="report")
-    @patch("load_test.pipeline.generate_analysis_report", new_callable=AsyncMock, return_value="analysis")
+    @patch("load_test.pipeline.render_structured_analysis", return_value="analysis")
+    @patch("load_test.pipeline.generate_structured_analysis_report", new_callable=AsyncMock)
     @patch("load_test.pipeline.run_k6_aws_fargate")
     @patch("load_test.pipeline.generate_k6_script", new_callable=AsyncMock, return_value="script")
     @patch("load_test.pipeline.publish_progress", new_callable=AsyncMock)
@@ -303,6 +322,7 @@ class PipelineTest(unittest.IsolatedAsyncioTestCase):
         _generate_script,
         execute,
         generate_analysis,
+        _render_analysis,
         _build_report,
     ):
         from load_test.pipeline import run_load_test_pipeline
@@ -331,6 +351,7 @@ class PipelineTest(unittest.IsolatedAsyncioTestCase):
             "metrics_warning": None,
             "data_origin": "MEASURED_K6",
         }
+        generate_analysis.return_value = structured_report()
         request = SimpleNamespace(
             requestId="request-1",
             targetUrl="https://example.com",
@@ -359,7 +380,7 @@ class PipelineTest(unittest.IsolatedAsyncioTestCase):
             [item.args[1].phase for item in publish.await_args_list],
         )
 
-    @patch("load_test.pipeline.generate_analysis_report", new_callable=AsyncMock)
+    @patch("load_test.pipeline.generate_structured_analysis_report", new_callable=AsyncMock)
     @patch("load_test.pipeline.run_k6_aws_fargate")
     @patch("load_test.pipeline.generate_k6_script", new_callable=AsyncMock)
     @patch("load_test.pipeline.publish_progress", new_callable=AsyncMock)
