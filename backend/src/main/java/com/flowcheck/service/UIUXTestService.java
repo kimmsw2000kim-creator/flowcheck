@@ -16,6 +16,7 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.InetAddress;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -104,7 +105,7 @@ public class UIUXTestService {
     public UUID submitUIUXTest(UUID userId, UIUXTestStartRequest request) {
         // 사용자 요청을 실제 실행 가능한 테스트 주문으로 바꾸는 단계입니다.
         // 여기서 동시 실행 제한, 최근 결과 보관 개수, 쿠폰/크레딧 차감까지 한 트랜잭션 안에서 처리합니다.
-        User user = userRepository.findById(userId)
+        User user = userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
         validateTargetUrlBelongsToVerifiedSite(userId, request.getTargetUrl());
 
@@ -153,7 +154,7 @@ public class UIUXTestService {
 
     private void chargeForUIUXTest(User user, TestRequest testRequest, String targetUrl) {
         List<UserCoupon> availableCoupons = userCouponRepository
-                .findByUserAndCoupon_CouponTypeAndRemainingChancesGreaterThanOrderByCreatedAtAsc(user, CouponType.UIUX_TEST, 0);
+                .findAvailableForUpdate(user, CouponType.UIUX_TEST, 0);
 
         if (!availableCoupons.isEmpty()) {
             UserCoupon couponToUse = availableCoupons.getFirst();
@@ -201,6 +202,7 @@ public class UIUXTestService {
 
     private void validateTargetUrlBelongsToVerifiedSite(UUID userId, String targetUrl) {
         URI targetUri = parseHttpUri(targetUrl, "테스트 대상 URL이 올바르지 않습니다.");
+        validatePublicTargetUri(targetUri);
         String targetHost = normalizeHost(targetUri.getHost());
         if (targetHost == null || targetHost.isBlank()) {
             throw new IllegalArgumentException("테스트 대상 URL의 호스트를 확인할 수 없습니다.");
@@ -240,6 +242,56 @@ public class UIUXTestService {
         }
         String lower = host.toLowerCase();
         return lower.startsWith("www.") ? lower.substring(4) : lower;
+    }
+
+    private void validatePublicTargetUri(URI uri) {
+        String host = uri.getHost();
+        int port = uri.getPort();
+        if (host == null || host.isBlank() || uri.getUserInfo() != null) {
+            throw new IllegalArgumentException("테스트 대상 URL의 호스트를 확인할 수 없습니다.");
+        }
+        if (port != -1 && port != 80 && port != 443) {
+            throw new IllegalArgumentException("UI/UX 테스트는 80 또는 443 포트의 공개 URL만 지원합니다.");
+        }
+        String lowerHost = host.toLowerCase();
+        if ("localhost".equals(lowerHost) || lowerHost.endsWith(".localhost")) {
+            throw new IllegalArgumentException("localhost 주소는 UI/UX 테스트 대상으로 사용할 수 없습니다.");
+        }
+        try {
+            for (InetAddress address : InetAddress.getAllByName(host)) {
+                if (!isPublicAddress(address)) {
+                    throw new IllegalArgumentException("사설망 또는 로컬 주소는 UI/UX 테스트 대상으로 사용할 수 없습니다.");
+                }
+            }
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("테스트 대상 URL의 DNS 정보를 확인할 수 없습니다.");
+        }
+    }
+
+    private boolean isPublicAddress(InetAddress address) {
+        if (address.isAnyLocalAddress()
+                || address.isLoopbackAddress()
+                || address.isLinkLocalAddress()
+                || address.isSiteLocalAddress()
+                || address.isMulticastAddress()) {
+            return false;
+        }
+
+        byte[] bytes = address.getAddress();
+        if (bytes.length == 4) {
+            int first = bytes[0] & 0xff;
+            int second = bytes[1] & 0xff;
+            return first != 0
+                    && first != 10
+                    && first != 127
+                    && !(first == 100 && second >= 64 && second <= 127)
+                    && !(first == 169 && second == 254)
+                    && !(first == 172 && second >= 16 && second <= 31)
+                    && !(first == 192 && second == 168);
+        }
+        return bytes.length != 16 || ((bytes[0] & 0xfe) != 0xfc);
     }
 
     @Transactional(readOnly = true)
@@ -663,11 +715,13 @@ public class UIUXTestService {
                 return;
             }
 
-            usedCoupon.refundChance();
+            UserCoupon lockedCoupon = userCouponRepository.findByIdForUpdate(usedCoupon.getId())
+                    .orElseThrow(() -> new IllegalArgumentException("사용된 UI/UX 쿠폰을 찾을 수 없습니다."));
+            lockedCoupon.refundChance();
             couponUsageLogRepository.save(CouponUsageLog.builder()
                     .user(testRequest.getUser())
                     .testRequest(testRequest)
-                    .userCoupon(usedCoupon)
+                    .userCoupon(lockedCoupon)
                     .couponType(CouponType.UIUX_TEST)
                     .action(CouponUsageAction.REFUND)
                     .description("UI/UX 테스트 실패/중지 쿠폰 환불 (" + reason + ")")
@@ -693,7 +747,8 @@ public class UIUXTestService {
             return;
         }
 
-        User user = testRequest.getUser();
+        User user = userRepository.findByIdForUpdate(testRequest.getUser().getUserId())
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
         user.chargeBalance(refundAmount);
         userRepository.save(user);
 

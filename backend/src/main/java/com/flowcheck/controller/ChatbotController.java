@@ -7,6 +7,7 @@ import com.flowcheck.dto.ChatSessionDto;
 import com.flowcheck.repository.ChatSessionRepository;
 import com.flowcheck.repository.UserRepository;
 import com.flowcheck.service.ChatbotService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -29,7 +30,7 @@ public class ChatbotController {
     @PostMapping("/send")
     public ResponseEntity<ChatResponseDto> sendMessage(
             @AuthenticationPrincipal Jwt jwt,
-            @RequestBody ChatRequestDto request) {
+            @Valid @RequestBody ChatRequestDto request) {
         
         UUID userId = UUID.fromString(jwt.getSubject());
         User user = userRepository.findById(userId).orElseThrow(() -> new IllegalArgumentException("User not found"));

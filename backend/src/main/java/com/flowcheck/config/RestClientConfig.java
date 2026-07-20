@@ -16,9 +16,12 @@ import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 
-@Configuration
 @Slf4j
+@Configuration
 public class RestClientConfig {
+
+    @Value("${http-client.ssl.trust-all:true}")
+    private boolean trustAllSslCertificates;
 
     @Bean
     @Primary
@@ -48,30 +51,8 @@ public class RestClientConfig {
                 .connectTimeout(connectTimeout)
                 .version(HttpClient.Version.HTTP_1_1);
 
-        try {
-            TrustManager[] trustAllCerts = new TrustManager[]{
-                new X509TrustManager() {
-                    @Override
-                    public X509Certificate[] getAcceptedIssuers() {
-                        return new X509Certificate[0];
-                    }
-
-                    @Override
-                    public void checkClientTrusted(X509Certificate[] certs, String authType) {
-                    }
-
-                    @Override
-                    public void checkServerTrusted(X509Certificate[] certs, String authType) {
-                    }
-                }
-            };
-
-            SSLContext sslContext = SSLContext.getInstance("TLS");
-            sslContext.init(null, trustAllCerts, new SecureRandom());
-            httpClientBuilder.sslContext(sslContext);
-        } catch (Exception e) {
-            // SSL 초기화에 실패해도 연결 및 응답 제한은 반드시 유지합니다.
-            log.warn("Failed to initialize custom SSL context; using the platform SSL context", e);
+        if (trustAllSslCertificates) {
+            applyTrustAllSsl(httpClientBuilder);
         }
 
         JdkClientHttpRequestFactory requestFactory =
@@ -81,6 +62,34 @@ public class RestClientConfig {
         return builder
                 .requestFactory(requestFactory)
                 .build();
+    }
+
+    private void applyTrustAllSsl(HttpClient.Builder httpClientBuilder) {
+        try {
+            TrustManager[] trustAllCerts = new TrustManager[]{
+                    new X509TrustManager() {
+                        @Override
+                        public X509Certificate[] getAcceptedIssuers() {
+                            return new X509Certificate[0];
+                        }
+
+                        @Override
+                        public void checkClientTrusted(X509Certificate[] certs, String authType) {
+                        }
+
+                        @Override
+                        public void checkServerTrusted(X509Certificate[] certs, String authType) {
+                        }
+                    }
+            };
+
+            SSLContext sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(null, trustAllCerts, new SecureRandom());
+            httpClientBuilder.sslContext(sslContext);
+            log.warn("HTTP client SSL certificate validation is disabled for RestClient.");
+        } catch (Exception e) {
+            log.warn("Failed to initialize trust-all SSL context; using the platform SSL context.", e);
+        }
     }
 
     private Duration positiveDuration(long milliseconds, String propertyName) {
