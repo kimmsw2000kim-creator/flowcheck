@@ -40,6 +40,8 @@ const formatTimeForDisplay = (time: number) => {
 };
 
 const parseReportCards = (report?: string): ReportCard[] => {
+  // 워커가 생성한 마크다운 보고서를 화면용 카드 배열로 가공합니다.
+  // 제목 줄은 카드 제목이 되고, 일반 bullet/문장은 해당 카드의 항목으로 들어갑니다.
   const lines = report
     ?.split('\n')
     .map((line) => line.trim())
@@ -117,6 +119,8 @@ const toEngineResult = (value: unknown): EngineResult => {
 };
 
 const getEngineSummary = (scoreBreakdown?: Record<string, unknown>): EngineSummary[] => {
+  // scoreBreakdown.engineResults에는 Lighthouse/axe-core 실행 성공 여부와 오류 메시지가 들어옵니다.
+  // 사용자는 점수만 보면 어떤 엔진이 대체 규칙으로 빠졌는지 알기 어려우므로 별도 요약 카드로 보여줍니다.
   const rawEngineResults = scoreBreakdown?.engineResults;
   const engineResults = rawEngineResults && typeof rawEngineResults === 'object'
     ? rawEngineResults as Record<string, unknown>
@@ -153,6 +157,8 @@ const getSeverityTone = (severity?: string): BadgeTone => {
 };
 
 export function UIUXResultView({ result }: UIUXResultViewProps) {
+  // 완료된 UI/UX 테스트 결과 전용 뷰입니다.
+  // 점수 차트, 엔진 상태, 녹화 영상, 결함 타임라인, 마크다운 상세 보고서를 한 화면에서 연결해 보여줍니다.
   const [activeDefectId, setActiveDefectId] = useState<number | null>(null);
   const [showHeuristics, setShowHeuristics] = useState(false);
   const customVideoRef = useRef<CustomVideoPlayerRef>(null);
@@ -162,12 +168,15 @@ export function UIUXResultView({ result }: UIUXResultViewProps) {
   const overallScore = result.scores?.overall;
 
   const selectDefectAt = useCallback((offset: number) => {
+    // 결함 타임라인 항목을 클릭하면 영상 위치도 함께 이동합니다.
+    // timestampOffset은 Python 워커가 테스트 시작 시점 기준 초 단위로 계산한 값입니다.
     const targetDefect = result.defects?.find((defect) => defect.timestampOffset === offset);
     setActiveDefectId(targetDefect?.id ?? null);
     customVideoRef.current?.seekTo(offset);
   }, [result.defects]);
 
   const handleVideoTimeUpdate = useCallback((currentTime: number) => {
+    // 영상 재생 위치가 결함 발생 시점과 가까워지면 해당 결함을 강조합니다.
     const currentDefect = result.defects?.find((defect) => Math.abs(defect.timestampOffset - currentTime) < 1);
     setActiveDefectId(currentDefect?.id ?? null);
   }, [result.defects]);

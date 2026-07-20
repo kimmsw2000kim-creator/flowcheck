@@ -2,7 +2,6 @@ package com.flowcheck.domain;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.OnDelete;
@@ -29,14 +28,19 @@ public class CreditsLedger {
     @OnDelete(action = OnDeleteAction.CASCADE)
     private User user;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "test_request_id")
+    @OnDelete(action = OnDeleteAction.SET_NULL)
+    private TestRequest testRequest;
+
     @NotNull
     @Column(nullable = false)
     private Integer amount;
 
     @NotNull
-    @Size(max = 50)
+    @Enumerated(EnumType.STRING)
     @Column(name = "transaction_type", nullable = false, length = 50)
-    private String transactionType; // TODO: 데이터 정합성 위해 Enum 고려해볼 것
+    private CreditTransactionType transactionType;
 
     @Column(columnDefinition = "TEXT")
     private String description;

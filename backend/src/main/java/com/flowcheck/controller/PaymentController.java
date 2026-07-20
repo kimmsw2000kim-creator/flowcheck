@@ -6,6 +6,7 @@ import com.flowcheck.dto.payment.*;
 import com.flowcheck.service.PaymentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -101,6 +102,26 @@ public class PaymentController {
         return ResponseEntity.ok(history);
     }
 
+    @Operation(summary = "크레딧 결제 환불", description = "완료된 토스 결제를 취소하고 충전된 크레딧을 회수합니다.")
+    @PostMapping("/{paymentId}/refund")
+    public ResponseEntity<?> refundPayment(
+            @PathVariable Long paymentId,
+            @RequestBody(required = false) PaymentRefundRequestDto requestDto,
+            @AuthenticationPrincipal Jwt jwt) {
+
+        String email = jwt.getClaimAsString("email");
+        try {
+            paymentService.refundPayment(
+                    paymentId,
+                    requestDto != null ? requestDto.reason() : null,
+                    email);
+            return ResponseEntity.ok(Map.of("message", "환불이 완료되었습니다."));
+        } catch (Exception e) {
+            log.error("Failed to refund payment. paymentId={}", paymentId, e);
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+
     /**
      * 크레딧 거래 내역 조회
      */
@@ -121,7 +142,7 @@ public class PaymentController {
     @Operation(summary = "쿠폰 패키지 구매", description = "크레딧을 사용해 테스트 쿠폰 패키지를 구매합니다.")
     @PostMapping("/buy-coupons")
     public ResponseEntity<Void> buyCoupons(
-            @RequestBody CouponBuyRequestDto requestDto,
+            @Valid @RequestBody CouponBuyRequestDto requestDto,
             @AuthenticationPrincipal Jwt jwt) {
 
         log.info("[API] /api/payment/buy-coupons - 쿠폰 패키지 구매 요청 수신. Count: {}, Type: {}", requestDto.count(),

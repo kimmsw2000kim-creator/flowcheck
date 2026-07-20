@@ -388,7 +388,7 @@ public class MypageService {
                                 .map(ledger -> new MypagePointHistoryResponseDTO(
                                                 ledger.getId(),
                                                 ledger.getAmount(),
-                                                ledger.getTransactionType(),
+                                                ledger.getTransactionType().name(),
                                                 ledger.getDescription(),
                                                 ledger.getCreatedAt()))
                                 .toList();

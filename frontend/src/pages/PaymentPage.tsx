@@ -2,7 +2,7 @@ import { RefreshCw } from 'lucide-react';
 import { Card, PageHeader } from '../components/common';
 import CouponPackageSection from '../components/payment/CouponPackageSection';
 import CreditPackageSelector from '../components/payment/CreditPackageSelector';
-import LedgerHistoryTable from '../components/payment/LedgerHistoryTable';
+import PaymentActivityPanel from '../components/payment/PaymentActivityPanel';
 import PaymentBalanceHeader from '../components/payment/PaymentBalanceHeader';
 import TossPaymentPanel from '../components/payment/TossPaymentPanel';
 import VirtualAccountCard from '../components/payment/VirtualAccountCard';
@@ -14,13 +14,17 @@ export default function PaymentPage() {
     currentUser,
     products,
     selectedProduct,
+    paymentHistory,
     paymentOrder,
     isProcessing,
+    historyLoading,
+    refundingPaymentId,
     widgetReady,
     virtualAccount,
     selectProduct,
     cancelPayment,
     requestPayment,
+    requestRefund,
     buyCoupons,
   } = usePayment();
 
@@ -62,7 +66,14 @@ export default function PaymentPage() {
           <CouponPackageSection onBuyCoupons={buyCoupons} />
         </div>
 
-        <LedgerHistoryTable />
+        <div className="payment-page__history-column">
+          <PaymentActivityPanel
+            payments={paymentHistory}
+            loading={historyLoading}
+            refundingPaymentId={refundingPaymentId}
+            onRefund={requestRefund}
+          />
+        </div>
       </div>
     </div>
   );

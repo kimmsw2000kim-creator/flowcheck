@@ -13,14 +13,18 @@ from typing import Optional, List, Dict, Any
 from playwright.sync_api import sync_playwright
 from dotenv import load_dotenv
 
+# 실제 UI/UX 테스트를 수행하는 워커입니다.
+# 컨테이너 안에서 Playwright 브라우저를 띄워 대상 URL을 탐색하고, Lighthouse/axe-core/자체 DOM 규칙을 함께 실행합니다.
+# 진행 상황은 백엔드 step API로 계속 보내고, 마지막에는 점수/결함/영상 URL을 하나의 리포트로 저장합니다.
 # .env 로드
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"), override=True)
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://host.docker.internal:8080")
+UIUX_CALLBACK_TOKEN = os.getenv("UIUX_TEST_CALLBACK_TOKEN") or os.getenv("LOAD_TEST_CALLBACK_TOKEN")
 INITIAL_PAGE_LOAD_TIMEOUT_MS = int(os.getenv("UIUX_INITIAL_PAGE_LOAD_TIMEOUT_MS", "7000"))
 INITIAL_SETTLE_TIMEOUT_MS = int(os.getenv("UIUX_INITIAL_SETTLE_TIMEOUT_MS", "250"))
-LIGHTHOUSE_TIMEOUT_SECONDS = int(os.getenv("UIUX_LIGHTHOUSE_TIMEOUT_SECONDS", "25"))
-LIGHTHOUSE_PRECHECK_TIMEOUT_SECONDS = float(os.getenv("UIUX_LIGHTHOUSE_PRECHECK_TIMEOUT_SECONDS", "8"))
+LIGHTHOUSE_TIMEOUT_SECONDS = int(os.getenv("UIUX_LIGHTHOUSE_TIMEOUT_SECONDS", "60"))
+LIGHTHOUSE_PRECHECK_TIMEOUT_SECONDS = float(os.getenv("UIUX_LIGHTHOUSE_PRECHECK_TIMEOUT_SECONDS", "10"))
 
 UNIVERSAL_UIUX_AGENT_PROMPT = """
 너는 범용 UI/UX 테스트 에이전트다.
@@ -39,6 +43,10 @@ UNIVERSAL_UIUX_AGENT_PROMPT = """
 """.strip()
 
 class UIUXTestScores(BaseModel):
+    """최종 리포트의 항목별 점수 모델입니다.
+
+    프론트와 백엔드가 같은 필드명을 기대하므로 `bestPractices`처럼 camelCase 필드는 그대로 유지합니다.
+    """
     usability: int
     accessibility: int
     efficiency: int
@@ -47,6 +55,11 @@ class UIUXTestScores(BaseModel):
     overall: int
 
 class UIUXTestDefect(BaseModel):
+    """테스트 중 발견한 개별 결함을 표현합니다.
+
+    source/rule_id/evidence는 결함이 어떤 엔진 또는 자체 규칙에서 왔는지 추적하기 위한 메타데이터이고,
+    screenshot_url은 필요할 때 해당 시점의 화면 증거를 연결하기 위한 선택 필드입니다.
+    """
     category: str
     selector: str
     severity: str
@@ -59,6 +72,7 @@ class UIUXTestDefect(BaseModel):
     screenshot_url: Optional[str] = None
 
 class UIUXTestReportData(BaseModel):
+    """백엔드에 저장할 UI/UX 테스트 리포트의 기본 데이터 구조입니다."""
     request_id: str
     scores: UIUXTestScores
     device_info: Dict[str, Any]
@@ -66,6 +80,11 @@ class UIUXTestReportData(BaseModel):
     defects: List[UIUXTestDefect]
 
 def capture_live_frame(page) -> Optional[str]:
+    """현재 브라우저 뷰포트를 JPEG data URL로 캡처합니다.
+
+    단계별 진행 로그에 작은 스크린샷을 붙이기 위한 용도라 품질을 낮춰 전송 크기를 줄입니다.
+    캡처 실패는 테스트 실패로 보지 않고 None을 반환해 다음 단계가 계속 진행되게 합니다.
+    """
     try:
         screenshot = page.screenshot(type="jpeg", quality=45, full_page=False)
         encoded = base64.b64encode(screenshot).decode("ascii")
@@ -95,13 +114,18 @@ def report_step(request_id: str, step: int, url: str, action: str, selector: str
         payload["screenshotUrl"] = screenshot_url
     try:
         url_dest = f"{BACKEND_URL}/api/uiux-tests/{request_id}/steps"
+        headers = {"X-Internal-Api-Key": UIUX_CALLBACK_TOKEN} if UIUX_CALLBACK_TOKEN else None
         print(f"Reporting step {step} to backend: {url_dest}")
-        r = httpx.post(url_dest, json=payload, timeout=5.0)
+        r = httpx.post(url_dest, json=payload, headers=headers, timeout=5.0)
         r.raise_for_status()
     except Exception as e:
         print(f"Failed to send step: {e}")
 
 def uiux_log(event: str, **fields):
+    """워커 내부 진단 로그를 JSON 형태로 안전하게 출력합니다.
+
+    긴 문자열과 리스트는 로그 폭주를 막기 위해 잘라내고, ensure_ascii=False로 한글 메시지를 그대로 남깁니다.
+    """
     safe_fields = {}
     for key, value in fields.items():
         if isinstance(value, str):
@@ -113,6 +137,11 @@ def uiux_log(event: str, **fields):
     print(f"[UIUX] {event} {json.dumps(safe_fields, ensure_ascii=False, default=str)}", flush=True)
 
 def summarize_page_state(page) -> Dict[str, Any]:
+    """현재 화면의 핵심 상태를 짧게 요약합니다.
+
+    URL/title/본문 길이/비밀번호 입력/주요 링크와 버튼을 수집해, 클릭 전후 화면 변화 여부와 인증 장벽 여부를 판단하는
+    기준 데이터로 사용합니다.
+    """
     try:
         return page.evaluate("""
             () => {
@@ -148,6 +177,11 @@ def summarize_page_state(page) -> Dict[str, Any]:
         return {"url": getattr(page, "url", None), "error": str(e)}
 
 def classify_site_type(page) -> Dict[str, Any]:
+    """대상 사이트의 성격을 DOM 텍스트 기반으로 빠르게 분류합니다.
+
+    제목, 헤딩, 내비게이션, 버튼, 링크, 입력 필드를 키워드 스코어링해 commerce/dashboard/auth_portal 같은
+    사용자 과업 유형을 추정합니다. 이 결과는 이후 어떤 버튼/링크를 우선 탐색할지 결정하는 힌트입니다.
+    """
     started_at = time.time()
     try:
         profile = page.evaluate("""
@@ -267,10 +301,12 @@ def classify_site_type(page) -> Dict[str, Any]:
         }
 
 def report_report(request_id: str, report_data: dict):
+    """최종 평가 리포트를 백엔드에 저장합니다."""
     try:
         url_dest = f"{BACKEND_URL}/api/uiux-tests/{request_id}/report"
+        headers = {"X-Internal-Api-Key": UIUX_CALLBACK_TOKEN} if UIUX_CALLBACK_TOKEN else None
         print(f"Reporting report to backend: {url_dest}")
-        r = httpx.post(url_dest, json=report_data, timeout=5.0)
+        r = httpx.post(url_dest, json=report_data, headers=headers, timeout=5.0)
         r.raise_for_status()
     except Exception as e:
         if hasattr(e, 'response') and e.response:
@@ -279,14 +315,21 @@ def report_report(request_id: str, report_data: dict):
             print(f"Failed to send report: {e}")
 
 def report_failure(request_id: str, reason: str):
+    """워커 실행 전체가 실패했을 때 백엔드에 실패 상태를 보고합니다."""
     try:
         url_dest = f"{BACKEND_URL}/api/uiux-tests/{request_id}/fail"
+        headers = {"X-Internal-Api-Key": UIUX_CALLBACK_TOKEN} if UIUX_CALLBACK_TOKEN else None
         print(f"Reporting fail to backend: {url_dest}, Reason: {reason}")
-        r = httpx.post(url_dest, params={"reason": reason}, timeout=5.0)
+        r = httpx.post(url_dest, params={"reason": reason}, headers=headers, timeout=5.0)
     except Exception as e:
         print(f"Failed to send failure: {e}")
 
 def upload_video_to_supabase(file_path: str, request_id: str) -> Optional[str]:
+    """Playwright 녹화 파일을 Supabase Storage에 업로드하고 공개 URL을 반환합니다.
+
+    Supabase 설정이 없으면 영상 업로드만 건너뛰고, 리포트 생성은 계속 진행합니다. 서비스 역할 키가 있으면 우선 사용하고
+    없을 때 익명 키를 사용합니다.
+    """
     supabase_url = os.getenv("SUPABASE_URL")
     supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_ANON_KEY")
     if not supabase_url or not supabase_key:
@@ -317,6 +360,7 @@ def upload_video_to_supabase(file_path: str, request_id: str) -> Optional[str]:
         return None
 
 def severity_from_impact(impact: Optional[str]) -> str:
+    """axe-core impact 값을 FlowCheck 결함 심각도 체계로 변환합니다."""
     return {
         "critical": "CRITICAL",
         "serious": "MAJOR",
@@ -325,7 +369,11 @@ def severity_from_impact(impact: Optional[str]) -> str:
     }.get((impact or "").lower(), "MINOR")
 
 def localize_axe_rule_id(rule_id: Optional[str]) -> Optional[str]:
-    """axe-core rule ID를 한글 설명으로 변환합니다."""
+    """axe-core rule ID를 한글 설명으로 변환합니다.
+
+    axe 결과의 help 텍스트가 영어로 오더라도 사용자가 바로 이해할 수 있게, 자주 나오는 규칙은 rule_id 기준으로
+    먼저 한글화합니다.
+    """
     if not rule_id:
         return None
     mapping = {
@@ -506,6 +554,11 @@ def _strip_markdown_links(text: str) -> str:
 
 
 def localize_uiux_text(text: Optional[str]) -> Optional[str]:
+    """외부 검사 엔진이 반환한 영어 설명을 사용자용 한국어 문장으로 바꿉니다.
+
+    마크다운 링크 제거, axe/Lighthouse 직접 매핑, exact-match 치환, 패턴 기반 번역 순서로 처리합니다.
+    매핑하지 못한 문장은 원문을 그대로 반환해 정보 손실을 피합니다.
+    """
     if not text:
         return text
     # 1단계: 마크다운 링크/URL 제거 후 정규화
@@ -642,6 +695,11 @@ def localize_uiux_text(text: Optional[str]) -> Optional[str]:
     return text
 
 def describe_defect_target(selector: Optional[str], evidence: Optional[dict]) -> str:
+    """결함이 발생한 UI 요소를 사람이 읽기 쉬운 이름으로 요약합니다.
+
+    evidence에 들어 있는 텍스트, aria-label, title, placeholder, href를 우선 사용하고 없으면 selector를 사용합니다.
+    보고서 한 줄 요약에 들어가므로 너무 긴 값은 잘라냅니다.
+    """
     evidence = evidence if isinstance(evidence, dict) else {}
     candidates = [
         evidence.get("text"),
@@ -659,6 +717,11 @@ def describe_defect_target(selector: Optional[str], evidence: Optional[dict]) ->
     return target
 
 def localize_lighthouse_finding(finding: dict) -> tuple[str, str]:
+    """Lighthouse audit finding을 한글 제목과 개선 권장사항으로 변환합니다.
+
+    성능 지표와 접근성 규칙은 ruleId 기반으로 우선 매핑하고, 모르는 audit은 title/description을 범용 한글화 함수로
+    넘겨 사용자에게 최대한 자연스러운 설명을 제공합니다.
+    """
     rule_id = finding.get("ruleId")
     display_value = finding.get("displayValue")
     # 성능 지표 → 한글 제목/권장사항 직접 매핑
@@ -880,6 +943,11 @@ def localize_lighthouse_finding(finding: dict) -> tuple[str, str]:
     )
 
 def summarize_defect_group(defects: List[UIUXTestDefect], category_label: str) -> str:
+    """동일 유형 결함 묶음을 최종 보고서의 한 줄 개선 항목으로 요약합니다.
+
+    특히 터치 대상 크기 문제처럼 반복 개수가 많은 결함은 예시 요소 몇 개만 보여주고,
+    사용자가 패턴 단위로 고칠 수 있도록 권장사항을 재구성합니다.
+    """
     first = defects[0]
     description = (first.description or "").strip().rstrip(".")
     recommendation = (first.recommendation or "").strip().rstrip(".")
@@ -904,6 +972,11 @@ def summarize_defect_group(defects: List[UIUXTestDefect], category_label: str) -
     return f"- {category_label}: {description}."
 
 def find_chromium_executable() -> Optional[str]:
+    """Lighthouse가 사용할 Chromium 실행 파일 경로를 찾습니다.
+
+    CHROME_PATH가 명시되어 있으면 최우선으로 사용하고, 없으면 Playwright 브라우저 설치 경로 후보를 순회합니다.
+    컨테이너 이미지마다 폴더 구조가 다를 수 있어 chrome-linux64와 chrome-linux 모두 확인합니다.
+    """
     configured_path = os.getenv("CHROME_PATH")
     if configured_path and os.path.exists(configured_path):
         return configured_path
@@ -931,9 +1004,16 @@ def find_chromium_executable() -> Optional[str]:
     return None
 
 def _trim_debug_text(value: Optional[str], limit: int = 1500) -> str:
+    """외부 프로세스 stdout/stderr를 로그에 넣기 좋게 짧게 자릅니다."""
     return (value or "").strip()[:limit]
 
 def run_lighthouse_audit(target_url: str) -> Dict[str, Any]:
+    """Lighthouse CLI를 실행해 성능/접근성/모범 사례 점수와 주요 finding을 수집합니다.
+
+    실행 전 패키지와 Chromium 존재 여부를 확인하고, 대상 URL precheck 결과를 diagnostics에 남깁니다.
+    Lighthouse가 설치되지 않았거나 timeout이 발생해도 워커 전체를 실패시키지 않고, available=False 결과로 대체 규칙이
+    점수를 계산할 수 있게 합니다.
+    """
     started_at = time.time()
     diagnostics = {
         "targetUrl": target_url,
@@ -1083,6 +1163,11 @@ def run_lighthouse_audit(target_url: str) -> Dict[str, Any]:
         except Exception:
             pass
 def run_axe_audit(page) -> Dict[str, Any]:
+    """현재 Playwright 페이지에 axe-core를 주입해 접근성 위반을 검사합니다.
+
+    WCAG 2.x와 best-practice 태그를 기준으로 violations만 수집하고, impact와 노드 개수를 바탕으로 접근성 보조 점수를
+    계산합니다. axe 패키지가 없으면 실행 불가 상태를 반환합니다.
+    """
     axe_path = os.path.join(os.path.dirname(__file__), "node_modules", "axe-core", "axe.min.js")
     if not os.path.exists(axe_path):
         return {"available": False, "error": "axe-core package is not installed."}
@@ -1126,9 +1211,11 @@ def run_axe_audit(page) -> Dict[str, Any]:
         return {"available": False, "error": str(e)}
 
 def clamp_score(value: int) -> int:
+    """점수가 0~100 범위를 벗어나지 않도록 보정합니다."""
     return max(0, min(100, int(value)))
 
 def build_selector(el_info: dict) -> str:
+    """DOM 요소 정보에서 간단한 CSS selector 표현을 만듭니다."""
     tag = el_info.get("tag") or ""
     el_id = el_info.get("id") or ""
     class_name = el_info.get("className") or ""
@@ -1140,6 +1227,11 @@ def build_selector(el_info: dict) -> str:
     return tag or "N/A"
 
 def evaluate_accessibility_rules(page, add_defect_fn, start_time):
+    """axe/Lighthouse와 별도로 빠르게 수행하는 자체 접근성 규칙 검사입니다.
+
+    작은 터치 타깃, 이름 없는 버튼/링크, 라벨 없는 입력, 대체 텍스트 누락처럼 DOM만으로 판단 가능한 문제를 찾아
+    결함 목록과 감점 내역에 추가합니다.
+    """
     deductions = []
     try:
         issues = page.evaluate("""
@@ -1254,6 +1346,7 @@ def evaluate_accessibility_rules(page, add_defect_fn, start_time):
         return 80, [{"ruleId": "accessibility-evaluation-error", "error": str(e), "deduction": 20}]
 
 def add_lighthouse_findings(lighthouse_result, add_defect_fn, start_time):
+    """Lighthouse finding을 FlowCheck 결함 모델과 감점 내역으로 변환합니다."""
     deductions = []
     if not lighthouse_result.get("available"):
         return [{
@@ -1303,6 +1396,7 @@ def add_lighthouse_findings(lighthouse_result, add_defect_fn, start_time):
     return deductions
 
 def add_axe_findings(axe_result, add_defect_fn, start_time):
+    """axe-core violations를 FlowCheck 결함 모델과 감점 내역으로 변환합니다."""
     deductions = []
     if not axe_result.get("available"):
         return [{
@@ -1365,6 +1459,11 @@ def add_axe_findings(axe_result, add_defect_fn, start_time):
     return deductions
 
 def evaluate_best_practices(page, target_url, console_errors, page_errors, add_defect_fn, start_time):
+    """보안/품질 관점의 자체 모범 사례 규칙을 평가합니다.
+
+    HTTPS 사용 여부, 콘솔 오류, 런타임 오류, doctype, target=_blank rel 속성처럼 Lighthouse가 실패해도 확인 가능한
+    기술 품질 항목을 검사합니다.
+    """
     score = 100
     deductions = []
     current_offset = int(time.time() - start_time)
@@ -1465,6 +1564,10 @@ def evaluate_best_practices(page, target_url, console_errors, page_errors, add_d
     return clamp_score(score), deductions
 
 def evaluate_usability_rules(page, steps_history, failed_selectors, add_defect_fn, start_time):
+    """Playwright 탐색 결과와 DOM 상태를 바탕으로 사용성 문제를 평가합니다.
+
+    모호한 CTA, 비밀번호 조건 안내 부족, 자동 탐색 실패 같은 실제 사용 흐름의 마찰을 찾아 사용성 점수에 반영합니다.
+    """
     score = 100
     deductions = []
     current_offset = int(time.time() - start_time)
@@ -1570,6 +1673,10 @@ def evaluate_usability_rules(page, steps_history, failed_selectors, add_defect_f
     return clamp_score(score), deductions
 
 def build_report_markdown(scores, breakdown, defects):
+    """점수와 결함 목록을 프론트에 표시할 한국어 마크다운 보고서로 구성합니다.
+
+    심각도와 발생 시점을 기준으로 결함을 정렬한 뒤 동일 rule/description끼리 묶어 상위 5개 개선 항목만 요약합니다.
+    """
     category_labels = {
         "USABILITY": "사용성",
         "ACCESSIBILITY": "접근성",
@@ -1632,6 +1739,11 @@ def build_report_markdown(scores, breakdown, defects):
     return "\n".join(lines)
 
 def collect_public_action_candidates(page) -> Dict[str, Any]:
+    """현재 화면에서 비인증 공개 액션 후보를 수집하고 점수화합니다.
+
+    버튼, 링크, role=button 요소를 대상으로 텍스트/href/위치/크기를 보고 클릭 우선순위를 계산합니다.
+    로그인/회원가입/로고/현재 URL 링크는 감점해 실제 사용자 과업에 가까운 후보가 먼저 선택되도록 합니다.
+    """
     return page.evaluate("""
         () => {
             const visible = (el) => {
@@ -1695,6 +1807,11 @@ def collect_public_action_candidates(page) -> Dict[str, Any]:
 
 
 def recover_to_exploration_base(page, base_url: str):
+    """다음 탐색을 위해 화면을 기준 URL 또는 이전 상태로 되돌립니다.
+
+    모달은 Escape로 닫고, URL이 바뀌었으면 뒤로 가기 후 실패 시 base_url로 다시 이동합니다.
+    복구 실패는 치명적 오류로 보지 않고 다음 단계에서 가능한 만큼 계속 진행합니다.
+    """
     try:
         page.keyboard.press("Escape")
         page.wait_for_timeout(250)
@@ -1713,6 +1830,11 @@ def recover_to_exploration_base(page, base_url: str):
 
 
 def flash_click_target(page, selector: str, label: Optional[str] = None):
+    """사용자 VNC 화면에서 자동 클릭 지점을 잠깐 강조 표시합니다.
+
+    브라우저를 직접 지켜보는 사용자가 워커가 어떤 요소를 누르는지 이해할 수 있도록 빨간 원형 마커를 DOM에 삽입하고
+    짧은 시간 뒤 제거합니다.
+    """
     try:
         page.evaluate(
             """
@@ -1775,9 +1897,11 @@ def flash_click_target(page, selector: str, label: Optional[str] = None):
 
 
 def exploratory_action_sweep(page, add_defect_fn, start_time, site_profile=None, max_actions=7):
-    # 여러 기능을 연속으로 훑는 범용 탐색 루프입니다.
-    # 한 번 성공했다고 끝내지 않고, 액션 결과를 기록한 뒤 원래 화면으로 복구해서 다음 후보를 시도합니다.
-    # 네이버 같은 포털/커뮤니티/콘텐츠 사이트에서 한 화면에 멈춰 있지 않게 하기 위한 핵심 로직입니다.
+    """여러 공개 기능 후보를 연속으로 훑는 범용 탐색 루프입니다.
+
+    한 번 성공했다고 끝내지 않고, 액션 결과를 기록한 뒤 원래 화면으로 복구해서 다음 후보를 시도합니다.
+    포털/커뮤니티/콘텐츠 사이트처럼 한 화면에 여러 과업이 있는 경우 테스트가 한 지점에 멈추지 않게 하는 핵심 로직입니다.
+    """
     base_url = page.url
     visited = set()
     actions = []
@@ -1880,10 +2004,11 @@ def exploratory_action_sweep(page, add_defect_fn, start_time, site_profile=None,
 
 
 def deterministic_primary_action(page, add_defect_fn, start_time, site_profile=None):
-    # STEP 5에서 호출되는 실제 브라우저 조작 함수입니다.
-    # 현재 화면의 버튼/링크 후보를 점수화해서 하나씩 클릭해 봅니다.
-    # 주의: "화면이 바뀌었다"는 판단은 URL, 본문 길이, title, password input 수 변화를 기준으로 합니다.
-    # 따라서 장바구니 클릭처럼 로그인 모달이 뜨는 경우도 변화로 인식될 수 있습니다.
+    """단일 핵심 액션 후보를 결정적으로 선택해 실행합니다.
+
+    현재 화면의 버튼/링크 후보를 점수화해 하나씩 클릭하고, URL/본문 길이/title/password input 수 변화로 성공 여부를
+    판단합니다. 로그인 모달처럼 인증 장벽이 뜬 경우에는 결함으로 기록하고 다른 후보를 계속 시도합니다.
+    """
     current_offset = int(time.time() - start_time)
     before_state = summarize_page_state(page)
     uiux_log("primary_action.begin", pageState=before_state, siteProfile=site_profile or {})
@@ -2019,10 +2144,11 @@ def deterministic_primary_action(page, add_defect_fn, start_time, site_profile=N
     }
 
 def deterministic_form_feedback_check(page, add_defect_fn, start_time):
-    # STEP 6에서 호출되는 폼/검색 입력 검사 함수입니다.
-    # 검색창이나 일반 입력창을 찾아 테스트 값을 입력하고,
-    # 검색 결과 또는 검증 메시지가 화면에 나타나는지 확인합니다.
-    # 로그인/회원가입 폼만 보이는 상황이면 억지로 비밀번호 폼을 제출하지 않고 스킵하도록 설계되어 있습니다.
+    """검색창 또는 일반 입력 폼의 피드백 동작을 검사합니다.
+
+    테스트 값을 입력한 뒤 검색 결과나 검증 메시지가 화면에 나타나는지 확인합니다.
+    로그인/회원가입 폼만 보이는 상황에서는 비밀번호 폼을 임의 제출하지 않고 안전하게 스킵합니다.
+    """
     form_info = page.evaluate("""
         () => {
             const visible = (el) => {
@@ -2135,9 +2261,11 @@ def deterministic_form_feedback_check(page, add_defect_fn, start_time):
         return {"ok": False, "inputSelector": form_info["inputSelector"], "error": str(e)}
 
 def deterministic_navigation_check(page, add_defect_fn, start_time):
-    # STEP 7에서 호출되는 내비게이션 검사 함수입니다.
-    # 같은 도메인 내부 링크 중 로그인/회원가입 링크를 제외하고 이동 가능한 후보를 찾습니다.
-    # 후보가 없으면 실제 클릭 없이 "스킵" 결과를 반환하므로 UI에서는 STEP이 바로 지나간 것처럼 보일 수 있습니다.
+    """같은 도메인 내부 내비게이션 링크가 정상 이동하는지 확인합니다.
+
+    로그인/회원가입 링크는 제외하고 공개 링크를 우선 선택합니다. 후보가 없으면 실제 클릭 없이 스킵 결과를 반환하므로,
+    프론트 타임라인에서는 해당 STEP이 빠르게 지나갈 수 있습니다.
+    """
     nav_info = page.evaluate("""
         () => {
             const visible = (el) => {
@@ -2236,6 +2364,11 @@ def deterministic_navigation_check(page, add_defect_fn, start_time):
         return {"ok": False, "selector": selected["selector"], "error": str(e), "candidateCount": nav_info.get("total", 0)}
 
 def main():
+    """컨테이너 워커의 실행 진입점입니다.
+
+    REQUEST_ID와 TARGET_URL을 환경 변수로 받아 Chromium을 실행하고, 페이지 로드부터 사이트 분류, 액션 탐색,
+    Lighthouse/axe 검사, 점수 계산, 최종 리포트 저장까지 전체 UI/UX 테스트 파이프라인을 순서대로 수행합니다.
+    """
     request_id = os.getenv("REQUEST_ID")
     target_url = os.getenv("TARGET_URL")
     
@@ -2277,6 +2410,11 @@ def main():
         recommendation=None,
         screenshot_url=None
     ):
+        """중복 결함을 제거하고 사용자용 한국어 설명으로 정규화해 defects 목록에 추가합니다.
+
+        같은 category/selector/description/rule_id 조합은 한 번만 저장해 보고서가 반복 항목으로 과도하게 길어지는 것을
+        막습니다. target-size 규칙은 어떤 요소가 작은지 보고서에 드러나도록 대상 요약을 덧붙입니다.
+        """
         key = (category, selector, description, rule_id)
         if key not in unique_defects:
             unique_defects.add(key)

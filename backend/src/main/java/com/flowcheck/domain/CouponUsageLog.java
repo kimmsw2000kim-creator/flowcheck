@@ -28,10 +28,24 @@ public class CouponUsageLog {
     @OnDelete(action = OnDeleteAction.CASCADE)
     private User user;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "test_request_id")
+    @OnDelete(action = OnDeleteAction.SET_NULL)
+    private TestRequest testRequest;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_coupon_id")
+    @OnDelete(action = OnDeleteAction.SET_NULL)
+    private UserCoupon userCoupon;
+
     @NotNull
     @Enumerated(EnumType.STRING)
     @Column(name = "coupon_type", nullable = false, length = 50)
     private CouponType couponType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "action", length = 20)
+    private CouponUsageAction action;
 
     @Column(columnDefinition = "TEXT")
     private String description;

@@ -4,6 +4,7 @@ import type {
   CouponType,
   LedgerItem,
   PaymentConfirmResponse,
+  PaymentHistoryItem,
   PaymentInitiateResponse,
 } from '../types/payment';
 
@@ -40,6 +41,19 @@ export async function buyPaymentCoupons(
   couponType: CouponType,
 ): Promise<void> {
   await apiClient.post('/api/payment/buy-coupons', { count, couponType });
+}
+
+export async function fetchPaymentHistory(
+  config?: AxiosRequestConfig,
+): Promise<PaymentHistoryItem[]> {
+  const response = await apiClient.get<PaymentHistoryItem[]>('/api/payment/history', config);
+  return response.data;
+}
+
+export async function refundPayment(paymentId: number, reason?: string): Promise<void> {
+  await apiClient.post(`/api/payment/${paymentId}/refund`, {
+    reason: reason || '사용자 요청에 따른 크레딧 환불',
+  });
 }
 
 export async function fetchCreditsLedger(

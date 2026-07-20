@@ -19,6 +19,7 @@ const neutralGridColor = 'var(--color-border-default)';
 const neutralTextColor = 'var(--color-text-secondary)';
 
 function renderAngleTick({ x, y, textAnchor, index, payload }: any) {
+  // RadarChart 축 라벨이 차트 테두리와 겹치지 않도록 위/아래 항목만 살짝 보정합니다.
   const adjustedY = index === 0 ? Number(y) - 12 : index === 2 || index === 3 ? Number(y) + 10 : Number(y);
 
   return (
@@ -29,6 +30,8 @@ function renderAngleTick({ x, y, textAnchor, index, payload }: any) {
 }
 
 export default function UIUXScoreRadarChart({ scores }: UIUXScoreRadarChartProps) {
+  // 5개 항목의 균형을 한눈에 보는 레이더 차트입니다.
+  // 종합 점수가 누락된 과거 결과는 세부 항목 평균으로 표시합니다.
   const data = [
     { subject: '사용성', score: scores.usability },
     { subject: '접근성', score: scores.accessibility },

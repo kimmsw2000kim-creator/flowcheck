@@ -15,10 +15,10 @@ spring:
   jpa:
     hibernate:
       ddl-auto: none
-    show-sql: true
+    show-sql: ${SPRING_JPA_SHOW_SQL:false}
     properties:
       hibernate:
-        format_sql: true
+        format_sql: ${SPRING_JPA_FORMAT_SQL:false}
   security:
     oauth2:
       resourceserver:
@@ -49,6 +49,7 @@ fastapi:
 
 internal:
   load-test-callback-token: ${LOAD_TEST_CALLBACK_TOKEN:}
+  uiux-test-callback-token: ${UIUX_TEST_CALLBACK_TOKEN:${LOAD_TEST_CALLBACK_TOKEN:}}
 
 vnc:
   signed-url:
@@ -69,7 +70,7 @@ spring:
       idle-timeout: 600000        # 10분 유휴 시 반환
       max-lifetime: 1800000       # 30분 최대 수명
   jpa:
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         format_sql: false

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import type { TossPaymentsWidgets } from '@tosspayments/tosspayments-sdk';
 import { loadTossPayments } from '@tosspayments/tosspayments-sdk';
-import { buyPaymentCoupons, confirmPayment, initiatePayment } from '../api/paymentApi';
+import { buyPaymentCoupons, confirmPayment, fetchPaymentHistory, initiatePayment, refundPayment } from '../api/paymentApi';
 import { fetchMypage } from '../api/mypageApi';
 import { supabase } from '../lib/supabaseClient';
 import { useAlertStore } from '../store/alertStore';
@@ -11,6 +11,7 @@ import { useUserStore } from '../store/userStore';
 import type {
   CouponType,
   CreditProduct,
+  PaymentHistoryItem,
   PaymentInitiateResponse,
   VirtualAccountDetails,
 } from '../types/payment';
@@ -74,6 +75,9 @@ export function usePayment() {
   const [paymentOrder, setPaymentOrder] = useState<PaymentInitiateResponse | null>(null);
   const [confirmationLoading, setConfirmationLoading] = useState(false);
   const [initiationLoading, setInitiationLoading] = useState(false);
+  const [paymentHistory, setPaymentHistory] = useState<PaymentHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [refundingPaymentId, setRefundingPaymentId] = useState<number | null>(null);
   const [virtualAccount, setVirtualAccount] = useState<VirtualAccountDetails | null>(null);
   const confirmationKeyRef = useRef<string | null>(null);
   const initiationSequenceRef = useRef(0);
@@ -102,6 +106,22 @@ export function usePayment() {
       throw failedResult.reason;
     }
   }, [refreshServerEntries, syncCurrentUser]);
+
+  const refreshPaymentHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    try {
+      setPaymentHistory(await fetchPaymentHistory());
+    } catch (error) {
+      console.error('Failed to load payment history:', error);
+      showAlert(`결제 내역을 불러오지 못했습니다: ${getErrorMessage(error)}`, 'error');
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [showAlert]);
+
+  useEffect(() => {
+    void refreshPaymentHistory();
+  }, [refreshPaymentHistory]);
 
   useEffect(() => {
     const queryParams = new URLSearchParams(window.location.search);
@@ -147,6 +167,7 @@ export function usePayment() {
         if (response.status === 'DONE') {
           try {
             await syncFinancialState();
+            await refreshPaymentHistory();
             showAlert('결제가 성공적으로 완료되었습니다! 크레딧이 충전되었습니다.', 'success');
           } catch (error) {
             console.error('Failed to sync payment state:', error);
@@ -182,7 +203,7 @@ export function usePayment() {
     };
 
     void processConfirmation();
-  }, [showAlert, syncFinancialState]);
+  }, [refreshPaymentHistory, showAlert, syncFinancialState]);
 
   useEffect(() => {
     const sequence = ++initiationSequenceRef.current;
@@ -337,6 +358,7 @@ export function usePayment() {
       await buyPaymentCoupons(count, couponType);
       try {
         await syncFinancialState();
+        await refreshPaymentHistory();
         showAlert(`테스트 쿠폰 ${count}회권을 성공적으로 구매하였습니다!`);
       } catch (error) {
         console.error('Failed to sync payment state after coupon buy:', error);
@@ -346,19 +368,42 @@ export function usePayment() {
       console.error('Coupon purchase failed:', error);
       showAlert(`쿠폰 구매 처리에 실패했습니다: ${getErrorMessage(error)}`, 'error');
     }
-  }, [showAlert, syncFinancialState]);
+  }, [refreshPaymentHistory, showAlert, syncFinancialState]);
+
+  const requestRefund = useCallback(async (paymentId: number) => {
+    const confirmed = window.confirm('이 결제를 환불할까요? 충전된 크레딧이 잔액에서 회수됩니다.');
+    if (!confirmed) return;
+
+    setRefundingPaymentId(paymentId);
+    try {
+      await refundPayment(paymentId);
+      await syncFinancialState();
+      await refreshPaymentHistory();
+      showAlert('환불이 완료되었습니다. 크레딧 잔액이 갱신되었습니다.', 'success');
+    } catch (error) {
+      console.error('Payment refund failed:', error);
+      showAlert(`환불 처리에 실패했습니다: ${getErrorMessage(error)}`, 'error');
+    } finally {
+      setRefundingPaymentId(null);
+    }
+  }, [refreshPaymentHistory, showAlert, syncFinancialState]);
 
   return {
     currentUser,
     products: CREDIT_PRODUCTS,
     selectedProduct,
+    paymentHistory,
     paymentOrder,
     isProcessing: confirmationLoading || initiationLoading,
+    historyLoading,
+    refundingPaymentId,
     widgetReady,
     virtualAccount,
     selectProduct,
     cancelPayment,
     requestPayment,
+    requestRefund,
+    refreshPaymentHistory,
     buyCoupons,
   };
 }

@@ -25,6 +25,9 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class UIUXVncProxyController {
 
+    // noVNC 정적 파일(vnc.html, JS, CSS 등)을 실제 컨테이너/Fargate 태스크에서 가져와 브라우저에 전달하는 HTTP 프록시입니다.
+    // 사용자는 컨테이너 IP로 직접 접속하지 않고 항상 Spring API 경로를 통해 접근하므로,
+    // signed token 검증과 네트워크 접근 제어를 백엔드에서 일관되게 처리할 수 있습니다.
     private final UIUXTestService uiuxTestService;
 
     @Value("${vnc.proxy.connect-timeout-ms:${VNC_PROXY_CONNECT_TIMEOUT_MS:5000}}")
@@ -38,6 +41,8 @@ public class UIUXVncProxyController {
 
     @GetMapping("/api/uiux-tests/{requestId}/vnc/**")
     public ResponseEntity<byte[]> proxyVncAsset(@PathVariable UUID requestId, HttpServletRequest servletRequest) {
+        // 최초 진입 URL은 /vnc/vnc.html이고, 이후 noVNC가 같은 prefix 아래의 JS/CSS/font 자산을 추가로 요청합니다.
+        // 이 메서드는 요청 경로를 컨테이너의 noVNC 서버 경로로 변환해 그대로 가져옵니다.
         long startedAt = System.nanoTime();
         String targetPath = null;
         URI targetUri = null;
@@ -77,6 +82,9 @@ public class UIUXVncProxyController {
     }
 
     private void validateEntryRequest(UUID requestId, HttpServletRequest servletRequest) {
+        // vnc.html 진입점만 signed token을 직접 검사합니다.
+        // vnc.html 안에서 로드되는 내부 asset은 같은 signed URL 진입 이후 브라우저가 이어서 요청하는 파일이므로
+        // 별도 토큰 파라미터가 없어도 통과시킵니다.
         String requestUri = servletRequest.getRequestURI();
         if (!requestUri.endsWith("/vnc.html") && !requestUri.endsWith("/vnc/") && !requestUri.endsWith("/vnc")) {
             return;
@@ -92,12 +100,15 @@ public class UIUXVncProxyController {
     }
 
     private String extractTargetPath(String requestUri, UUID requestId) {
+        // Spring proxy prefix를 떼고 noVNC 서버가 이해하는 실제 path로 바꿉니다.
+        // /api/uiux-tests/{id}/vnc 또는 /vnc/는 noVNC 기본 HTML인 /vnc.html로 보정합니다.
         String prefix = "/api/uiux-tests/" + requestId + "/vnc";
         String path = requestUri.substring(prefix.length());
         return path.isBlank() || "/".equals(path) ? "/vnc.html" : path;
     }
 
     private void copyFirstHeader(HttpResponse<byte[]> proxyResponse, HttpHeaders headers, String name) {
+        // noVNC asset의 content-type/cache-control을 보존해 브라우저가 JS/CSS를 올바르게 해석하도록 합니다.
         List<String> values = proxyResponse.headers().allValues(name);
         if (!values.isEmpty()) {
             headers.set(name, values.getFirst());
@@ -105,6 +116,8 @@ public class UIUXVncProxyController {
     }
 
     private HttpResponse<byte[]> sendWithShortRetry(HttpRequest proxyRequest, UUID requestId, String targetPath) throws Exception {
+        // 컨테이너가 막 뜬 직후에는 noVNC HTTP 서버가 잠깐 5xx 또는 연결 실패를 낼 수 있습니다.
+        // 긴 재시도는 페이지 로딩을 묶어 두므로 짧은 backoff만 적용합니다.
         Exception lastError = null;
         int maxAttempts = Math.max(1, vncProxyRetryCount);
         HttpClient httpClient = HttpClient.newBuilder()

@@ -1,6 +1,8 @@
 package com.flowcheck.repository;
 
 import com.flowcheck.domain.CouponUsageLog;
+import com.flowcheck.domain.CouponUsageAction;
+import com.flowcheck.domain.CouponType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -16,6 +18,16 @@ public interface CouponUsageLogRepository extends JpaRepository<CouponUsageLog, 
         order by log.usedAt desc
     """)
     List<CouponUsageLog> findByUser_UserIdOrderByUsedAtDesc(@Param("userId") UUID userId);
+
+    List<CouponUsageLog> findByTestRequest_IdAndCouponTypeAndActionOrderByUsedAtDesc(
+            UUID requestId,
+            CouponType couponType,
+            CouponUsageAction action);
+
+    boolean existsByTestRequest_IdAndCouponTypeAndAction(
+            UUID requestId,
+            CouponType couponType,
+            CouponUsageAction action);
 
     @Query("""
         select log

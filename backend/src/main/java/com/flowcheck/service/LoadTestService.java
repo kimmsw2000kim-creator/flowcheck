@@ -56,6 +56,8 @@ public class LoadTestService {
                                 .testStatus("PENDING")
                                 .updatedAt(OffsetDateTime.now())
                                 .build();
+                TestRequest savedRequest = testRequestRepository.save(testHistory);
+                UUID generatedRequestId = savedRequest.getId();
 
                 List<UserCoupon> availableCoupons = userCouponRepository
                                 .findByUserAndCoupon_CouponTypeAndRemainingChancesGreaterThanOrderByCreatedAtAsc(user,
@@ -68,7 +70,10 @@ public class LoadTestService {
 
                         couponUsageLogRepository.save(CouponUsageLog.builder()
                                 .user(user)
+                                .testRequest(savedRequest)
+                                .userCoupon(couponToUse)
                                 .couponType(CouponType.LOAD_TEST)
+                                .action(CouponUsageAction.USE)
                                 .description("부하 테스트 실행 (" + request.getTargetUrl() + ")")
                                 .build());
 
@@ -77,17 +82,15 @@ public class LoadTestService {
                         user.deductBalance(TEST_COST);
                         CreditsLedger ledger = CreditsLedger.builder()
                                         .user(user)
+                                        .testRequest(savedRequest)
                                         .amount(-TEST_COST)
-                                        .transactionType("TEST_CONSUME")
+                                        .transactionType(CreditTransactionType.TEST_CONSUME)
                                         .description("k6 Load Test Execution on AWS")
                                         .build();
                         creditsLedgerRepository.save(ledger);
                 } else {
                         throw new IllegalStateException("Insufficient coupons or balance.");
                 }
-
-                TestRequest savedRequest = testRequestRepository.save(testHistory);
-                UUID generatedRequestId = savedRequest.getId();
 
                 loadTestStreamService.updateProgress(generatedRequestId,
                                 new com.flowcheck.dto.LoadTest.LoadTestProgressUpdateRequest(

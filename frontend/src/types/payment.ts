@@ -40,6 +40,21 @@ export interface PaymentConfirmResponse {
   virtualAccount?: PaymentVirtualAccountResponse;
 }
 
+export interface PaymentHistoryItem {
+  paymentId: number;
+  orderId: string;
+  paymentKey?: string | null;
+  amount: number;
+  accountNumber?: string | null;
+  bankCode?: string | null;
+  customerName?: string | null;
+  paymentStatus: string;
+  creditedAmount: number;
+  refundable: boolean;
+  dueDate?: string | null;
+  createdAt: string;
+}
+
 export interface VirtualAccountDetails {
   bank: string;
   accountNumber: string;
