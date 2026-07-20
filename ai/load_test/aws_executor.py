@@ -15,6 +15,7 @@ from .time_series_aggregator import (
     MetricStreamParseError,
     aggregate_k6_metric_stream,
 )
+from .time_series_validator import validate_time_series_consistency
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +120,7 @@ def run_k6_aws_fargate(
         key=metrics_s3_key,
         duration=duration,
     )
+    aggregation = validate_time_series_consistency(summary, aggregation, duration)
     summary.update(
         {
             "chart_points": aggregation.points,
@@ -145,6 +147,9 @@ def _load_metric_aggregation(
         logger.warning("Measured k6 time-series is unavailable: key=%s error=%s", key, exc)
         return MetricAggregationResult(
             points=[],
+            request_count=0.0,
+            avg_response=None,
+            error_rate=None,
             max_tps=None,
             p95_response=None,
             status="UNAVAILABLE",

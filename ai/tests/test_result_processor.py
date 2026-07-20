@@ -29,6 +29,7 @@ class ResultProcessorTest(unittest.TestCase):
         )
 
         self.assertEqual(20.5, result["real_tps"])
+        self.assertEqual(100, result["real_request_count"])
         self.assertEqual(321.5, result["real_avg_response"])
         self.assertEqual(1.2, result["real_error_rate"])
         self.assertFalse(result["is_server_dead"])

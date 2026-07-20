@@ -25,6 +25,7 @@ def parse_k6_summary(summary_data: Dict[str, Any], duration: int) -> LoadTestSum
     real_error_rate = 100.0 if is_server_dead else real_error_rate_raw * 100
 
     return {
+        "real_request_count": total_count,
         "real_tps": real_tps,
         "real_avg_response": real_avg_response,
         "real_error_rate": real_error_rate,

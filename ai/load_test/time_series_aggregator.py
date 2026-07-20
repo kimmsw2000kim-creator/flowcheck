@@ -142,6 +142,9 @@ class MetricBucket:
 @dataclass(frozen=True)
 class MetricAggregationResult:
     points: List[ChartPoint]
+    request_count: float
+    avg_response: Optional[float]
+    error_rate: Optional[float]
     max_tps: Optional[int]
     p95_response: Optional[float]
     status: str
@@ -192,6 +195,9 @@ def aggregate_k6_metric_stream(
     if not active_keys:
         return MetricAggregationResult(
             points=[],
+            request_count=0.0,
+            avg_response=None,
+            error_rate=None,
             max_tps=None,
             p95_response=None,
             status="UNAVAILABLE",
@@ -247,8 +253,25 @@ def aggregate_k6_metric_stream(
     if truncated:
         warnings.append("요청한 테스트 시간을 벗어난 측정 구간을 제외했습니다.")
 
+    total_request_count = sum(bucket.requests for bucket in buckets.values())
+    total_duration_sum = sum(bucket.duration_sum for bucket in buckets.values())
+    total_duration_count = sum(bucket.duration_count for bucket in buckets.values())
+    total_failed_sum = sum(bucket.failed_sum for bucket in buckets.values())
+    total_failed_count = sum(bucket.failed_count for bucket in buckets.values())
+
     return MetricAggregationResult(
         points=points,
+        request_count=total_request_count,
+        avg_response=(
+            total_duration_sum / total_duration_count
+            if total_duration_count
+            else None
+        ),
+        error_rate=(
+            total_failed_sum / total_failed_count * 100
+            if total_failed_count
+            else None
+        ),
         max_tps=max(point.tps for point in points),
         p95_response=_rounded_optional(overall_p95.value()),
         status="PARTIAL" if warnings else "COMPLETE",

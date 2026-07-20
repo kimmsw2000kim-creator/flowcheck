@@ -117,7 +117,7 @@ class AwsExecutorTest(unittest.TestCase):
             {
                 "type": "Point",
                 "metric": "http_reqs",
-                "data": {"time": "2026-01-01T00:00:00Z", "value": 1},
+                "data": {"time": "2026-01-01T00:00:00Z", "value": 10},
             },
             {
                 "type": "Point",
@@ -127,7 +127,7 @@ class AwsExecutorTest(unittest.TestCase):
             {
                 "type": "Point",
                 "metric": "http_req_failed",
-                "data": {"time": "2026-01-01T00:00:00Z", "value": 0},
+                "data": {"time": "2026-01-01T00:00:00Z", "value": 0.1},
             },
         ]
         compressed_metrics = gzip.compress(
@@ -183,7 +183,7 @@ class AwsExecutorTest(unittest.TestCase):
         self.assertEqual(10.0, result["real_error_rate"])
         self.assertEqual("COMPLETE", result["metrics_status"])
         self.assertEqual("MEASURED_K6", result["data_origin"])
-        self.assertEqual(1, result["max_tps"])
+        self.assertEqual(10, result["max_tps"])
         self.assertEqual(1, len(result["chart_points"]))
 
     def test_client_error_is_converted(self):
