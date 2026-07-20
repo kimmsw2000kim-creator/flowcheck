@@ -9,7 +9,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from load_test.exceptions import LoadTestGenerationError
 from load_test.report_generator import (
-    build_fallback_analysis,
     build_markdown_report,
     generate_analysis_report,
     sanitize_analysis_markdown,
@@ -152,8 +151,17 @@ class ReportGeneratorTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("최대 TPS | **25 req/s**", report)
         self.assertIn("p95 응답시간 | **480.00 ms**", report)
 
-    async def test_generate_analysis_returns_valid_sanitized_report(self):
-        text = "## 핵심 진단\n- 정상\n\n## 우선 조치\n1. 유지"
+    async def test_generate_analysis_returns_valid_structured_report(self):
+        text = json.dumps({
+            "verdict": "측정 범위에서 안정적입니다.",
+            "actions": [{
+                "priority": 1,
+                "title": "회귀 기준 저장",
+                "rationale": "현재 결과를 비교 기준으로 사용합니다.",
+                "evidence": "평균 TPS 10.00입니다.",
+            }],
+            "limitations": [],
+        }, ensure_ascii=False)
         result = await generate_analysis_report(
             gemini_client(text),
             self.summary,
@@ -163,20 +171,25 @@ class ReportGeneratorTest(unittest.IsolatedAsyncioTestCase):
             10,
             "",
         )
-        self.assertEqual(text, result)
+        self.assertIn("## 종합 판정", result)
+        self.assertIn("측정 범위에서 안정적입니다.", result)
+        self.assertIn("평균 TPS 10.00", result)
 
     async def test_generate_analysis_falls_back_for_invalid_or_long_output(self):
-        fallback = build_fallback_analysis(self.summary)
         with self.assertLogs("load_test.report_generator", level="WARNING") as logs:
             invalid = await generate_analysis_report(
                 gemini_client("invalid"), self.summary, self.assessment, "url", 1, 1, ""
             )
-        long_text = "## 핵심 진단\n- " + ("가" * 1500) + "\n## 우선 조치\n1. 조치"
+        long_text = json.dumps({
+            "verdict": "가" * 600,
+            "actions": [],
+            "limitations": [],
+        }, ensure_ascii=False)
         oversized = await generate_analysis_report(
             gemini_client(long_text), self.summary, self.assessment, "url", 1, 1, ""
         )
-        self.assertEqual(fallback, invalid)
-        self.assertEqual(fallback, oversized)
+        self.assertIn("## 종합 판정", invalid)
+        self.assertIn("## 종합 판정", oversized)
         self.assertTrue(any("model output was invalid" in message for message in logs.output))
 
     async def test_generate_analysis_falls_back_on_client_failure(self):
@@ -190,7 +203,8 @@ class ReportGeneratorTest(unittest.IsolatedAsyncioTestCase):
                 1,
                 "",
             )
-        self.assertEqual(build_fallback_analysis(self.summary), result)
+        self.assertIn("## 종합 판정", result)
+        self.assertIn("## 우선 조치", result)
         self.assertTrue(any("model generation failed" in message for message in logs.output))
 
 

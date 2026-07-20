@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -34,6 +34,24 @@ class LoadAnalysisContext(BaseModel):
     bottlenecks: list[BottleneckSignal] = Field(default_factory=list)
     coverageRatio: float = 0.0
     scalingEfficiency: Optional[float] = None
+
+
+class AnalysisAction(BaseModel):
+    priority: int = Field(ge=1, le=3)
+    title: str = Field(min_length=1, max_length=120)
+    rationale: str = Field(min_length=1, max_length=500)
+    evidence: str = Field(min_length=1, max_length=500)
+
+
+class StructuredAnalysisReport(BaseModel):
+    schemaVersion: int = 1
+    generationSource: Literal["LLM", "FALLBACK_INVALID", "FALLBACK_ERROR"]
+    verdict: str = Field(min_length=1, max_length=500)
+    stages: list[StageAnalysis] = Field(default_factory=list)
+    bottlenecks: list[BottleneckSignal] = Field(default_factory=list)
+    actions: list[AnalysisAction] = Field(default_factory=list, max_length=3)
+    limitations: list[str] = Field(default_factory=list, max_length=3)
+    sustainableTps: Optional[float] = None
 
 
 def build_analysis_context(

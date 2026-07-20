@@ -5,9 +5,14 @@ from typing import Any
 from .aws_executor import run_k6_aws_fargate
 from .models import LoadTestProgressUpdate, TestResultsResponse
 from .progress_publisher import publish_progress
-from .report_generator import generate_analysis_report, build_markdown_report
+from .analysis_engine import build_analysis_context
+from .report_generator import (
+    build_markdown_report,
+    generate_structured_analysis_report,
+    render_structured_analysis,
+)
 from .result_processor import calculate_performance_assessment
-from .script_generator import generate_k6_script
+from .script_generator import build_default_stages, generate_k6_script
 from .target_validator import validate_target_server
 
 logger = logging.getLogger(__name__)
@@ -66,7 +71,13 @@ async def run_load_test_pipeline(client: Any, request: Any) -> TestResultsRespon
     )
 
     assessment = calculate_performance_assessment(summary)
-    analysis = await generate_analysis_report(
+    declared_profile = (
+        build_default_stages(request.vusers, request.duration)
+        if not (request.loadPrompt or "").strip()
+        else None
+    )
+    analysis_context = build_analysis_context(summary, declared_profile)
+    structured_analysis = await generate_structured_analysis_report(
         client=client,
         summary=summary,
         assessment=assessment,
@@ -74,7 +85,9 @@ async def run_load_test_pipeline(client: Any, request: Any) -> TestResultsRespon
         vusers=request.vusers,
         duration=request.duration,
         load_prompt=request.loadPrompt or "",
+        context=analysis_context,
     )
+    analysis = render_structured_analysis(structured_analysis)
     markdown_report = build_markdown_report(summary, assessment, analysis)
 
     await publish_progress(
