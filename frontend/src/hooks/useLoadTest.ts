@@ -174,6 +174,7 @@ export function useLoadTest(
                 if (testResults && (testResults.avgTps !== undefined || testResults.maxTps !== undefined)) {
                   setLoadStatus('success');
                   setLoadResult({
+                    totalRequests: testResults.totalRequests ?? null,
                     avgTps: testResults.avgTps ?? testResults.maxTps ?? 0,
                     maxTps: testResults.maxTps ?? null,
                     avgResponse: testResults.avgResponse,
@@ -188,6 +189,7 @@ export function useLoadTest(
                     metricsStatus: testResults.metricsStatus || 'LEGACY_UNVERIFIED',
                     metricsWarning: testResults.metricsWarning || null,
                     dataOrigin: testResults.dataOrigin || 'LEGACY_SYNTHETIC',
+                    bucketSeconds: testResults.bucketSeconds ?? null,
                   });
                   showAlert('k6 부하 테스트가 완료되었습니다!', 'success');
                 }

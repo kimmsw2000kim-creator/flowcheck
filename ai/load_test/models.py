@@ -26,6 +26,7 @@ class PerformanceAssessment(BaseModel):
 
 
 class TestResultsResponse(BaseModel):
+    totalRequests: int
     avgTps: float
     maxTps: Optional[int] = None
     avgResponse: float
@@ -40,6 +41,7 @@ class TestResultsResponse(BaseModel):
     metricsStatus: str
     metricsWarning: Optional[str] = None
     dataOrigin: str
+    bucketSeconds: Optional[int] = None
 
 
 class LoadTestProgressUpdate(BaseModel):

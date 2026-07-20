@@ -9,6 +9,7 @@ export interface LoadChartDataPoint {
 }
 
 export interface LoadTestResult {
+  totalRequests?: number | null;
   avgTps: number;
   maxTps: number | null;
   avgResponse: number;
@@ -26,4 +27,5 @@ export interface LoadTestResult {
   metricsStatus: string;
   metricsWarning?: string | null;
   dataOrigin: string;
+  bucketSeconds?: number | null;
 }

@@ -1,8 +1,8 @@
 package com.flowcheck.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowcheck.domain.*;
+import com.flowcheck.dto.LoadTest.LoadTestMetricsDocument;
 import com.flowcheck.dto.LoadTest.LoadTestRequest;
 import com.flowcheck.dto.LoadTest.LoadTestResponse;
 import com.flowcheck.dto.LoadTest.LoadTestSubmittedEvent;
@@ -138,30 +138,35 @@ public class LoadTestService {
                 int schemaVersion = getIntValue(rawMetrics.get("schemaVersion"), 1);
                 boolean hasMeasuredSeriesContract = schemaVersion >= 2;
 
-                List<LoadTestResponse.ChartPoint> chartPoints = Collections.emptyList();
-                Object pointsObj = rawMetrics.get("points");
-                if (hasMeasuredSeriesContract && pointsObj != null) {
-                        chartPoints = objectMapper.convertValue(
-                                        pointsObj,
-                                        new TypeReference<List<LoadTestResponse.ChartPoint>>() {
-                                        });
-                }
+                LoadTestMetricsDocument metricsDocument = hasMeasuredSeriesContract
+                                ? objectMapper.convertValue(rawMetrics, LoadTestMetricsDocument.class)
+                                : null;
+                LoadTestMetricsDocument.Summary storedSummary = metricsDocument != null
+                                ? metricsDocument.summary()
+                                : null;
 
-                Map<String, Object> summaryMetrics = getMapValue(rawMetrics.get("summary"));
-                double avgTps = getDoubleValue(
-                                summaryMetrics.get("avgTps"),
-                                report.getTotalTps().doubleValue());
-                Integer maxTps = getNullableIntValue(summaryMetrics.get("maxTps"));
-                Double p95Response = getNullableDoubleValue(summaryMetrics.get("p95Response"));
+                List<LoadTestResponse.ChartPoint> chartPoints =
+                                metricsDocument != null && metricsDocument.points() != null
+                                                ? metricsDocument.points()
+                                                : Collections.emptyList();
+                Long totalRequests = storedSummary != null ? storedSummary.totalRequests() : null;
+                double avgTps = storedSummary != null && storedSummary.avgTps() != null
+                                ? storedSummary.avgTps()
+                                : report.getTotalTps().doubleValue();
+                Integer maxTps = storedSummary != null ? storedSummary.maxTps() : null;
+                Double p95Response = storedSummary != null ? storedSummary.p95Response() : null;
+                Integer bucketSeconds = metricsDocument != null
+                                ? metricsDocument.bucketSeconds()
+                                : null;
 
                 String metricsStatus = hasMeasuredSeriesContract
-                                ? getStringValue(rawMetrics.get("metricsStatus"), "UNAVAILABLE")
+                                ? getStringValue(metricsDocument.metricsStatus(), "UNAVAILABLE")
                                 : "LEGACY_UNVERIFIED";
                 String metricsWarning = hasMeasuredSeriesContract
-                                ? getStringValue(rawMetrics.get("metricsWarning"), null)
+                                ? getStringValue(metricsDocument.metricsWarning(), null)
                                 : "이 결과는 이전 측정 형식으로 생성되어 실제 시계열을 제공하지 않습니다.";
                 String dataOrigin = hasMeasuredSeriesContract
-                                ? getStringValue(rawMetrics.get("dataOrigin"), "NOT_COLLECTED")
+                                ? getStringValue(metricsDocument.dataOrigin(), "NOT_COLLECTED")
                                 : "LEGACY_SYNTHETIC";
 
                 double avgResponse = report.getAvgLatency() / 1000.0;
@@ -171,6 +176,7 @@ public class LoadTestService {
                                 errorRate);
 
                 LoadTestResponse.TestResults resultsDto = LoadTestResponse.TestResults.builder()
+                                .totalRequests(totalRequests)
                                 .avgTps(avgTps)
                                 .maxTps(maxTps)
                                 .avgResponse(avgResponse)
@@ -188,6 +194,7 @@ public class LoadTestService {
                                 .metricsStatus(metricsStatus)
                                 .metricsWarning(metricsWarning)
                                 .dataOrigin(dataOrigin)
+                                .bucketSeconds(bucketSeconds)
                                 .build();
 
                 return LoadTestResponse.builder()
@@ -199,30 +206,8 @@ public class LoadTestService {
                                 .build();
         }
 
-        private Map<String, Object> getMapValue(Object value) {
-                if (value instanceof Map<?, ?> mapValue) {
-                        return objectMapper.convertValue(
-                                        mapValue,
-                                        new TypeReference<Map<String, Object>>() {
-                                        });
-                }
-                return Collections.emptyMap();
-        }
-
-        private double getDoubleValue(Object value, double fallback) {
-                return value instanceof Number number ? number.doubleValue() : fallback;
-        }
-
-        private Double getNullableDoubleValue(Object value) {
-                return value instanceof Number number ? number.doubleValue() : null;
-        }
-
         private int getIntValue(Object value, int fallback) {
                 return value instanceof Number number ? number.intValue() : fallback;
-        }
-
-        private Integer getNullableIntValue(Object value) {
-                return value instanceof Number number ? number.intValue() : null;
         }
 
         private String getStringValue(Object value, String fallback) {

@@ -71,6 +71,3 @@ report.html
 
 # UIUX Test Artifacts
 ai/videos/*.webm
-
-# Test Folder
-backend/src/test/

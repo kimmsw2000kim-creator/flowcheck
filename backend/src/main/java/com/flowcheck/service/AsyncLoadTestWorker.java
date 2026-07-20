@@ -1,10 +1,12 @@
 package com.flowcheck.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowcheck.domain.LoadTestReport;
 import com.flowcheck.domain.TestRequest;
 import com.flowcheck.dto.LoadTest.LoadTestRequest;
+import com.flowcheck.dto.LoadTest.LoadTestMetricsDocument;
 import com.flowcheck.dto.LoadTest.LoadTestResponse;
 import com.flowcheck.dto.LoadTest.LoadTestSubmittedEvent;
 import com.flowcheck.repository.LoadTestReportRepository;
@@ -21,7 +23,7 @@ import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -103,36 +105,41 @@ public class AsyncLoadTestWorker {
             if (effectiveAvgTps == null) {
                 effectiveAvgTps = 0.0;
             }
+            Integer bucketSeconds = testResults.getBucketSeconds();
+            if (bucketSeconds == null && "MEASURED_K6".equals(testResults.getDataOrigin())) {
+                bucketSeconds = LoadTestMetricsDocument.DEFAULT_BUCKET_SECONDS;
+            }
 
-            Map<String, Object> rawMetrics = new HashMap<>();
-            rawMetrics.put("schemaVersion", 2);
-            rawMetrics.put("points", testResults.getPoints());
-            rawMetrics.put("metricsStatus", testResults.getMetricsStatus());
-            rawMetrics.put("metricsWarning", testResults.getMetricsWarning());
-            rawMetrics.put("dataOrigin", testResults.getDataOrigin());
+            LoadTestMetricsDocument.ScoreBreakdown scoreBreakdown =
+                    testResults.getScoreBreakdown() == null
+                            ? null
+                            : new LoadTestMetricsDocument.ScoreBreakdown(
+                                    testResults.getScoreBreakdown().getReliabilityScore(),
+                                    testResults.getScoreBreakdown().getLatencyScore());
 
-            Map<String, Object> summaryMetrics = new HashMap<>();
-            summaryMetrics.put("avgTps", effectiveAvgTps);
-            if (testResults.getMaxTps() != null) {
-                summaryMetrics.put("maxTps", testResults.getMaxTps());
-            }
-            if (testResults.getP95Response() != null) {
-                summaryMetrics.put("p95Response", testResults.getP95Response());
-            }
-            rawMetrics.put("summary", summaryMetrics);
-            if (testResults.getPerformanceScore() != null) {
-                rawMetrics.put("performanceScore", testResults.getPerformanceScore());
-                rawMetrics.put("performanceGrade", testResults.getPerformanceGrade());
-                rawMetrics.put("scoreLabel", testResults.getScoreLabel());
-            }
-            if (testResults.getScoreBreakdown() != null) {
-                Map<String, Object> scoreBreakdown = new HashMap<>();
-                scoreBreakdown.put("reliabilityScore",
-                        testResults.getScoreBreakdown().getReliabilityScore());
-                scoreBreakdown.put("latencyScore",
-                        testResults.getScoreBreakdown().getLatencyScore());
-                rawMetrics.put("scoreBreakdown", scoreBreakdown);
-            }
+            LoadTestMetricsDocument metricsDocument = new LoadTestMetricsDocument(
+                    LoadTestMetricsDocument.CURRENT_SCHEMA_VERSION,
+                    bucketSeconds,
+                    testResults.getDataOrigin(),
+                    testResults.getMetricsStatus(),
+                    testResults.getMetricsWarning(),
+                    new LoadTestMetricsDocument.Summary(
+                            testResults.getTotalRequests(),
+                            effectiveAvgTps,
+                            testResults.getMaxTps(),
+                            testResults.getAvgResponse(),
+                            testResults.getP95Response(),
+                            testResults.getErrorRate()),
+                    testResults.getPerformanceScore(),
+                    testResults.getPerformanceGrade(),
+                    testResults.getScoreLabel(),
+                    scoreBreakdown,
+                    testResults.getPoints() == null ? List.of() : testResults.getPoints());
+
+            Map<String, Object> rawMetrics = objectMapper.convertValue(
+                    metricsDocument,
+                    new TypeReference<Map<String, Object>>() {
+                    });
 
             LoadTestReport report = LoadTestReport.builder()
                     .testRequest(testHistory)

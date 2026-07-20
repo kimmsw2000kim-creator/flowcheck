@@ -308,6 +308,7 @@ class PipelineTest(unittest.IsolatedAsyncioTestCase):
         from load_test.pipeline import run_load_test_pipeline
 
         execute.return_value = {
+            "real_request_count": 129,
             "real_tps": 12.9,
             "real_avg_response": 120.456,
             "real_error_rate": 1.234,
@@ -343,6 +344,7 @@ class PipelineTest(unittest.IsolatedAsyncioTestCase):
         validate_target.assert_awaited_once_with("https://example.com")
         generate_analysis.assert_awaited_once()
         self.assertIsInstance(result, TestResultsResponse)
+        self.assertEqual(129, result.totalRequests)
         self.assertEqual(12.9, result.avgTps)
         self.assertEqual(13, result.maxTps)
         self.assertEqual(120.46, result.avgResponse)
@@ -351,6 +353,7 @@ class PipelineTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, len(result.points))
         self.assertEqual("COMPLETE", result.metricsStatus)
         self.assertEqual("MEASURED_K6", result.dataOrigin)
+        self.assertEqual(1, result.bucketSeconds)
         self.assertEqual(
             ["GENERATING_SCRIPT", "PROVISIONING_INFRA", "PROCESSING_RESULTS", "RESULT_READY"],
             [item.args[1].phase for item in publish.await_args_list],

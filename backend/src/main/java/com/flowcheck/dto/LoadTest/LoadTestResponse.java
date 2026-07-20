@@ -20,6 +20,7 @@ public class LoadTestResponse {
     @Getter
     @Builder
     public static class TestResults {
+        private Long totalRequests;
         private Double avgTps;
         private Integer maxTps;
         private Double avgResponse;
@@ -35,6 +36,7 @@ public class LoadTestResponse {
         private String metricsStatus;
         private String metricsWarning;
         private String dataOrigin;
+        private Integer bucketSeconds;
     }
 
     @Getter

@@ -88,6 +88,7 @@ async def run_load_test_pipeline(client: Any, request: Any) -> TestResultsRespon
     )
 
     return TestResultsResponse(
+        totalRequests=int(summary.get("real_request_count", 0)),
         avgTps=round(summary["real_tps"], 2),
         maxTps=summary.get("max_tps"),
         avgResponse=round(summary["real_avg_response"], 2),
@@ -105,4 +106,7 @@ async def run_load_test_pipeline(client: Any, request: Any) -> TestResultsRespon
             "k6 실측 시계열이 없어 전체 요약 지표만 제공합니다.",
         ),
         dataOrigin=summary.get("data_origin", "NOT_COLLECTED"),
+        bucketSeconds=(
+            1 if summary.get("data_origin") == "MEASURED_K6" else None
+        ),
     )
