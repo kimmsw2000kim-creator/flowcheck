@@ -31,7 +31,7 @@ public class AsyncUIUXTestWorker {
     @Value("${fastapi.url}")
     private String fastApiUrl;
 
-    @Value("${internal.load-test-callback-token}")
+    @Value("${internal.fastapi-api-key}")
     private String fastApiInternalApiKey;
 
     @Async
