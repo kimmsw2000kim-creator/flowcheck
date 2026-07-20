@@ -14,6 +14,7 @@ from load_test.report_generator import (
     sanitize_analysis_markdown,
 )
 from load_test.result_processor import calculate_performance_assessment
+from load_test.models import PerformanceAssessment, ScoreBreakdown
 from load_test.script_generator import (
     build_default_stages,
     clean_k6_script,
@@ -150,6 +151,25 @@ class ReportGeneratorTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("평균 TPS | **10.00 req/s**", report)
         self.assertIn("최대 TPS | **25 req/s**", report)
         self.assertIn("p95 응답시간 | **480.00 ms**", report)
+
+    def test_markdown_report_describes_version_two_score_formula(self):
+        assessment = PerformanceAssessment(
+            score=95,
+            grade="A",
+            label="우수",
+            breakdown=ScoreBreakdown(
+                reliabilityScore=40,
+                latencyScore=40,
+                scalabilityScore=15,
+            ),
+        )
+
+        report = build_markdown_report(self.summary, assessment, "분석")
+
+        self.assertIn("신뢰성 40/40", report)
+        self.assertIn("확장성 15/20", report)
+        self.assertIn("FlowCheck 점수 v2", report)
+        self.assertNotIn("오류율 0%는 60점", report)
 
     async def test_generate_analysis_returns_valid_structured_report(self):
         text = json.dumps({

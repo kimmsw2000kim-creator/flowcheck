@@ -366,6 +366,16 @@ def build_markdown_report(
             f"응답성 {assessment.breakdown.latencyScore}/40"
         )
     )
+    scoring_note = (
+        "_FlowCheck 점수 v2: 신뢰성은 목표 오류율, 꼬리 지연은 목표 p95, 확장성은 "
+        "중·고부하 TPS/VU 유지율과 선택한 목표 TPS 달성도를 기준으로 계산합니다._"
+        if assessment.breakdown.scalabilityScore is not None
+        else (
+            "_FlowCheck 채점 기준: 오류율 0%는 60점, 5% 이상은 0점이며 구간 내 선형 감점합니다. "
+            "평균 응답시간은 200ms 이하 40점, 500ms 30점, 1초 15점, 2초 이상 0점이며 "
+            "구간 내 선형 감점합니다._"
+        )
+    )
 
     return f"""# 부하 테스트 결과
 
@@ -384,7 +394,7 @@ def build_markdown_report(
 
 **점수 구성:** {score_breakdown}
 
-_FlowCheck 채점 기준: 오류율 0%는 60점, 5% 이상은 0점이며 구간 내 선형 감점합니다. 평균 응답시간은 200ms 이하 40점, 500ms 30점, 1초 15점, 2초 이상 0점이며 구간 내 선형 감점합니다._
+{scoring_note}
 
 {analysis}
 """.strip()

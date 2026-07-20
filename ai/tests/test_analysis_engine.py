@@ -79,6 +79,32 @@ class LoadAnalysisEngineTest(unittest.TestCase):
         self.assertEqual([], context.bottlenecks)
         self.assertEqual(0.0, context.coverageRatio)
 
+    def test_excludes_declared_ramp_down_from_scalability_comparison(self):
+        summary = {
+            "chart_points": [
+                point(0, 4, 2, 100, 150), point(1, 4, 2, 100, 150),
+                point(2, 10, 5, 100, 150), point(3, 10, 5, 100, 150),
+                point(4, 20, 10, 100, 150), point(5, 20, 10, 100, 150),
+                point(6, 20, 10, 100, 150), point(7, 20, 10, 100, 150),
+                point(8, 10, 5, 100, 150), point(9, 0, 0, 100, 150),
+            ]
+        }
+        profile = [
+            {"duration": "2s", "target": 2},
+            {"duration": "2s", "target": 5},
+            {"duration": "2s", "target": 10},
+            {"duration": "2s", "target": 10},
+            {"duration": "2s", "target": 0},
+        ]
+
+        context = build_analysis_context(summary, profile)
+
+        self.assertEqual(1.0, context.scalingEfficiency)
+        self.assertNotIn(
+            "THROUGHPUT_SATURATION",
+            {signal.type for signal in context.bottlenecks},
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

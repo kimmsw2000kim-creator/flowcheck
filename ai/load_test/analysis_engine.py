@@ -213,11 +213,27 @@ def _detect_bottlenecks(
     points: list[dict[str, Any]],
 ) -> tuple[list[BottleneckSignal], Optional[float]]:
     signals: list[BottleneckSignal] = []
-    comparable = [stage for stage in stages if stage.stage != "RAMP_DOWN" and stage.avgVus > 0]
+    comparable = [
+        stage
+        for stage in stages
+        if stage.stage != "RAMP_DOWN"
+        and not stage.stage.endswith("_TARGET_0")
+        and stage.avgVus > 0
+    ]
     scaling_efficiency: Optional[float] = None
 
     if len(comparable) >= 2:
-        medium, high = comparable[-2], comparable[-1]
+        high = max(comparable, key=lambda stage: stage.avgVus)
+        lower_load_stages = [
+            stage
+            for stage in comparable
+            if stage is not high and stage.avgVus <= high.avgVus * 0.85
+        ]
+        medium = (
+            max(lower_load_stages, key=lambda stage: stage.avgVus)
+            if lower_load_stages
+            else min(comparable, key=lambda stage: stage.avgVus)
+        )
         vu_ratio = high.avgVus / medium.avgVus if medium.avgVus else 0
         tps_ratio = high.avgTps / medium.avgTps if medium.avgTps else 0
         if vu_ratio > 0:
