@@ -121,16 +121,6 @@ export function LoadTestResultView({ result }: LoadTestResultViewProps) {
         {hasMeasuredSeries ? (
           <>
             <div className="fc-load-result__series-meta" aria-label="시계열 수집 정보">
-              <span><strong>출처</strong> k6 실측</span>
-              {result.bucketSeconds != null && (
-                <span><strong>집계 간격</strong> {result.bucketSeconds}초</span>
-              )}
-              {result.totalRequests != null && (
-                <span><strong>총 요청</strong> {result.totalRequests.toLocaleString()}건</span>
-              )}
-              {result.metricsSchemaVersion != null && (
-                <span><strong>데이터 형식</strong> v{result.metricsSchemaVersion}</span>
-              )}
             </div>
 
             {result.metricsStatus === 'PARTIAL' && (
