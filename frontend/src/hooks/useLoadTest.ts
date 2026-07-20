@@ -40,7 +40,7 @@ export function useLoadTest(
   const { domains } = useDomains();
 
   const [vusers, setVusers] = useState<number>(100);
-  const [duration, setDuration] = useState<number>(30);
+  const [duration, setDuration] = useState<number>(300);
   const [loadPrompt, setLoadPrompt] = useState<string>('');
   const [loadStatus, setLoadStatus] = useState<LoadStatus>('idle');
   const [loadPhase, setLoadPhase] = useState<string>('');

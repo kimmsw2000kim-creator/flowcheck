@@ -31,6 +31,17 @@ const statusPresentation: Record<string, { label: string; tone: BadgeTone }> = {
   error: { label: 'Failed', tone: 'danger' },
 };
 
+const formatDuration = (durationInSeconds: number) => {
+  if (durationInSeconds < 60) {
+    return `${durationInSeconds}초`;
+  }
+
+  const minutes = Math.floor(durationInSeconds / 60);
+  const seconds = durationInSeconds % 60;
+
+  return seconds === 0 ? `${minutes}분` : `${minutes}분 ${seconds}초`;
+};
+
 export default function LoadPage({ selectedLoadTestDomain, setSelectedLoadTestDomain }: LoadPageProps) {
   const {
     currentUser,
@@ -62,7 +73,6 @@ export default function LoadPage({ selectedLoadTestDomain, setSelectedLoadTestDo
         headingLevel={2}
         title="k6 지능형 부하 테스트 엔진"
         description="검증된 도메인에 실제 트래픽을 시뮬레이션하고 AI 성능 분석 결과를 확인합니다."
-        actions={<Badge tone={currentStatus.tone}>{currentStatus.label}</Badge>}
       />
 
       <div className="load-page__workbench">
@@ -107,7 +117,7 @@ export default function LoadPage({ selectedLoadTestDomain, setSelectedLoadTestDo
 
           <Field
             className="load-page__field"
-            label={<span className="load-page__range-label">테스트 실행 시간 <output>{duration}초</output></span>}
+            label={<span className="load-page__range-label">테스트 실행 시간 <output>{formatDuration(duration)}</output></span>}
             htmlFor="load-duration"
           >
             <input
@@ -115,7 +125,7 @@ export default function LoadPage({ selectedLoadTestDomain, setSelectedLoadTestDo
               className="load-page__range"
               type="range"
               min="10"
-              max="120"
+              max="600"
               step="10"
               value={duration}
               onChange={(event) => setDuration(Number(event.target.value))}
