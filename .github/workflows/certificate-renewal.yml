@@ -1,0 +1,32 @@
+name: Renew FlowCheck TLS Certificate
+
+on:
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+env:
+  REMOTE_APP_DIR: /home/ubuntu/flowcheck
+
+jobs:
+  renew:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Renew certificate on EC2
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.AWS_HOST }}
+          username: ${{ secrets.AWS_USER }}
+          key: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            cd ${{ env.REMOTE_APP_DIR }}
+
+            # 인증서와 ACME 웹루트를 기존 Nginx 볼륨과 공유해 갱신합니다.
+            docker run --rm \
+              -v "$PWD/certbot-data/conf:/etc/letsencrypt" \
+              -v "$PWD/certbot-data/www:/var/www/certbot" \
+              certbot/certbot:latest renew
+
+            # 갱신된 인증서를 현재 Nginx 프로세스가 다시 읽게 합니다.
+            docker compose --env-file ./.env exec -T nginx nginx -s reload
