@@ -15,10 +15,11 @@ export interface SharedUiuxScores {
 /*
  * UI/UX 테스트에서 공개 가능한 결과만 포함합니다.
  *
- * 대상 URL, 테스트 영상, 화면 캡처 등의 정보는 포함하지 않습니다.
+ * 최종 테스트 영상은 포함하지만 대상 URL, 화면 캡처 등의 정보는 제외합니다.
  */
 export interface SharedUiuxResult {
     report: string | null;
+    videoUrl: string | null;
     scores: SharedUiuxScores | null;
     scoreBreakdown: Record<string, unknown> | null;
     evaluationVersion: string | null;

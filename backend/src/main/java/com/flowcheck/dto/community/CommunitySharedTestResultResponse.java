@@ -46,11 +46,12 @@ public record CommunitySharedTestResultResponse(
     /*
      * UI/UX 결과에서 커뮤니티에 공개할 정보만 담습니다.
      *
-     * 대상 URL, 입력 프롬프트, 테스트 영상, 화면 캡처,
-     * DOM 선택자 등 민감할 수 있는 정보는 포함하지 않습니다.
+     * 공유에 동의한 최종 테스트 영상은 포함하되 대상 URL,
+     * 입력 프롬프트, 화면 캡처, DOM 선택자 등은 제외합니다.
      */
     public record SharedUiuxResult(
             String report,
+            String videoUrl,
             UIUXTestStatusResponse.ScoresDto scores,
             Map<String, Object> scoreBreakdown,
             String evaluationVersion

@@ -166,14 +166,15 @@ public class CommunityPostService {
                         );
 
                 /*
-                 * URL, 영상, 화면 캡처 등의 민감 정보는 제외하고
-                 * 점수와 분석 보고서만 커뮤니티 응답으로 변환합니다.
+                 * 사용자가 공유한 최종 영상은 포함하고, 대상 URL이나
+                 * 화면 캡처 등의 민감 정보는 제외합니다.
                  */
                 CommunitySharedTestResultResponse.SharedUiuxResult
                         sharedResult =
                         new CommunitySharedTestResultResponse
                                 .SharedUiuxResult(
                                 response.getReport(),
+                                response.getVideoUrl(),
                                 response.getScores(),
                                 response.getScoreBreakdown(),
                                 response.getEvaluationVersion()
