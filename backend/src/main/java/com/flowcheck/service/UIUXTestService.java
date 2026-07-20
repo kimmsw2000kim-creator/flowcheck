@@ -35,9 +35,9 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 public class UIUXTestService {
 
-    // UI/UX ?뚯뒪?몄쓽 以묒떖 ?쒕퉬?ㅼ엯?덈떎.
-    // ?쒖옉 ?붿껌 寃利?怨쇨툑, 吏꾪뻾 濡쒓렇 ??? 理쒖쥌 由ы룷????? ?곹깭 議고쉶, VNC signed URL 諛쒓툒源뚯?
-    // UI ?뚯뒪???앸챸二쇨린?먯꽌 DB? 蹂댁븞 ?먮떒???꾩슂???묒뾽???대떦?⑸땲??
+    // UI/UX 테스트의 중심 서비스입니다.
+    // 시작 요청 검증, 과금, 진행 로그 저장, 최종 리포트 저장, 상태 조회, VNC signed URL 발급까지
+    // UI 테스트 생명주기에서 DB와 보안 판단이 필요한 작업을 담당합니다.
     private final UserRepository userRepository;
     private final UserCouponRepository userCouponRepository;
     private final CreditsLedgerRepository creditsLedgerRepository;
@@ -75,8 +75,8 @@ public class UIUXTestService {
     private static final Duration STALE_ACTIVE_TEST_TIMEOUT = Duration.ofMinutes(15);
 
     private void failStaleActiveUIUXTests() {
-        // ?뚯뒪?멸? 鍮꾩젙??醫낅즺?섏뼱 PENDING/RUNNING ?곹깭濡??⑥쑝硫?媛숈? ?ъ슜?먭? ???뚯뒪?몃? ?쒖옉?????놁뒿?덈떎.
-        // ???붿껌???묒닔?섍린 ?꾩뿉 ?ㅻ옒???쒖꽦 ?붿껌???뺣━??"?곸썝??吏꾪뻾 以? ?곹깭瑜???댁쨳?덈떎.
+        // 테스트가 비정상 종료되어 PENDING/RUNNING 상태로 남으면 같은 사용자가 새 테스트를 시작할 수 없습니다.
+        // 새 요청을 접수하기 전에 오래된 활성 요청을 정리해 "계속 진행 중" 상태를 막습니다.
         OffsetDateTime staleCutoff = OffsetDateTime.now().minus(STALE_ACTIVE_TEST_TIMEOUT);
         List<TestRequest> staleRequests = testRequestRepository
                 .findByTestTypeAndTestStatusInAndCreatedAtBefore(
@@ -95,17 +95,17 @@ public class UIUXTestService {
         });
 
         testRequestRepository.saveAll(staleRequests);
-        log.warn("{}媛쒖쓽 ?ㅻ옒??UI/UX ?뚯뒪???붿껌??{}遺?寃쎄낵濡??명빐 FAILED 泥섎━?덉뒿?덈떎.",
+        log.warn("{}개의 오래된 UI/UX 테스트 요청을 {}분 경과로 인해 FAILED 처리했습니다.",
                 staleRequests.size(),
                 STALE_ACTIVE_TEST_TIMEOUT.toMinutes());
     }
 
     @Transactional
     public UUID submitUIUXTest(UUID userId, UIUXTestStartRequest request) {
-        // ?ъ슜???붿껌???ㅼ젣 ?ㅽ뻾 媛?ν븳 ?뚯뒪??二쇰Ц?쒕줈 諛붽씀???④퀎?낅땲??
-        // ?ш린???숈떆 ?ㅽ뻾 ?쒗븳, 理쒓렐 寃곌낵 蹂닿? 媛쒖닔, 荑좏룿/?щ젅??李④컧源뚯? ???몃옖??뀡 ?덉뿉??泥섎━?⑸땲??
+        // 사용자 요청을 실제 실행 가능한 테스트 주문으로 바꾸는 단계입니다.
+        // 여기서 동시 실행 제한, 최근 결과 보관 개수, 쿠폰/크레딧 차감까지 한 트랜잭션 안에서 처리합니다.
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("議댁옱?섏? ?딅뒗 ?ъ슜?먯엯?덈떎."));
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
         validateTargetUrlBelongsToVerifiedSite(userId, request.getTargetUrl());
 
         failStaleActiveUIUXTests();
@@ -113,13 +113,13 @@ public class UIUXTestService {
         boolean hasActiveTest = testRequestRepository.existsByUserAndTestTypeAndTestStatusIn(
                 user, TEST_TYPE_UIUX, ACTIVE_TEST_STATUSES);
         if (hasActiveTest) {
-            throw new IllegalStateException("?대? 吏꾪뻾 以묒씤 UI/UX ?뚯뒪?멸? ?덉뒿?덈떎. ?꾨즺 ???ㅼ떆 ?쒕룄??二쇱꽭??");
+            throw new IllegalStateException("이미 진행 중인 UI/UX 테스트가 있습니다. 완료 후 다시 시도해 주세요.");
         }
 
         List<TestRequest> userUiRequests = testRequestRepository.findByUserAndTestTypeOrderByCreatedAtAsc(user, TEST_TYPE_UIUX);
         if (userUiRequests.size() >= 10) {
-            // ?ъ슜?먮퀎 UI/UX 寃곌낵 蹂닿? 媛쒖닔瑜?10媛쒕줈 ?쒗븳?⑸땲??
-            // ?ㅻ옒???붿껌????젣?섍린 ?꾩뿉 Supabase???⑥? ?뱁솕 ?곸긽??媛숈씠 ?뺣━????μ냼媛 ?꾩쟻?섏? ?딄쾶 ?⑸땲??
+            // 사용자별 UI/UX 결과 보관 개수를 10개로 제한합니다.
+            // 오래된 요청을 삭제하기 전에 Supabase에 남은 녹화 영상도 같이 정리해 저장소가 누적되지 않게 합니다.
             int deleteCount = userUiRequests.size() - 9;
             for (int i = 0; i < deleteCount; i++) {
                 TestRequest oldestRequest = userUiRequests.get(i);
@@ -127,7 +127,7 @@ public class UIUXTestService {
                 deleteVideoFromSupabase(oldestRequest.getId());
 
                 testRequestRepository.delete(oldestRequest);
-                log.info("10媛??뚯뒪???쒗븳?쇰줈 ?명빐 ?ъ슜??{}??媛???ㅻ옒??UI/UX ?뚯뒪???붿껌 湲곕줉 {}????젣?덉뒿?덈떎.", userId, oldestRequest.getId());
+                log.info("10개 테스트 제한으로 인해 사용자 {}의 가장 오래된 UI/UX 테스트 요청 기록 {}을 삭제했습니다.", userId, oldestRequest.getId());
             }
         }
 
@@ -145,8 +145,8 @@ public class UIUXTestService {
 
         chargeForUIUXTest(user, savedRequest, request.getTargetUrl());
 
-        // DB 而ㅻ컠 ?댄썑 AsyncUIUXTestWorker媛 ?대깽?몃? 諛쏆븘 FastAPI濡??꾨떖?⑸땲??
-        // 而ㅻ컠 ?꾩뿉 ?몃? ?몄텧???섏? ?딆븘 FastAPI媛 ?꾩쭅 ??λ릺吏 ?딆? requestId瑜?李몄“?섎뒗 ?곹솴???쇳빀?덈떎.
+        // DB 커밋 이후 AsyncUIUXTestWorker가 이벤트를 받아 FastAPI로 전달합니다.
+        // 커밋 전에 워커를 호출하지 않아 FastAPI가 아직 저장되지 않은 requestId를 참조하는 상황을 막습니다.
         eventPublisher.publishEvent(new UIUXTestSubmittedEvent(requestId, request));
         return requestId;
     }
@@ -165,13 +165,13 @@ public class UIUXTestService {
                     .userCoupon(couponToUse)
                     .couponType(CouponType.UIUX_TEST)
                     .action(CouponUsageAction.USE)
-                    .description("UI/UX ?뚯뒪???ㅽ뻾 (" + targetUrl + ")")
+                    .description("UI/UX 테스트 실행 (" + targetUrl + ")")
                     .build());
             return;
         }
 
         if (user.getBalance() < TEST_COST) {
-            throw new IllegalStateException("UI/UX ?뚯뒪??荑좏룿 ?먮뒗 ?щ젅???붿븸??遺議깊빀?덈떎.");
+            throw new IllegalStateException("UI/UX 테스트 쿠폰 또는 크레딧 잔액이 부족합니다.");
         }
 
         user.deductBalance(TEST_COST);
@@ -190,20 +190,20 @@ public class UIUXTestService {
     @Transactional(readOnly = true)
     public UIUXTestStatusResponse getTestStatus(UUID requestId) {
         TestRequest testRequest = testRequestRepository.findById(requestId)
-                .orElseThrow(() -> new IllegalArgumentException("議댁옱?섏? ?딅뒗 ?뚯뒪???붿껌?낅땲??"));
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 테스트 요청입니다."));
 
         if (!"UIUX".equals(testRequest.getTestType())) {
-            throw new IllegalArgumentException("?대떦 ?붿껌? UI/UX ?뚯뒪???붿껌???꾨떃?덈떎.");
+            throw new IllegalArgumentException("해당 요청은 UI/UX 테스트 요청이 아닙니다.");
         }
 
         return buildTestStatus(testRequest);
     }
 
     private void validateTargetUrlBelongsToVerifiedSite(UUID userId, String targetUrl) {
-        URI targetUri = parseHttpUri(targetUrl, "?뚯뒪?????URL???щ컮瑜댁? ?딆뒿?덈떎.");
+        URI targetUri = parseHttpUri(targetUrl, "테스트 대상 URL이 올바르지 않습니다.");
         String targetHost = normalizeHost(targetUri.getHost());
         if (targetHost == null || targetHost.isBlank()) {
-            throw new IllegalArgumentException("?뚯뒪?????URL???몄뒪?몃? ?뺤씤?????놁뒿?덈떎.");
+            throw new IllegalArgumentException("테스트 대상 URL의 호스트를 확인할 수 없습니다.");
         }
 
         boolean matchesVerifiedSite = registeredSiteRepository.findByUser_UserIdAndIsVerifiedTrue(userId).stream()
@@ -214,7 +214,7 @@ public class UIUXTestService {
                 .anyMatch(verifiedHost -> targetHost.equals(verifiedHost));
 
         if (!matchesVerifiedSite) {
-            throw new IllegalArgumentException("?뚯쑀沅?寃利앹씠 ?꾨즺???꾨찓?몃쭔 UI/UX ?뚯뒪????곸쑝濡??ъ슜?????덉뒿?덈떎.");
+            throw new IllegalArgumentException("소유권 검증이 완료된 도메인만 UI/UX 테스트 대상으로 사용할 수 있습니다.");
         }
     }
 
@@ -245,14 +245,14 @@ public class UIUXTestService {
     @Transactional(readOnly = true)
     public UIUXTestStatusResponse getTestStatusForUser(UUID userId, UUID requestId) {
         TestRequest testRequest = testRequestRepository.findByIdAndUser_UserIdAndTestType(requestId, userId, TEST_TYPE_UIUX)
-                .orElseThrow(() -> new IllegalArgumentException("UI/UX ?뚯뒪??寃곌낵瑜?李얠쓣 ???놁뒿?덈떎."));
+                .orElseThrow(() -> new IllegalArgumentException("UI/UX 테스트 결과를 찾을 수 없습니다."));
 
         return buildTestStatus(testRequest);
     }
 
     private UIUXTestStatusResponse buildTestStatus(TestRequest testRequest) {
-        // ?꾨줎??polling ?묐떟??議곕┰?⑸땲??
-        // 理쒖떊 由ы룷??projection, rawLogs, ?먯닔, 寃고븿, VNC ?ㅽ듃由??곹깭瑜??섎굹??DTO濡??⑹퀜 諛섑솚?⑸땲??
+        // 프론트 polling 응답을 조립합니다.
+        // 최신 리포트 projection, rawLogs, 점수, 결함, VNC 스트림 상태를 하나의 DTO로 묶어 반환합니다.
         UUID requestId = testRequest.getId();
         String reportMarkdown = "";
         List<Map<String, Object>> stepsList = new java.util.ArrayList<>();
@@ -272,7 +272,7 @@ public class UIUXTestService {
                 stepsList = objectMapper.readValue(report.getRawLogs(), new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
                 liveStream = buildLiveStreamStatus(testRequest.getTestStatus(), stepsList);
             } catch (Exception e) {
-                log.warn("?뚯뒪???곹깭 議고쉶瑜??꾪븳 rawLogs ?뚯떛 ?ㅽ뙣", e);
+                log.warn("테스트 상태 조회를 위한 rawLogs 파싱 실패", e);
             }
             videoUrl = report.getVideoUrl();
             try {
@@ -280,7 +280,7 @@ public class UIUXTestService {
                     deviceInfo = objectMapper.readValue(report.getDeviceInfo(), new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
                 }
             } catch (Exception e) {
-                log.warn("deviceInfo ?뚯떛 ?ㅽ뙣", e);
+                log.warn("deviceInfo 파싱 실패", e);
             }
             if (report.getScoreUsability() != null) {
                 scores = UIUXTestStatusResponse.ScoresDto.builder()
@@ -297,7 +297,7 @@ public class UIUXTestService {
                     scoreBreakdown = objectMapper.readValue(report.getScoreBreakdown(), new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
                 }
             } catch (Exception e) {
-                log.warn("scoreBreakdown ?뚯떛 ?ㅽ뙣", e);
+                log.warn("scoreBreakdown 파싱 실패", e);
             }
             evaluationVersion = report.getEvaluationVersion();
             
@@ -309,7 +309,7 @@ public class UIUXTestService {
                         evidence = objectMapper.readValue(defect.getEvidence(), new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
                     }
                 } catch (Exception e) {
-                    log.warn("defect evidence ?뚯떛 ?ㅽ뙣. defectId={}", defect.getId(), e);
+                    log.warn("defect evidence 파싱 실패. defectId={}", defect.getId(), e);
                 }
                 defectDtos.add(UIUXTestStatusResponse.DefectDto.builder()
                         .id(defect.getId())
@@ -344,15 +344,15 @@ public class UIUXTestService {
     }
 
     private UIUXTestStatusResponse.LiveStreamDto buildLiveStreamStatus(String testStatus, List<Map<String, Object>> stepsList) {
-        // liveStream? VNC URL 議댁옱 ?щ?? ?뚯뒪???곹깭瑜?議고빀??WAITING/READY/ENDED/FAILED濡??쒗쁽?⑸땲??
-        // ?ㅼ젣 ?묒냽 媛?ν븳 signed URL? 蹂댁븞 ?뚮Ц???ш린??二쇱? ?딄퀬 /vnc-token?먯꽌 蹂꾨룄濡?諛쒓툒?⑸땲??
+        // liveStream은 VNC URL 존재 여부와 테스트 상태를 조합해 WAITING/READY/ENDED/FAILED로 표현합니다.
+        // 실제 접속 가능한 signed URL은 보안 때문에 여기서 주지 않고 /vnc-token에서 별도로 발급합니다.
         URI baseUri = findLatestVncBaseUri(stepsList);
         if (baseUri != null) {
             boolean active = "PENDING".equals(testStatus) || "RUNNING".equals(testStatus);
             return UIUXTestStatusResponse.LiveStreamDto.builder()
                     .status(active ? "READY" : "ENDED")
                     .enabled(active)
-                    .message(active ? "VNC stream URL is ready." : "VNC stream finished.")
+                    .message(active ? "VNC 스트림 URL이 준비되었습니다." : "VNC 스트림이 종료되었습니다.")
                     .vncHost(baseUri.getHost())
                     .vncPort(baseUri.getPort())
                     .build();
@@ -362,7 +362,7 @@ public class UIUXTestService {
             return UIUXTestStatusResponse.LiveStreamDto.builder()
                     .status("FAILED")
                     .enabled(false)
-                    .message("VNC stream did not become available before the test failed.")
+                    .message("테스트 실패 전 VNC 스트림을 사용할 수 없었습니다.")
                     .build();
         }
 
@@ -370,20 +370,20 @@ public class UIUXTestService {
             return UIUXTestStatusResponse.LiveStreamDto.builder()
                     .status("ENDED")
                     .enabled(false)
-                    .message("Live stream ended after test completion.")
+                    .message("테스트 완료 후 실시간 스트림이 종료되었습니다.")
                     .build();
         }
 
         return UIUXTestStatusResponse.LiveStreamDto.builder()
                 .status("WAITING")
                 .enabled(false)
-                .message("Waiting for browser container to publish VNC stream URL.")
+                .message("브라우저 컨테이너의 VNC 스트림 URL을 기다리는 중입니다.")
                 .build();
     }
 
     private URI findLatestVncBaseUri(List<Map<String, Object>> stepsList) {
-        // ?뚯빱媛 ?④릿 step 濡쒓렇 以?媛??留덉?留?vncUrl??李얠뒿?덈떎.
-        // STARTING_VNC媛 ?щ윭 踰??ㅼ뼱?????덉쑝誘濡??ㅼ뿉?쒕???寃?됲빀?덈떎.
+        // 워커가 남긴 step 로그 중 가장 마지막 vncUrl을 찾습니다.
+        // STARTING_VNC가 여러 번 들어올 수 있으므로 뒤에서부터 검색합니다.
         for (int i = stepsList.size() - 1; i >= 0; i--) {
             Object rawVncUrl = stepsList.get(i).get("vncUrl");
             if (rawVncUrl instanceof String vncUrl && !vncUrl.isBlank()) {
@@ -401,14 +401,14 @@ public class UIUXTestService {
 
     @Transactional
     public void saveReport(UUID requestId, UIUXTestReportSubmitRequest request) {
-        // Python ?뚯빱媛 蹂대궡??理쒖쥌 寃곌낵 ???吏?먯엯?덈떎.
-        // raw JSON ?뺥깭??scoreBreakdown/deviceInfo/steps??DB jsonb 臾몄옄?대줈 蹂닿??섍퀬,
-        // ?꾨줎?멸? ?먯＜ ?곕뒗 ?먯닔/寃고븿? 蹂꾨룄 而щ읆/?뚯씠釉붾줈 遺꾨━?⑸땲??
+        // Python 워커가 보내는 최종 결과 저장 지점입니다.
+        // raw JSON 형태의 scoreBreakdown/deviceInfo/steps를 DB jsonb 문자열로 보관하고,
+        // 프론트가 자주 읽는 점수/결함은 별도 컬럼/테이블로 분리합니다.
         TestRequest testRequest = testRequestRepository.findById(requestId)
-                .orElseThrow(() -> new IllegalArgumentException("議댁옱?섏? ?딅뒗 ?뚯뒪???붿껌?낅땲??"));
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 테스트 요청입니다."));
 
         if (!"UIUX".equals(testRequest.getTestType())) {
-            throw new IllegalArgumentException("?대떦 ?붿껌? UI/UX ?뚯뒪???붿껌???꾨떃?덈떎.");
+            throw new IllegalArgumentException("해당 요청은 UI/UX 테스트 요청이 아닙니다.");
         }
 
         var reportOpt = UIUXTestReportRepository.findFirstByTestRequestIdOrderByCreatedAtDescIdDesc(requestId);
@@ -449,7 +449,7 @@ public class UIUXTestService {
             try {
                 report.setScoreBreakdown(objectMapper.writeValueAsString(request.getScoreBreakdown()));
             } catch (Exception e) {
-                log.warn("scoreBreakdown ????ㅽ뙣", e);
+                log.warn("scoreBreakdown 저장 실패", e);
             }
         }
 
@@ -457,14 +457,14 @@ public class UIUXTestService {
             try {
                 report.setDeviceInfo(objectMapper.writeValueAsString(request.getDeviceInfo()));
             } catch (Exception e) {
-                log.warn("deviceInfo ????ㅽ뙣", e);
+                log.warn("deviceInfo 저장 실패", e);
             }
         }
 
         if (request.getSteps() != null && !request.getSteps().isEmpty()) {
             try {
-                // 吏꾪뻾 以묒뿉 ?대? ??λ맂 step怨?理쒖쥌 report???ы븿??step??蹂묓빀?⑸땲??
-                // step/action 湲곗? 以묐났 ?쒓굅瑜???媛숈? ?④퀎媛 理쒖쥌 ???????踰?蹂댁씠吏 ?딄쾶 ?⑸땲??
+                // 진행 중에 이미 저장된 step과 최종 report에 포함된 step을 병합합니다.
+                // step/action 기준 중복 제거를 해 같은 단계가 최종 저장에서 두 번 보이지 않게 합니다.
                 List<Map<String, Object>> logs = new java.util.ArrayList<>();
                 if (report.getRawLogs() != null && !report.getRawLogs().isBlank()) {
                     logs = objectMapper.readValue(report.getRawLogs(), new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
@@ -485,14 +485,14 @@ public class UIUXTestService {
 
                 report.setRawLogs(objectMapper.writeValueAsString(logs));
             } catch (Exception e) {
-                log.warn("由ы룷?몄뿉 ?ы븿??steps瑜?rawLogs??蹂묓빀?섏? 紐삵뻽?듬땲??", e);
+                log.warn("리포트에 포함된 steps를 rawLogs와 병합하지 못했습니다.", e);
             }
         }
 
         UIUXTestReportRepository.save(report);
 
-        // ?뚯빱媛 理쒖쥌 ?곗텧??寃고븿 紐⑸줉??吏꾩떎???먯쿇?쇰줈 遊낅땲??
-        // 湲곗〈 寃고븿??吏?곌퀬 ?ㅼ떆 ??ν빐 ?ъ떆??以묐났 肄쒕갚 ?곹솴?먯꽌???붾㈃怨?DB媛 媛숈? ?곹깭媛 ?섍쾶 ?⑸땲??
+        // 워커가 최종 제출한 결함 목록을 진실의 원천으로 봅니다.
+        // 기존 결함을 지우고 다시 저장해 재시도/중복 콜백 상황에서도 화면과 DB가 같은 상태가 되게 합니다.
         uiuxTestDefectRepository.deleteByTestRequestId(requestId);
         if (request.getDefects() != null && !request.getDefects().isEmpty()) {
             List<UIUXTestDefect> defectsToSave = request.getDefects().stream().map(dto -> UIUXTestDefect.builder()
@@ -511,22 +511,22 @@ public class UIUXTestService {
             uiuxTestDefectRepository.saveAll(defectsToSave);
         }
 
-        // ?뚯뒪???꾨즺 ?곹깭濡?蹂寃?
+        // 테스트 완료 상태로 변경
         if (!"FAILED".equals(testRequest.getTestStatus())) {
             testRequest.changeStatus("COMPLETED");
             testRequest.changePhase("FINISHED");
             testRequest.changeProgress(100);
         }
         testRequestRepository.save(testRequest);
-        log.info("UI/UX ?뚯뒪???붿껌 {}??理쒖쥌 ?곗씠????μ쓣 ?꾨즺?덉뒿?덈떎.", requestId);
+        log.info("UI/UX 테스트 요청 {}의 최종 데이터 저장을 완료했습니다.", requestId);
     }
 
     @Transactional
     public void addStep(UUID requestId, Map<String, Object> request) {
-        // ?뚯빱媛 吏꾪뻾 ?곹솴???ㅼ떆媛꾩쑝濡?蹂대궡??肄쒕갚?낅땲??
-        // ?꾩쭅 理쒖쥌 由ы룷?멸? ?놁뼱??rawLogs瑜??댁쓣 鍮?UIUXTestReport瑜?留뚮뱾???꾨줎??polling??諛붾줈 ?쎌쓣 ???덇쾶 ?⑸땲??
+        // 워커가 진행 상황을 실시간으로 보내는 콜백입니다.
+        // 아직 최종 리포트가 없어도 rawLogs를 담을 빈 UIUXTestReport를 만들어 프론트 polling이 바로 읽을 수 있게 합니다.
         TestRequest testRequest = testRequestRepository.findById(requestId)
-                .orElseThrow(() -> new IllegalArgumentException("議댁옱?섏? ?딅뒗 ?뚯뒪???붿껌?낅땲??"));
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 테스트 요청입니다."));
 
         if ("COMPLETED".equals(testRequest.getTestStatus()) || "FAILED".equals(testRequest.getTestStatus())) {
             log.debug("Ignoring UI/UX step callback for terminal request {} with status {}", requestId, testRequest.getTestStatus());
@@ -569,12 +569,12 @@ public class UIUXTestService {
         try {
             report.setRawLogs(objectMapper.writeValueAsString(logs));
         } catch (Exception e) {
-            log.error("rawLogs ????ㅽ뙣", e);
+            log.error("rawLogs 저장 실패", e);
         }
 
         UIUXTestReportRepository.save(report);
 
-        // 泥??ㅽ뀦???묒닔?섎㈃ ?곹깭瑜?PENDING?먯꽌 RUNNING?쇰줈 媛깆떊
+        // 첫 스텝이 접수되면 상태를 PENDING에서 RUNNING으로 갱신
         if ("PENDING".equals(testRequest.getTestStatus())) {
             testRequest.changeStatus("RUNNING");
             testRequest.changePhase("EXPLORING");
@@ -584,17 +584,17 @@ public class UIUXTestService {
 
     @Transactional
     public void markAsFailed(UUID requestId, String reason) {
-        // ?뚯뒪???꾩껜 ?ㅽ뙣 泥섎━?낅땲??
-        // ?대? ??λ맂 rawLogs???쇰? ?먯닔/由ы룷?멸? ?덉쑝硫?蹂댁〈???ъ슜?먭? ?대뵒源뚯? 吏꾪뻾?먮뒗吏 ?뺤씤?????덇쾶 ?⑸땲??
+        // 테스트 전체 실패 처리입니다.
+        // 이미 저장된 rawLogs라도 점수/리포트가 있으면 보존해 사용자가 어디까지 진행됐는지 확인할 수 있게 합니다.
         TestRequest testRequest = testRequestRepository.findById(requestId)
-                .orElseThrow(() -> new IllegalArgumentException("議댁옱?섏? ?딅뒗 ?뚯뒪???붿껌?낅땲??"));
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 테스트 요청입니다."));
 
         if (!"UIUX".equals(testRequest.getTestType())) {
-            throw new IllegalArgumentException("?대떦 ?붿껌? UI/UX ?뚯뒪???붿껌???꾨떃?덈떎.");
+            throw new IllegalArgumentException("해당 요청은 UI/UX 테스트 요청이 아닙니다.");
         }
 
         if ("COMPLETED".equals(testRequest.getTestStatus())) {
-            log.warn("?대? ?꾨즺??UI/UX ?뚯뒪???붿껌 {}???ㅽ뙣 肄쒕갚??臾댁떆?⑸땲?? ?ъ쑀: {}", requestId, reason);
+            log.warn("이미 완료된 UI/UX 테스트 요청 {}의 실패 콜백을 무시합니다. 사유: {}", requestId, reason);
             return;
         }
 
@@ -623,7 +623,7 @@ public class UIUXTestService {
                     .build();
         }
 
-        // ?ㅽ뙣 ?곹깭?먯꽌??湲곗〈 由ы룷???곗씠?곕뒗 ?좎??⑸땲??
+        // 실패 상태에서도 기존 리포트 데이터는 유지합니다.
         UIUXTestReport failedReport = UIUXTestReport.builder()
                 .id(report.getId())
                 .testRequest(testRequest)
@@ -639,7 +639,7 @@ public class UIUXTestService {
                 .uiuxTestReview(report.getUiuxTestReview() != null ? report.getUiuxTestReview() : "")
                 .build();
         UIUXTestReportRepository.save(failedReport);
-        log.info("UI/UX ?뚯뒪???붿껌 {}??FAILED濡??쒖떆?덉뒿?덈떎. ?ъ쑀: {}", requestId, reason);
+        log.info("UI/UX 테스트 요청 {}을 FAILED로 표시했습니다. 사유: {}", requestId, reason);
     }
 
     private void refundUIUXTestChargeIfNeeded(TestRequest testRequest, String reason) {
@@ -647,7 +647,7 @@ public class UIUXTestService {
         if (creditsLedgerRepository.existsByTestRequest_IdAndTransactionType(requestId, CreditTransactionType.TEST_REFUND)
                 || couponUsageLogRepository.existsByTestRequest_IdAndCouponTypeAndAction(
                 requestId, CouponType.UIUX_TEST, CouponUsageAction.REFUND)) {
-            log.info("UI/UX ?뚯뒪???붿껌 {}? ?대? ?섎텋 泥섎━?섏뼱 異붽? ?섎텋??嫄대꼫?곷땲??", requestId);
+            log.info("UI/UX 테스트 요청 {}은 이미 환불 처리되어 추가 환불을 건너뜁니다.", requestId);
             return;
         }
 
@@ -679,7 +679,7 @@ public class UIUXTestService {
         List<CreditsLedger> consumedLedgers = creditsLedgerRepository
                 .findByTestRequest_IdAndTransactionType(requestId, CreditTransactionType.TEST_CONSUME);
         if (consumedLedgers.isEmpty()) {
-            log.info("UI/UX ?뚯뒪???붿껌 {}???섎텋???щ젅??荑좏룿 ?ъ슜 湲곕줉???놁뒿?덈떎.", requestId);
+            log.info("UI/UX 테스트 요청 {}에 환불할 크레딧/쿠폰 사용 기록이 없습니다.", requestId);
             return;
         }
 
@@ -689,7 +689,7 @@ public class UIUXTestService {
                 .mapToInt(amount -> -amount)
                 .sum();
         if (refundAmount <= 0) {
-            log.info("UI/UX ?뚯뒪???붿껌 {}???щ젅???섎텋 湲덉븸??0?대씪 嫄대꼫?곷땲??", requestId);
+            log.info("UI/UX 테스트 요청 {}의 크레딧 환불 금액이 0이라 건너뜁니다.", requestId);
             return;
         }
 
@@ -704,29 +704,29 @@ public class UIUXTestService {
                 .transactionType(CreditTransactionType.TEST_REFUND)
                 .description("UI/UX 테스트 실패/중지 크레딧 환불 (" + reason + ")")
                 .build());
-        log.info("UI/UX ?뚯뒪???붿껌 {}???щ젅??{}?먯쓣 ?섎텋?덉뒿?덈떎.", requestId, refundAmount);
+        log.info("UI/UX 테스트 요청 {}의 크레딧 {}원을 환불했습니다.", requestId, refundAmount);
     }
 
     @Transactional
     public void cancelTestForUser(UUID userId, UUID requestId) {
-        // ?ъ슜?먭? ?꾨줎?몄뿉??"以묒?"瑜??꾨Ⅸ 寃쎌슦?낅땲??
-        // ?ㅼ젣 Docker/Fargate ?꾨줈?몄뒪 醫낅즺源뚯? 媛뺤젣?섏????딄퀬, ?쒕퉬???곹깭瑜?FAILED濡?諛붽퓭 ???댁긽 吏꾪뻾 以묒쑝濡?蹂댁씠吏 ?딄쾶 ?⑸땲??
+        // 사용자가 프론트에서 "중지"를 누른 경우입니다.
+        // 실제 Docker/Fargate 프로세스 종료까지 강제하지 않고, 서비스 상태를 FAILED로 바꿔 더 이상 진행 중으로 보이지 않게 합니다.
         TestRequest testRequest = testRequestRepository.findByIdAndUser_UserIdAndTestType(requestId, userId, TEST_TYPE_UIUX)
-                .orElseThrow(() -> new IllegalArgumentException("UI/UX ?뚯뒪???붿껌??李얠쓣 ???놁뒿?덈떎."));
+                .orElseThrow(() -> new IllegalArgumentException("UI/UX 테스트 요청을 찾을 수 없습니다."));
 
         if ("COMPLETED".equals(testRequest.getTestStatus())) {
-            throw new IllegalStateException("?대? ?꾨즺??UI/UX ?뚯뒪?몃뒗 以묒??????놁뒿?덈떎.");
+            throw new IllegalStateException("이미 완료된 UI/UX 테스트는 중지할 수 없습니다.");
         }
 
         if ("FAILED".equals(testRequest.getTestStatus())) {
             return;
         }
 
-        markAsFailed(requestId, "?ъ슜?먭? ?뚯뒪?몃? 以묒??덉뒿?덈떎.");
+        markAsFailed(requestId, "사용자가 테스트를 중지했습니다.");
     }
 
     private String stepKey(Map<String, Object> step) {
-        // rawLogs 以묐났 ?쒓굅???ㅼ엯?덈떎. ?숈씪 step 踰덊샇?쇰룄 STARTING_VNC/STARTING_BROWSER??媛숈? ?쒖옉 ?④퀎濡?痍④툒?⑸땲??
+        // rawLogs 중복 제거용 키입니다. 같은 step 번호라도 STARTING_VNC/STARTING_BROWSER는 같은 시작 단계로 취급합니다.
         return String.valueOf(step.get("step")) + ":" + normalizeStepAction(step.get("action"));
     }
 
@@ -745,7 +745,7 @@ public class UIUXTestService {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (Exception e) {
-            log.warn("{} 吏곷젹???ㅽ뙣", label, e);
+            log.warn("{} 직렬화 실패", label, e);
             return null;
         }
     }
@@ -756,8 +756,8 @@ public class UIUXTestService {
 
     @Transactional(readOnly = true)
     public URI getLiveVncBaseUri(UUID requestId) {
-        // VNC asset/WebSocket ?꾨줉?쒓? ?ㅼ젣 而⑦뀒?대꼫 二쇱냼瑜??뚯븘?대뒗 寃쎈줈?낅땲??
-        // rawLogs ?뚯떛? ?먯＜ ?몄텧?????덉쑝誘濡???踰?李얠? base URI??requestId蹂꾨줈 硫붾え由ъ뿉 罹먯떆?⑸땲??
+        // VNC asset/WebSocket 프록시가 실제 컨테이너 주소를 찾아야 하는 경로입니다.
+        // rawLogs 파싱은 자주 호출될 수 있으므로 한 번 찾은 base URI를 requestId별로 메모리에 캐시합니다.
         URI cachedUri = liveVncBaseUriCache.get(requestId);
         if (cachedUri != null) {
             log.info("VNC_DIAG base_uri_cache_hit requestId={} baseUri={}", requestId, cachedUri);
@@ -765,20 +765,20 @@ public class UIUXTestService {
         }
 
         TestRequest testRequest = testRequestRepository.findById(requestId)
-                .orElseThrow(() -> new IllegalArgumentException("議댁옱?섏? ?딅뒗 ?뚯뒪???붿껌?낅땲??"));
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 테스트 요청입니다."));
 
         if (!TEST_TYPE_UIUX.equals(testRequest.getTestType())) {
-            throw new IllegalArgumentException("UI/UX ?뚯뒪???붿껌???꾨떃?덈떎.");
+            throw new IllegalArgumentException("UI/UX 테스트 요청이 아닙니다.");
         }
 
         var report = UIUXTestReportRepository.findStatusProjectionByTestRequestId(requestId)
-                .orElseThrow(() -> new IllegalStateException("?꾩쭅 VNC ?ㅽ듃由쇱씠 以鍮꾨릺吏 ?딆븯?듬땲??"));
+                .orElseThrow(() -> new IllegalStateException("아직 VNC 스트림이 준비되지 않았습니다."));
 
         List<Map<String, Object>> logs;
         try {
             logs = objectMapper.readValue(report.getRawLogs(), new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
         } catch (Exception e) {
-            throw new IllegalStateException("VNC ?ㅽ듃由?濡쒓렇瑜??쎌쓣 ???놁뒿?덈떎.", e);
+            throw new IllegalStateException("VNC 스트림 로그를 읽을 수 없습니다.", e);
         }
 
         for (int i = logs.size() - 1; i >= 0; i--) {
@@ -791,15 +791,15 @@ public class UIUXTestService {
             }
         }
 
-        throw new IllegalStateException("?꾩쭅 VNC ?ㅽ듃由?URL??以鍮꾨릺吏 ?딆븯?듬땲??");
+        throw new IllegalStateException("아직 VNC 스트림 URL이 준비되지 않았습니다.");
     }
 
     @Transactional(readOnly = true)
     public long issueVncAccessExpiresAt(UUID userId, UUID requestId) {
-        // VNC ?좏겙 諛쒓툒 ??沅뚰븳怨?readiness瑜??④퍡 ?뺤씤?⑸땲??
-        // 以鍮꾨릺吏 ?딆? 寃쎌슦 IllegalStateException???섏졇 而⑦듃濡ㅻ윭媛 202 pending ?묐떟??二쇰룄濡??⑸땲??
+        // VNC 토큰 발급 전 권한과 readiness를 함께 확인합니다.
+        // 준비되지 않은 경우 IllegalStateException을 던져 컨트롤러가 202 pending 응답을 주도록 합니다.
         testRequestRepository.findByIdAndUser_UserIdAndTestType(requestId, userId, TEST_TYPE_UIUX)
-                .orElseThrow(() -> new IllegalArgumentException("UI/UX VNC ?묎렐 沅뚰븳???놁뒿?덈떎."));
+                .orElseThrow(() -> new IllegalArgumentException("UI/UX VNC 접근 권한이 없습니다."));
 
         URI baseUri = getLiveVncBaseUri(requestId);
         ensureLiveVncHttpReady(requestId, baseUri);
@@ -807,8 +807,8 @@ public class UIUXTestService {
     }
 
     public String signVncAccess(UUID requestId, long expiresAt) {
-        // requestId? 留뚮즺 ?쒓컖??HMAC?쇰줈 ?쒕챸?⑸땲??
-        // ?쒕쾭媛 媛숈? secret?쇰줈 ?ㅼ떆 怨꾩궛??鍮꾧탳?섎?濡?DB???좏겙????ν븷 ?꾩슂媛 ?놁뒿?덈떎.
+        // requestId와 만료 시각을 HMAC으로 서명합니다.
+        // 서버가 같은 secret으로 다시 계산해 비교하므로 DB에 토큰을 저장할 필요가 없습니다.
         if (vncSignedUrlSecret == null || vncSignedUrlSecret.isBlank()) {
             throw new IllegalStateException("VNC signed URL secret is not configured.");
         }
@@ -824,8 +824,8 @@ public class UIUXTestService {
     }
 
     public void validateVncAccessToken(UUID requestId, long expiresAt, String token) {
-        // noVNC HTML 吏꾩엯?먭낵 WebSocket handshake 紐⑤몢 ??寃利앹쓣 ?듦낵?댁빞 ?⑸땲??
-        // MessageDigest.isEqual???ъ슜??臾몄옄??鍮꾧탳 ?쒓컙 李⑥씠瑜?以꾩엯?덈떎.
+        // noVNC HTML 진입과 WebSocket handshake 모두 이 검증을 통과해야 합니다.
+        // MessageDigest.isEqual을 사용해 문자열 비교 시간 차이를 줄입니다.
         if (token == null || token.isBlank()) {
             throw new IllegalArgumentException("VNC token is required.");
         }
@@ -849,8 +849,8 @@ public class UIUXTestService {
     }
 
     private void ensureLiveVncHttpReady(UUID requestId, URI baseUri) {
-        // step??vncUrl??湲곕줉?섏뼱??noVNC HTTP ?쒕쾭媛 ?꾩쭅 ?⑥? ?딆븯?????덉뒿?덈떎.
-        // ?좏겙 諛쒓툒 ?꾩뿉 /vnc.html????踰??몄텧???ㅼ젣 ?묒냽 以鍮꾧? ?앸궗?붿? ?뺤씤?⑸땲??
+        // step에 vncUrl이 기록되어도 noVNC HTTP 서버가 아직 뜨지 않았을 수 있습니다.
+        // 토큰 발급 전에 /vnc.html을 한 번 호출해 실제 접속 준비가 끝났는지 확인합니다.
         URI healthUri = URI.create(baseUri + "/vnc.html");
         HttpClient readinessClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofMillis(vncReadinessConnectTimeoutMs))
@@ -884,8 +884,8 @@ public class UIUXTestService {
     }
 
     private URI validateVncBaseUri(String rawVncUrl) {
-        // ?뚯빱媛 蹂대궦 vncUrl???꾨줉?쒓? ?묎렐??base URI濡??뺢퇋?뷀빀?덈떎.
-        // SSRF ?꾪뿕??以꾩씠湲??꾪빐 http scheme怨??덉슜 ?ы듃留??듦낵?쒗궢?덈떎.
+        // 워커가 보낸 vncUrl을 프록시가 접근할 base URI로 정규화합니다.
+        // SSRF 위험을 줄이기 위해 http scheme과 허용 포트만 통과시킵니다.
         URI uri = URI.create(rawVncUrl);
         String scheme = uri.getScheme();
         String host = uri.getHost();
@@ -895,18 +895,18 @@ public class UIUXTestService {
         boolean isAllowedPort = port == 6080 || (isLocalLoopback && port > 0);
 
         if (!"http".equalsIgnoreCase(scheme) || host == null || !isAllowedPort) {
-            throw new IllegalStateException("?덉슜?섏? ?딅뒗 VNC ?ㅽ듃由?URL?낅땲??");
+            throw new IllegalStateException("허용되지 않는 VNC 스트림 URL입니다.");
         }
 
         return URI.create("http://" + host + ":" + port);
     }
 
     private void deleteVideoFromSupabase(UUID requestId) {
-        // 蹂닿? 媛쒖닔 ?쒗븳?쇰줈 ?ㅻ옒???뚯뒪???붿껌????젣????Supabase Storage???뱁솕 ?뚯씪???쒓굅?⑸땲??
-        // ??젣 ?ㅽ뙣???붿껌 ?앹꽦 ?먯껜瑜?留됱쓣 ?뺣룄??移섎챸 ?ㅻ쪟???꾨땲誘濡?濡쒓렇留??④퉩?덈떎.
+        // 보관 개수 제한으로 오래된 테스트 요청을 삭제할 때 Supabase Storage의 녹화 파일도 제거합니다.
+        // 삭제 실패가 요청 생성 자체를 막을 정도로 치명적인 오류는 아니므로 로그만 남깁니다.
         if (supabaseUrl == null || supabaseUrl.trim().isEmpty() ||
                 supabaseAnonKey == null || supabaseAnonKey.trim().isEmpty()) {
-            log.warn("Supabase ?몄쬆 ?뺣낫媛 ?꾩쟾??援ъ꽦?섏? ?딆븯?듬땲?? 鍮꾨뵒????젣瑜?嫄대꼫?곷땲??");
+            log.warn("Supabase 인증 정보가 완전히 구성되지 않았습니다. 비디오 삭제를 건너뜁니다.");
             return;
         }
 
@@ -915,15 +915,15 @@ public class UIUXTestService {
         String url = supabaseUrl + "/storage/v1/object/" + bucketName + "/" + path;
 
         try {
-            log.info("Supabase ?ㅽ넗由ъ??먯꽌 鍮꾨뵒????젣 ?쒕룄 以? {}", url);
+            log.info("Supabase 스토리지에서 비디오 삭제 시도 중: {}", url);
             restClient.delete()
                     .uri(url)
                     .header("Authorization", "Bearer " + supabaseAnonKey)
                     .retrieve()
                     .toBodilessEntity();
-            log.info("Supabase ?ㅽ넗由ъ??먯꽌 鍮꾨뵒???뚯씪 {} ??젣 ?깃났", path);
+            log.info("Supabase 스토리지에서 비디오 파일 {} 삭제 성공", path);
         } catch (Exception e) {
-            log.error("Supabase ?ㅽ넗由ъ??먯꽌 鍮꾨뵒???뚯씪 {} ??젣 ?ㅽ뙣 (議댁옱?섏? ?딆쓣 ???덉쓬)", path, e);
+            log.error("Supabase 스토리지에서 비디오 파일 {} 삭제 실패 (존재하지 않을 수 있음)", path, e);
         }
     }
 }
