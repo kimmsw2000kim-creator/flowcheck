@@ -4,6 +4,7 @@ import type { MypagePointHistoryItem } from '../../types/mypage';
 import { Badge, EmptyState, PageHeader, Table, TableContainer } from '../../components/common';
 import { supabase } from '../../lib/supabaseClient';
 import styles from '../../styles/mypage.module.css';
+import { getKoreanErrorMessage } from '../../utils/errorMessage';
 
 const typeLabels: Record<string, string> = { CHARGE: '크레딧 충전', TEST_CONSUME: '테스트 차감', COUPON_BUY: '쿠폰 구매' };
 const formatDate = (value: string) => new Date(value).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -20,7 +21,7 @@ function MypageCreditHistorySection() {
         if (error || !session) throw new Error('로그인이 필요합니다.');
         setHistories(await fetchMypagePointHistory());
       } catch (error) {
-        setErrorMessage(error instanceof Error ? error.message : '크레딧 내역을 불러오지 못했습니다.');
+        setErrorMessage(getKoreanErrorMessage(error, '크레딧 내역을 불러오지 못했습니다.'));
       } finally { setLoading(false); }
     };
     fetchHistory();

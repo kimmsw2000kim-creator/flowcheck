@@ -9,6 +9,7 @@ import type {
 import type { UIUXTestStatusResponse } from './UIUXTestApi';
 import type { AxiosRequestConfig } from 'axios';
 import apiClient, { getAccountAccessMessage } from './client';
+import { getKoreanErrorMessage } from '../utils/errorMessage';
 
 export async function fetchMypage(config?: AxiosRequestConfig): Promise<MypageData> {
     try {
@@ -16,11 +17,7 @@ export async function fetchMypage(config?: AxiosRequestConfig): Promise<MypageDa
         return response.data;
     } catch (error: any) {
         if (getAccountAccessMessage(error)) throw error;
-        const message =
-            error.response?.data?.message ||
-            error.response?.data?.error ||
-            '마이페이지 정보를 불러오지 못했습니다.';
-        throw new Error(message);
+        throw new Error(getKoreanErrorMessage(error, '마이페이지 정보를 불러오지 못했습니다.'));
     }
 }
 
@@ -29,11 +26,7 @@ export async function fetchMypageTestHistory(): Promise<MypageTestHistoryItem[]>
         const response = await apiClient.get<MypageTestHistoryItem[]>('/api/mypage/tests');
         return response.data;
     } catch (error: any) {
-        const message =
-            error.response?.data?.message ||
-            error.response?.data?.error ||
-            '테스트 이력을 불러오지 못했습니다.';
-        throw new Error(message);
+        throw new Error(getKoreanErrorMessage(error, '테스트 이력을 불러오지 못했습니다.'));
     }
 }
 
@@ -42,22 +35,26 @@ export async function fetchMypageUIUXTestDetail(requestId: string): Promise<UIUX
         const response = await apiClient.get<UIUXTestStatusResponse>(`/api/mypage/tests/uiux/${requestId}`);
         return response.data;
     } catch (error: any) {
-        const message =
-            error.response?.data?.message ||
-            error.response?.data?.error ||
-            'UI/UX 테스트 결과를 불러오지 못했습니다.';
-        throw new Error(message);
+        throw new Error(getKoreanErrorMessage(error, 'UI/UX 테스트 결과를 불러오지 못했습니다.'));
     }
 }
 
 export async function fetchMypagePointHistory(): Promise<MypagePointHistoryItem[]> {
-    const response = await apiClient.get<MypagePointHistoryItem[]>('/api/mypage/points/history');
-    return response.data;
+    try {
+        const response = await apiClient.get<MypagePointHistoryItem[]>('/api/mypage/points/history');
+        return response.data;
+    } catch (error) {
+        throw new Error(getKoreanErrorMessage(error, '크레딧 내역을 불러오지 못했습니다.'));
+    }
 }
 
 export async function fetchMypageCouponHistory(): Promise<MypageCouponHistoryItem[]> {
-    const response = await apiClient.get<MypageCouponHistoryItem[]>('/api/mypage/coupons/history');
-    return response.data;
+    try {
+        const response = await apiClient.get<MypageCouponHistoryItem[]>('/api/mypage/coupons/history');
+        return response.data;
+    } catch (error) {
+        throw new Error(getKoreanErrorMessage(error, '쿠폰 사용 내역을 불러오지 못했습니다.'));
+    }
 }
 
 export async function fetchMypageCommunityActivities(
@@ -65,14 +62,22 @@ export async function fetchMypageCommunityActivities(
     page = 0,
     size = 10,
 ): Promise<MypageCommunityActivityPage> {
-    const response = await apiClient.get<MypageCommunityActivityPage>('/api/mypage/community/activities', {
-        params: { type, page, size },
-    });
-    return response.data;
+    try {
+        const response = await apiClient.get<MypageCommunityActivityPage>('/api/mypage/community/activities', {
+            params: { type, page, size },
+        });
+        return response.data;
+    } catch (error) {
+        throw new Error(getKoreanErrorMessage(error, '활동 내역을 불러오지 못했습니다.'));
+    }
 }
 
 export async function deactivateMypageAccount(): Promise<void> {
-    await apiClient.patch('/api/mypage/account/deactivate');
+    try {
+        await apiClient.patch('/api/mypage/account/deactivate');
+    } catch (error) {
+        throw new Error(getKoreanErrorMessage(error, '계정을 비활성화하지 못했습니다.'));
+    }
 }
 
 export async function updateMypageNickname(nickname: string): Promise<string> {
@@ -80,10 +85,6 @@ export async function updateMypageNickname(nickname: string): Promise<string> {
         const response = await apiClient.patch<{ nickname: string }>('/api/mypage/nickname', { nickname });
         return response.data.nickname;
     } catch (error: any) {
-        const message =
-            error.response?.data?.message ||
-            error.response?.data?.error ||
-            '닉네임을 변경하지 못했습니다.';
-        throw new Error(message);
+        throw new Error(getKoreanErrorMessage(error, '닉네임을 변경하지 못했습니다.'));
     }
 }

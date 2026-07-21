@@ -4,6 +4,7 @@ import axios from 'axios';
 import apiClient from '../api/client';
 import { getSupabaseAccessToken } from '../api/sessionApi';
 import { useAlertStore } from '../store/alertStore';
+import { localizeErrorMessage } from '../utils/errorMessage';
 import { useUserStore } from '../store/userStore';
 import type { LoadTestResult } from '../types/loadTest';
 import { useDomains } from './useDomains';
@@ -69,10 +70,10 @@ export function useLoadTest(
 
       switch (status) {
         case 400:
-          showAlert(errorMessage || '잘못된 요청입니다. 입력값을 다시 확인해주세요.', 'error');
+          showAlert(localizeErrorMessage(errorMessage, '잘못된 요청입니다. 입력값을 다시 확인해주세요.'), 'error');
           break;
         case 402:
-          showAlert(errorMessage || '크레딧 잔액 또는 쿠폰이 부족합니다. 충전 후 다시 시도해주세요.', 'error');
+          showAlert(localizeErrorMessage(errorMessage, '크레딧 잔액 또는 쿠폰이 부족합니다. 충전 후 다시 시도해주세요.'), 'error');
           break;
         case 404:
           showAlert('요청한 테스트 내역이나 리소스를 찾을 수 없습니다.', 'error');
@@ -81,7 +82,7 @@ export function useLoadTest(
           showAlert('서버 내부에서 예상치 못한 오류가 발생했습니다. 잠시 후 다시 시도해주세요.', 'error');
           break;
         default:
-          showAlert(errorMessage || `서버 통신 오류가 발생했습니다. (코드: ${status})`, 'error');
+          showAlert(localizeErrorMessage(errorMessage, `서버 통신 오류가 발생했습니다. (코드: ${status})`), 'error');
           break;
       }
       return;
@@ -163,11 +164,12 @@ export function useLoadTest(
           console.log('Stream update:', data);
           setLoadPhase(data.phase || '');
           setLoadProgress(typeof data.progress === 'number' ? data.progress : 0);
-          setLoadMessage(data.message || '');
+          const streamMessage = localizeErrorMessage(data.message, '테스트를 처리하고 있습니다.');
+          setLoadMessage(streamMessage);
 
           if (data.status === 'FAILED') {
             setLoadStatus('error');
-            showAlert(data.message || '테스트 수행 중 오류가 발생했습니다.', 'error');
+            showAlert(localizeErrorMessage(data.message, '테스트 수행 중 오류가 발생했습니다.'), 'error');
             controller.abort();
             return;
           }

@@ -1,5 +1,5 @@
-import axios from 'axios';
 import apiClient from './client';
+import { getKoreanErrorMessage } from '../utils/errorMessage';
 import type {
     CreatePostRequest,
     CreatePostCommentRequest,
@@ -35,26 +35,7 @@ function getErrorMessage(
     error: unknown,
     fallbackMessage: string
 ): string {
-    if (axios.isAxiosError(error)) {
-        const responseData = error.response?.data as
-            | {
-                message?: string;
-                error?: string;
-
-                // ResponseStatusException의 오류 내용입니다.
-                detail?: string;
-            }
-            | undefined;
-
-        return (
-            responseData?.message ||
-            responseData?.detail ||
-            responseData?.error ||
-            fallbackMessage
-        );
-    }
-
-    return fallbackMessage;
+    return getKoreanErrorMessage(error, fallbackMessage);
 }
 
 export async function fetchCommunityPosts({

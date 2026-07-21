@@ -72,9 +72,9 @@ public class ChatbotService {
                     .build());
         } else {
             session = chatSessionRepository.findById(request.getSessionId())
-                    .orElseThrow(() -> new IllegalArgumentException("Session not found"));
+                    .orElseThrow(() -> new IllegalArgumentException("채팅 세션을 찾을 수 없습니다."));
             if (!session.getUser().getUserId().equals(user.getUserId())) {
-                throw new IllegalStateException("Unauthorized access to chat session");
+                throw new IllegalStateException("해당 채팅 세션에 접근할 권한이 없습니다.");
             }
         }
 
@@ -260,10 +260,10 @@ public class ChatbotService {
     @Transactional(readOnly = true)
     public List<ChatResponseDto> getSessionMessages(User user, java.util.UUID sessionId) {
         ChatSession session = chatSessionRepository.findById(sessionId)
-                .orElseThrow(() -> new IllegalArgumentException("Session not found"));
+                .orElseThrow(() -> new IllegalArgumentException("채팅 세션을 찾을 수 없습니다."));
         
         if (!session.getUser().getUserId().equals(user.getUserId())) {
-            throw new IllegalArgumentException("Unauthorized");
+            throw new IllegalArgumentException("이 작업을 수행할 권한이 없습니다.");
         }
 
         return chatMessageRepository.findByChatSessionOrderByCreatedAtAsc(session)

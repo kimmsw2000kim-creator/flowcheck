@@ -70,7 +70,8 @@ public class UIUXTestController {
             return ResponseEntity.status(HttpStatus.PAYMENT_REQUIRED).body(e.getMessage());
         } catch (Exception e) {
             log.error("UI 테스트 제출 중 내부 서버 오류 발생", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("UI/UX 테스트를 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.");
         }
     }
 
@@ -91,7 +92,8 @@ public class UIUXTestController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         } catch (Exception e) {
             log.error("테스트 상태 조회 중 오류 발생", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("UI/UX 테스트 상태를 불러오지 못했습니다.");
         }
     }
 
@@ -134,7 +136,8 @@ public class UIUXTestController {
         } catch (Exception e) {
             log.error("VNC_DIAG token_error requestId={} userId={}", requestId, userIdForLog, e);
             log.error("VNC signed URL 발급 중 오류", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("실시간 화면 연결 정보를 준비하지 못했습니다.");
         }
     }
 
@@ -157,7 +160,7 @@ public class UIUXTestController {
             throw e;
         } catch (Exception e) {
             log.error("스텝 로그 제출 중 오류 발생", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("테스트 진행 정보를 저장하지 못했습니다.");
         }
     }
 
@@ -180,7 +183,7 @@ public class UIUXTestController {
             throw e;
         } catch (Exception e) {
             log.error("리포트 제출 중 오류 발생", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("UI/UX 테스트 리포트를 저장하지 못했습니다.");
         }
     }
 
@@ -203,7 +206,7 @@ public class UIUXTestController {
             throw e;
         } catch (Exception e) {
             log.error("실패 보고 중 오류 발생", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("UI/UX 테스트 실패 상태를 저장하지 못했습니다.");
         }
     }
 
@@ -224,7 +227,7 @@ public class UIUXTestController {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
         } catch (Exception e) {
             log.error("UI/UX 테스트 중지 중 오류 발생", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("UI/UX 테스트를 중지하지 못했습니다.");
         }
     }
 

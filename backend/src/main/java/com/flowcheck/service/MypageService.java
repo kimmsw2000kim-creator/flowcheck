@@ -81,7 +81,7 @@ public class MypageService {
 
         public MypageResponseDTO getMyPage(UUID userId) {
                 User user = userRepository.findById(userId)
-                                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                                .orElseThrow(() -> new IllegalArgumentException("사용자 정보를 찾을 수 없습니다."));
 
                 int couponCount = userCouponRepository.sumRemainingChancesByUserId(userId);
                 int loadTestCouponCount = userCouponRepository.sumRemainingChancesByUserIdAndCouponType(userId, CouponType.LOAD_TEST);
@@ -213,7 +213,7 @@ public class MypageService {
 
         public List<MypageTestHistoryResponseDTO> getTestHistory(UUID userId) {
                 User user = userRepository.findById(userId)
-                                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                                .orElseThrow(() -> new IllegalArgumentException("사용자 정보를 찾을 수 없습니다."));
 
                 List<MypageTestHistoryResponseDTO> histories = new ArrayList<>();
 
@@ -442,7 +442,7 @@ public class MypageService {
 
         public List<MypageCouponHistoryResponseDTO> getCouponUsageHistory(UUID userId) {
                 if (!userRepository.existsById(userId)) {
-                        throw new IllegalArgumentException("User not found");
+                        throw new IllegalArgumentException("사용자 정보를 찾을 수 없습니다.");
                 }
 
                 List<CouponUsageLog> logs = couponUsageLogRepository.findByUser_UserIdOrderByUsedAtDesc(userId);

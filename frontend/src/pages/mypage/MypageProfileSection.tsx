@@ -13,6 +13,7 @@ import {
   getNicknameValidationError,
   normalizeNickname,
 } from '../../utils/authValidation';
+import { getKoreanErrorMessage } from '../../utils/errorMessage';
 import styles from '../../styles/mypage.module.css';
 
 interface MypageProfileSectionProps {
@@ -43,7 +44,7 @@ function MypageProfileSection({ data, onAvatarChange, onNicknameChange }: Mypage
       onAvatarChange(avatarUrl);
       showAlert('프로필 사진이 변경되었습니다.', 'success');
     } catch (error) {
-      showAlert(error instanceof Error ? error.message : '프로필 사진을 변경하지 못했습니다.', 'error');
+      showAlert(getKoreanErrorMessage(error, '프로필 사진을 변경하지 못했습니다.'), 'error');
     } finally {
       setPendingAction(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -57,7 +58,7 @@ function MypageProfileSection({ data, onAvatarChange, onNicknameChange }: Mypage
       onAvatarChange('');
       showAlert('프로필 사진이 삭제되었습니다.', 'success');
     } catch (error) {
-      showAlert(error instanceof Error ? error.message : '프로필 사진을 삭제하지 못했습니다.', 'error');
+      showAlert(getKoreanErrorMessage(error, '프로필 사진을 삭제하지 못했습니다.'), 'error');
     } finally {
       setPendingAction(null);
     }
@@ -81,7 +82,7 @@ function MypageProfileSection({ data, onAvatarChange, onNicknameChange }: Mypage
       setNicknameDraft(savedNickname);
       showAlert('닉네임이 변경되었습니다.', 'success');
     } catch (error) {
-      showAlert(error instanceof Error ? error.message : '닉네임을 변경하지 못했습니다.', 'error');
+      showAlert(getKoreanErrorMessage(error, '닉네임을 변경하지 못했습니다.'), 'error');
     } finally {
       setPendingAction(null);
     }

@@ -1,12 +1,9 @@
 import apiClient from './client';
 import type { CreateInquiryRequest, Inquiry, InquiryPage, InquiryStatus, UpdateInquiryRequest } from '../types/inquiry';
+import { getKoreanErrorMessage } from '../utils/errorMessage';
 
 function getErrorMessage(error: unknown, fallback: string): string {
-  if (typeof error === 'object' && error && 'response' in error) {
-    const response = (error as { response?: { data?: { message?: string; error?: string } } }).response;
-    return response?.data?.message || response?.data?.error || fallback;
-  }
-  return fallback;
+  return getKoreanErrorMessage(error, fallback);
 }
 
 export async function fetchMyInquiries(page = 0, keyword = '', size = 10): Promise<InquiryPage> {

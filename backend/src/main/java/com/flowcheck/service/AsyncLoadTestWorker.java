@@ -63,7 +63,7 @@ public class AsyncLoadTestWorker {
         request.setRequestId(requestId);
 
         TestRequest testHistory = testRequestRepository.findById(requestId)
-                .orElseThrow(() -> new IllegalArgumentException("Request not found"));
+                .orElseThrow(() -> new IllegalArgumentException("부하 테스트 요청을 찾을 수 없습니다."));
 
         long fastApiCallStartedAt = 0L;
 
@@ -107,7 +107,7 @@ public class AsyncLoadTestWorker {
                     .body(LoadTestResponse.TestResults.class);
 
             if (testResults == null) {
-                throw new RuntimeException("FastAPI Error: testResults is null");
+                throw new RuntimeException("부하 테스트 결과가 반환되지 않았습니다.");
             }
             String aiReview = testResults.getBottleneckComment();
             if (aiReview == null || aiReview.isBlank()) {
@@ -213,9 +213,7 @@ public class AsyncLoadTestWorker {
             }
             String failureMessage = timedOut
                     ? "부하 테스트 서버의 응답 제한 시간을 초과했습니다. 잠시 후 다시 시도해 주세요."
-                    : e.getMessage() != null
-                            ? e.getMessage()
-                            : "부하 테스트 처리 중 오류가 발생했습니다.";
+                    : "부하 테스트 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.";
             loadTestStreamService.updateProgress(requestId,
                     new com.flowcheck.dto.LoadTest.LoadTestProgressUpdateRequest(
                             "FAILED",

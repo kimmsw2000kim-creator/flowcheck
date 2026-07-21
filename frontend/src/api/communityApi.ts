@@ -32,7 +32,7 @@ function unwrap<T>(value: T | { data: T }): T {
 
 async function parseError(response: Response, fallback: string) {
   const message = await response.text().catch(() => '');
-  return message || fallback;
+  return localizeErrorMessage(message, fallback);
 }
 
 export async function getPosts(
@@ -130,7 +130,7 @@ export async function likePost(postId: number): Promise<ForumLikeStatus> {
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
-    throw new Error(data?.message || '좋아요 처리에 실패했습니다.');
+    throw new Error(localizeErrorMessage(data?.message, '좋아요 처리에 실패했습니다.'));
   }
 
   return unwrap(data);
@@ -215,3 +215,4 @@ export async function deletePost(postId: number) {
     throw new Error(await parseError(response, `게시글 삭제에 실패했습니다. (${response.status})`));
   }
 }
+import { localizeErrorMessage } from '../utils/errorMessage';

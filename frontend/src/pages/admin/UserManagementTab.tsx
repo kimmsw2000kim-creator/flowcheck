@@ -4,6 +4,7 @@ import type { AdminUser } from '../../api/adminApi';
 import { Badge, Button, Card, EmptyState, Select, Table, TableContainer } from '../../components/common';
 import type { BadgeTone } from '../../components/common';
 import { useAlertStore } from '../../store/alertStore';
+import { getKoreanErrorMessage } from '../../utils/errorMessage';
 
 const statusTone: Record<string, BadgeTone> = {
   ACTIVE: 'success',
@@ -32,7 +33,7 @@ export default function UserManagementTab() {
   useEffect(() => {
     fetchAdminUsers()
       .then(setUsers)
-      .catch((error) => setErrorMessage(error instanceof Error ? error.message : '회원 목록을 불러오지 못했습니다.'))
+      .catch((error) => setErrorMessage(getKoreanErrorMessage(error, '회원 목록을 불러오지 못했습니다.')))
       .finally(() => setLoading(false));
   }, []);
 
@@ -43,7 +44,7 @@ export default function UserManagementTab() {
       setUsers((current) => current.map((user) => user.userId === updated.userId ? updated : user));
       showAlert('회원 정보가 변경되었습니다.', 'success');
     } catch (error) {
-      showAlert(error instanceof Error ? error.message : '회원 정보를 변경하지 못했습니다.', 'error');
+      showAlert(getKoreanErrorMessage(error, '회원 정보를 변경하지 못했습니다.'), 'error');
     } finally { setPendingAction(''); }
   };
 

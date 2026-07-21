@@ -8,6 +8,7 @@ import { EmptyState, PageHeader } from '../../components/common';
 import { LoadTestResultView } from '../../components/load';
 import UIUXResultView from '../../components/uiux/UIUXResultView';
 import type { LoadTestResult } from '../../types/loadTest';
+import { getKoreanErrorMessage } from '../../utils/errorMessage';
 
 function MypageTestDetailSection() {
     const { testType, requestId } = useParams<{ testType: string; requestId: string }>();
@@ -39,7 +40,7 @@ function MypageTestDetailSection() {
         if (isUIUXTest) {
             fetchMypageUIUXTestDetail(requestId)
                 .then((res) => setUiuxDetail(res))
-                .catch((error) => setErrorMessage(error.message || 'UI/UX 테스트 결과를 불러오지 못했습니다.'))
+                .catch((error) => setErrorMessage(getKoreanErrorMessage(error, 'UI/UX 테스트 결과를 불러오지 못했습니다.')))
                 .finally(() => setLoading(false));
             return;
         }

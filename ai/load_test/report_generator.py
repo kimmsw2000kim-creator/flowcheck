@@ -219,7 +219,7 @@ def clean_json_response(text: str) -> str:
 
 def _validate_action_evidence(payload: ModelAnalysisPayload) -> None:
     if any(not re.search(r"\d", action.evidence) for action in payload.actions):
-        raise ValueError("Every action evidence must contain a measured number")
+        raise ValueError("모든 개선 제안의 근거에는 측정값이 포함되어야 합니다.")
 
 
 def _assemble_structured_report(

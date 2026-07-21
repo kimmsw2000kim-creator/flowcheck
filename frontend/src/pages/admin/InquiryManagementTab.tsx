@@ -8,6 +8,7 @@ import {
 import { Badge, Button, Card, EmptyState, Field, Select, TextField } from '../../components/common';
 import { useAlertStore } from '../../store/alertStore';
 import type { InquiryPage, InquiryStatus } from '../../types/inquiry';
+import { getKoreanErrorMessage } from '../../utils/errorMessage';
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleString('ko-KR');
@@ -42,7 +43,7 @@ export default function InquiryManagementTab() {
         if (!cancelled) setInquiryPage(data);
       } catch (error) {
         if (!cancelled) {
-          setErrorMessage(error instanceof Error ? error.message : '고객 문의를 불러오지 못했습니다.');
+          setErrorMessage(getKoreanErrorMessage(error, '고객 문의를 불러오지 못했습니다.'));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -75,7 +76,7 @@ export default function InquiryManagementTab() {
       setAnswerDrafts((current) => ({ ...current, [id]: updated.answer ?? '' }));
       showAlert(currentInquiry?.status === 'ANSWERED' ? '문의 답변이 수정되었습니다.' : '문의 답변이 등록되었습니다.', 'success');
     } catch (error) {
-      showAlert(error instanceof Error ? error.message : '답변 저장에 실패했습니다.', 'error');
+      showAlert(getKoreanErrorMessage(error, '답변 저장에 실패했습니다.'), 'error');
     } finally {
       setAnsweringId(null);
     }
@@ -94,7 +95,7 @@ export default function InquiryManagementTab() {
       }
       showAlert('문의가 삭제되었습니다.', 'success');
     } catch (error) {
-      showAlert(error instanceof Error ? error.message : '문의 삭제에 실패했습니다.', 'error');
+      showAlert(getKoreanErrorMessage(error, '문의 삭제에 실패했습니다.'), 'error');
     } finally {
       setDeletingId(null);
     }

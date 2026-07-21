@@ -810,7 +810,7 @@ public class UIUXTestService {
         // requestId와 만료 시각을 HMAC으로 서명합니다.
         // 서버가 같은 secret으로 다시 계산해 비교하므로 DB에 토큰을 저장할 필요가 없습니다.
         if (vncSignedUrlSecret == null || vncSignedUrlSecret.isBlank()) {
-            throw new IllegalStateException("VNC signed URL secret is not configured.");
+            throw new IllegalStateException("실시간 화면 연결 설정이 완료되지 않았습니다.");
         }
 
         try {
@@ -819,7 +819,7 @@ public class UIUXTestService {
             byte[] signature = mac.doFinal(vncTokenPayload(requestId, expiresAt).getBytes(StandardCharsets.UTF_8));
             return Base64.getUrlEncoder().withoutPadding().encodeToString(signature);
         } catch (Exception e) {
-            throw new IllegalStateException("VNC signed URL token could not be created.", e);
+            throw new IllegalStateException("실시간 화면 접근 토큰을 생성하지 못했습니다.", e);
         }
     }
 
@@ -827,11 +827,11 @@ public class UIUXTestService {
         // noVNC HTML 진입과 WebSocket handshake 모두 이 검증을 통과해야 합니다.
         // MessageDigest.isEqual을 사용해 문자열 비교 시간 차이를 줄입니다.
         if (token == null || token.isBlank()) {
-            throw new IllegalArgumentException("VNC token is required.");
+            throw new IllegalArgumentException("실시간 화면 접근 토큰이 필요합니다.");
         }
 
         if (Instant.now().getEpochSecond() > expiresAt) {
-            throw new IllegalArgumentException("VNC token has expired.");
+            throw new IllegalArgumentException("실시간 화면 접근 토큰이 만료되었습니다.");
         }
 
         String expectedToken = signVncAccess(requestId, expiresAt);
@@ -840,7 +840,7 @@ public class UIUXTestService {
                 token.getBytes(StandardCharsets.UTF_8));
 
         if (!tokenMatches) {
-            throw new IllegalArgumentException("Invalid VNC token.");
+            throw new IllegalArgumentException("올바르지 않은 실시간 화면 접근 토큰입니다.");
         }
     }
 
@@ -872,14 +872,14 @@ public class UIUXTestService {
                 return;
             }
             log.info("VNC_DIAG readiness_not_ready requestId={} status={} elapsedMs={}", requestId, statusCode, elapsedMs);
-            throw new IllegalStateException("VNC stream is not ready. status=" + statusCode);
+            throw new IllegalStateException("실시간 화면 연결을 준비하고 있습니다. 현재 상태: " + statusCode);
         } catch (IllegalStateException e) {
             throw e;
         } catch (Exception e) {
             long elapsedMs = Duration.ofNanos(System.nanoTime() - startedAt).toMillis();
             log.info("VNC_DIAG readiness_error requestId={} baseUri={} elapsedMs={} error={}",
                     requestId, baseUri, elapsedMs, e.toString());
-            throw new IllegalStateException("VNC stream is not ready.", e);
+            throw new IllegalStateException("실시간 화면 연결을 준비하고 있습니다.", e);
         }
     }
 

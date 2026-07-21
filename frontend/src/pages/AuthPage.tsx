@@ -15,6 +15,7 @@ import {
   getNicknameValidationError,
   getPasswordValidationError,
 } from '../utils/authValidation';
+import { getKoreanErrorMessage } from '../utils/errorMessage';
 
 export interface AuthPageProps {
   setActiveTab: (tab: string) => void;
@@ -74,7 +75,7 @@ export default function AuthPage({ setActiveTab, initialMode = 'login' }: AuthPa
       const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } });
       if (error) throw error;
     } catch (error) {
-      showAlert(error instanceof Error ? error.message : 'Google 로그인에 실패했습니다.', 'error');
+      showAlert(getKoreanErrorMessage(error, 'Google 로그인에 실패했습니다.'), 'error');
       setLoadingAction(null);
     }
   };
@@ -113,7 +114,7 @@ export default function AuthPage({ setActiveTab, initialMode = 'login' }: AuthPa
       setActiveTab('dashboard');
       window.history.replaceState({}, document.title, window.location.origin);
     } catch (error) {
-      showAlert(error instanceof Error ? error.message : '계정 상태를 확인하지 못했습니다.', 'error');
+      showAlert(getKoreanErrorMessage(error, '계정 상태를 확인하지 못했습니다.'), 'error');
     }
   }, [loginSuccess, setActiveTab, showAlert]);
 
@@ -187,7 +188,7 @@ export default function AuthPage({ setActiveTab, initialMode = 'login' }: AuthPa
         setPasswordConfirm('');
       }
     } catch (error) {
-      showAlert(error instanceof Error ? error.message : `${mode === 'login' ? '로그인' : '회원가입'}에 실패했습니다.`, 'error');
+      showAlert(getKoreanErrorMessage(error, `${mode === 'login' ? '로그인' : '회원가입'}에 실패했습니다.`), 'error');
     } finally { setLoadingAction(null); }
   };
 

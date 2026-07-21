@@ -1,5 +1,6 @@
 import type { UserMetadata } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabaseClient';
+import { getKoreanErrorMessage } from '../utils/errorMessage';
 import apiClient from './client';
 
 const AVATAR_BUCKET = 'avatars';
@@ -50,7 +51,7 @@ export async function uploadProfileImage(file: File): Promise<string> {
       upsert: false,
     });
 
-  if (uploadError) throw new Error(`프로필 사진 업로드에 실패했습니다: ${uploadError.message}`);
+  if (uploadError) throw new Error(getKoreanErrorMessage(uploadError, '프로필 사진 업로드에 실패했습니다.'));
 
   const { data: publicUrlData } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(objectPath);
   const avatarUrl = publicUrlData.publicUrl;
@@ -61,7 +62,7 @@ export async function uploadProfileImage(file: File): Promise<string> {
 
   if (metadataError) {
     await supabase.storage.from(AVATAR_BUCKET).remove([objectPath]);
-    throw new Error(`프로필 정보 저장에 실패했습니다: ${metadataError.message}`);
+    throw new Error(getKoreanErrorMessage(metadataError, '프로필 정보 저장에 실패했습니다.'));
   }
 
   try {
@@ -100,7 +101,7 @@ export async function removeProfileImage(): Promise<void> {
   const { error: metadataError } = await supabase.auth.updateUser({
     data: { avatar_url: null, avatar_path: null },
   });
-  if (metadataError) throw new Error(`프로필 사진 삭제에 실패했습니다: ${metadataError.message}`);
+  if (metadataError) throw new Error(getKoreanErrorMessage(metadataError, '프로필 사진 삭제에 실패했습니다.'));
 
   try {
     await syncPublicProfileImage(null);

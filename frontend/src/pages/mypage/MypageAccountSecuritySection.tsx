@@ -11,6 +11,7 @@ import {
   PASSWORD_MIN_LENGTH,
   getPasswordValidationError,
 } from '../../utils/authValidation';
+import { getKoreanErrorMessage } from '../../utils/errorMessage';
 import styles from '../../styles/mypage.module.css';
 
 interface MypageAccountSecuritySectionProps {
@@ -56,7 +57,7 @@ function MypageAccountSecuritySection({ email, canChangePassword }: MypageAccoun
       showAlert('계정이 비활성화되었습니다.', 'success');
       navigate('/login', { replace: true });
     } catch (error: unknown) {
-      showAlert(error instanceof Error ? error.message : '계정을 비활성화하지 못했습니다.', 'error');
+      showAlert(getKoreanErrorMessage(error, '계정을 비활성화하지 못했습니다.'), 'error');
     } finally {
       setDeactivating(false);
     }
@@ -88,7 +89,7 @@ function MypageAccountSecuritySection({ email, canChangePassword }: MypageAccoun
       showAlert('비밀번호가 변경되었습니다. 새 비밀번호로 로그인해 주세요.', 'success');
       navigate('/login', { replace: true });
     } catch (error: unknown) {
-      showAlert(error instanceof Error ? error.message : '비밀번호를 변경하지 못했습니다.', 'error');
+      showAlert(getKoreanErrorMessage(error, '비밀번호를 변경하지 못했습니다.'), 'error');
     } finally {
       setChangingPassword(false);
     }

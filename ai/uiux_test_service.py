@@ -220,12 +220,12 @@ def run_local_docker_task(request_id: str, target_url: str) -> None:
             0,
             target_url,
             "STARTING_VNC",
-            reason="Local browser container is ready and waiting for VNC connection.",
+            reason="로컬 브라우저 실행 환경이 준비되어 실시간 화면 연결을 기다리고 있습니다.",
             vnc_url=vnc_url,
         )
     except Exception as exc:
         print(f"[LOCAL DOCKER] Failed: {exc}", flush=True)
-        report_failure(request_id, f"Local Docker start failed: {exc}")
+        report_failure(request_id, "로컬 UI/UX 테스트 실행 환경을 시작하지 못했습니다.")
 
 
 def _docker_cli_env() -> dict:
@@ -449,7 +449,7 @@ def run_fargate_task(request_id: str, target_url: str) -> None:
             0,
             target_url,
             "PROVISIONING_VNC",
-            reason="Cloud browser task was submitted. Waiting for VNC network address.",
+            reason="클라우드 브라우저 실행을 요청했으며 실시간 화면 주소를 기다리고 있습니다.",
         )
 
         print("[FARGATE] Waiting for task VNC network address...", flush=True)
@@ -462,7 +462,7 @@ def run_fargate_task(request_id: str, target_url: str) -> None:
             0,
             target_url,
             "STARTING_VNC",
-            reason="Cloud browser task is ready and waiting for VNC connection.",
+            reason="클라우드 브라우저가 준비되어 실시간 화면 연결을 기다리고 있습니다.",
             vnc_url=vnc_url,
         )
     except Exception as exc:
@@ -470,7 +470,7 @@ def run_fargate_task(request_id: str, target_url: str) -> None:
         if ecs_client is not None and cluster and task_arn and "Task detail:" not in failure_detail:
             failure_detail = f"{failure_detail}. {_describe_task_failure(ecs_client, cluster, task_arn)}"
         print(f"[FARGATE] Failed: {failure_detail}", flush=True)
-        report_failure(request_id, f"Fargate UIUX start failed: {failure_detail}")
+        report_failure(request_id, "클라우드 UI/UX 테스트 실행 환경을 시작하지 못했습니다.")
 
 
 def _describe_task_failure(ecs_client, cluster: str, task_arn: str) -> str:
