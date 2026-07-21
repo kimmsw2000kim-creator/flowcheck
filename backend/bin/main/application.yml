@@ -15,10 +15,10 @@ spring:
   jpa:
     hibernate:
       ddl-auto: none
-    show-sql: true
+    show-sql: ${SPRING_JPA_SHOW_SQL:false}
     properties:
       hibernate:
-        format_sql: true
+        format_sql: ${SPRING_JPA_FORMAT_SQL:false}
   security:
     oauth2:
       resourceserver:
@@ -47,6 +47,20 @@ external:
 fastapi:
   url: ${FASTAPI_URL:http://localhost:8000}
 
+http-client:
+  connect-timeout-ms: ${HTTP_CLIENT_CONNECT_TIMEOUT_MS:5000}
+  default-read-timeout-ms: ${HTTP_CLIENT_DEFAULT_READ_TIMEOUT_MS:60000}
+  load-test-read-timeout-ms: ${HTTP_CLIENT_LOAD_TEST_READ_TIMEOUT_MS:900000}
+
+internal:
+  load-test-callback-token: ${LOAD_TEST_CALLBACK_TOKEN:}
+  uiux-test-callback-token: ${UIUX_TEST_CALLBACK_TOKEN:${LOAD_TEST_CALLBACK_TOKEN:}}
+
+vnc:
+  signed-url:
+    secret: ${VNC_SIGNED_URL_SECRET:${SUPABASE_JWT_KEY:}}
+    ttl-seconds: ${VNC_SIGNED_URL_TTL_SECONDS:300}
+
 ---
 # 배포 환경(prod) 오버라이드: 개발 설정과 분리
 spring:
@@ -61,7 +75,7 @@ spring:
       idle-timeout: 600000        # 10분 유휴 시 반환
       max-lifetime: 1800000       # 30분 최대 수명
   jpa:
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         format_sql: false

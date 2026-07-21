@@ -1,4 +1,4 @@
-import { Check, CreditCard, Shield } from 'lucide-react';
+import { Check, Shield } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { CREDIT_PRODUCTS } from '../../hooks/usePayment';
 import { Badge, Button, Card } from '../common';
@@ -14,7 +14,7 @@ export default function PricingSection() {
       <LandingSectionHeader eyebrow="Flexible Pricing" title="사용량 기반 크레딧" description="월 고정 비용 없이 필요한 테스트만 실행하고 크레딧으로 결제합니다." />
       <div className={styles['pricing-layout']}>
         <Card as="article" variant="outlined" padding="lg" className={styles['usage-card']}>
-          <div className={styles['card-heading']}><span className={styles['feature-icon']}><CreditCard size={24} aria-hidden="true" /></span><div><Badge tone="info">Usage Based</Badge><h3>테스트 실행 요금</h3></div></div>
+          <div className={styles['card-heading']}><div><Badge tone="info">Usage Based</Badge><h3>테스트 실행 요금</h3></div></div>
           <div className={styles['usage-price']}><span>기준 실행 단가</span><strong>10,000 <small>크레딧</small></strong></div>
           <ul className={styles['benefit-list']}>
             {TEST_BENEFITS.map((benefit) => <li key={benefit}><Check size={16} aria-hidden="true" /> {benefit}</li>)}
