@@ -34,7 +34,7 @@ public class LoadTestStreamService {
                 .findByIdAndUser_UserIdAndTestType(requestId, userId, "LOAD")
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
-                        "Load test not found"));
+                        "부하 테스트 요청을 찾을 수 없습니다."));
 
         SseEmitter emitter = new SseEmitter(0L);
 
@@ -81,9 +81,9 @@ public class LoadTestStreamService {
     public void updateProgress(UUID requestId, LoadTestProgressUpdateRequest request) {
         TestRequest testRequest = "FAILED".equals(request.status())
                 ? testRequestRepository.findByIdForUpdate(requestId)
-                        .orElseThrow(() -> new IllegalArgumentException("Invalid request ID"))
+                        .orElseThrow(() -> new IllegalArgumentException("올바르지 않은 부하 테스트 요청 번호입니다."))
                 : testRequestRepository.findById(requestId)
-                .orElseThrow(() -> new IllegalArgumentException("Invalid request ID"));
+                .orElseThrow(() -> new IllegalArgumentException("올바르지 않은 부하 테스트 요청 번호입니다."));
 
         if (isTerminal(testRequest.getTestStatus())) {
             log.warn(

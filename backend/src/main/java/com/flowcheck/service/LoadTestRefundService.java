@@ -34,7 +34,7 @@ public class LoadTestRefundService {
     @Transactional(propagation = Propagation.MANDATORY)
     public void refundIfNeeded(TestRequest testRequest, String reason) {
         if (!"LOAD".equals(testRequest.getTestType())) {
-            throw new IllegalArgumentException("Only load test requests can be refunded here.");
+            throw new IllegalArgumentException("부하 테스트 요청만 이 경로에서 환불할 수 있습니다.");
         }
 
         UUID requestId = testRequest.getId();

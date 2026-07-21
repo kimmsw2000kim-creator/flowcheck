@@ -4,6 +4,7 @@ import type { MypageCouponHistoryItem } from '../../types/mypage';
 import { Badge, EmptyState, PageHeader, Table, TableContainer } from '../../components/common';
 import { supabase } from '../../lib/supabaseClient';
 import styles from '../../styles/mypage.module.css';
+import { getKoreanErrorMessage } from '../../utils/errorMessage';
 
 const couponTypeLabels: Record<string, string> = { LOAD_TEST: '부하 테스트', UIUX_TEST: 'UI/UX 테스트', UNKNOWN: '알 수 없음' };
 const formatDate = (value: string) => new Date(value).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -20,7 +21,7 @@ function MypageCouponHistorySection() {
         if (error || !session) throw new Error('로그인이 필요합니다.');
         setHistories(await fetchMypageCouponHistory());
       } catch (error) {
-        setErrorMessage(error instanceof Error ? error.message : '쿠폰 사용 내역을 불러오지 못했습니다.');
+        setErrorMessage(getKoreanErrorMessage(error, '쿠폰 사용 내역을 불러오지 못했습니다.'));
       } finally { setLoading(false); }
     };
     fetchHistory();

@@ -44,7 +44,7 @@ class P2Quantile:
 
     def __init__(self, quantile: float) -> None:
         if not 0 < quantile < 1:
-            raise ValueError("quantile must be between 0 and 1")
+            raise ValueError("분위수는 0과 1 사이여야 합니다.")
         self.quantile = quantile
         self.count = 0
         self.initial: List[float] = []
@@ -293,12 +293,12 @@ def aggregate_k6_metric_stream(
 
                     data = payload.get("data")
                     if not isinstance(data, dict):
-                        raise ValueError("metric point has no data object")
+                        raise ValueError("성능 지표에 데이터 객체가 없습니다.")
 
                     timestamp = _parse_timestamp(data.get("time"))
                     value = float(data.get("value"))
                     if not math.isfinite(value):
-                        raise ValueError("metric value is not finite")
+                        raise ValueError("성능 지표 값이 유효한 숫자가 아닙니다.")
 
                     bucket_key = math.floor(timestamp)
                     bucket = buckets.setdefault(bucket_key, MetricBucket())
@@ -427,7 +427,7 @@ def _record_metric(
 
 def _parse_timestamp(value: Any) -> float:
     if not isinstance(value, str) or not value:
-        raise ValueError("metric timestamp is missing")
+        raise ValueError("성능 지표의 측정 시간이 없습니다.")
     normalized = value[:-1] + "+00:00" if value.endswith("Z") else value
     return datetime.fromisoformat(normalized).timestamp()
 

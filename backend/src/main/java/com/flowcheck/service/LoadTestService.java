@@ -46,7 +46,7 @@ public class LoadTestService {
         @Transactional
         public UUID submitLoadTest(UUID userId, LoadTestRequest request) {
                 User user = userRepository.findById(userId)
-                                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                                .orElseThrow(() -> new IllegalArgumentException("사용자 정보를 찾을 수 없습니다."));
 
                 String safePrompt = request.getLoadPrompt() != null ? request.getLoadPrompt() : "";
                 TestRequest testHistory = TestRequest.builder()
@@ -91,7 +91,7 @@ public class LoadTestService {
                                         .build();
                         creditsLedgerRepository.save(ledger);
                 } else {
-                        throw new IllegalStateException("Insufficient coupons or balance.");
+                        throw new IllegalStateException("부하 테스트 쿠폰 또는 크레딧 잔액이 부족합니다.");
                 }
 
                 loadTestStreamService.updateProgress(generatedRequestId,
@@ -113,7 +113,7 @@ public class LoadTestService {
                                 .findByIdAndUser_UserIdAndTestType(requestId, userId, "LOAD")
                                 .orElseThrow(() -> new ResponseStatusException(
                                                 HttpStatus.NOT_FOUND,
-                                                "Load test not found"));
+                                                "부하 테스트 결과를 찾을 수 없습니다."));
 
                 String currentStatus = testRequest.getTestStatus();
                 String currentPhase = testRequest.getTestPhase();
@@ -132,7 +132,7 @@ public class LoadTestService {
 
                 LoadTestReport report = loadTestReportRepository.findByTestRequestId(requestId)
                                 .orElseThrow(() -> new IllegalStateException(
-                                                "Report should exist for COMPLETED request"));
+                                                "완료된 부하 테스트의 리포트를 찾을 수 없습니다."));
 
                 Map<String, Object> rawMetrics = report.getRawMetrics();
                 int schemaVersion = getIntValue(rawMetrics.get("schemaVersion"), 1);

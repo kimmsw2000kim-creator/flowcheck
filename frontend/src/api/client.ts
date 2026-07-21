@@ -3,6 +3,7 @@ import ApiURL from './ApiURL';
 import { supabase } from '../lib/supabaseClient';
 import { useAlertStore } from '../store/alertStore';
 import { useUserStore } from '../store/userStore';
+import { localizeErrorMessage } from '../utils/errorMessage';
 
 const accountAccessCodes = new Set([
   'ACCOUNT_INVALID',
@@ -36,7 +37,7 @@ export function getAccountAccessMessage(error: unknown): string | null {
 
   const message = error.response?.data?.message;
   return typeof message === 'string' && message.trim()
-    ? message
+    ? localizeErrorMessage(message, '현재 이용할 수 없는 계정입니다.')
     : '현재 이용할 수 없는 계정입니다.';
 }
 

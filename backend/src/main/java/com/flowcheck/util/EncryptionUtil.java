@@ -45,7 +45,7 @@ public class EncryptionUtil {
 
             return Base64.getEncoder().encodeToString(encrypted);
         } catch (Exception e) {
-            throw new RuntimeException("Error encrypting chat message", e);
+            throw new RuntimeException("채팅 메시지를 암호화하지 못했습니다.", e);
         }
     }
 
@@ -68,7 +68,7 @@ public class EncryptionUtil {
             byte[] plainText = cipher.doFinal(cipherText);
             return new String(plainText, StandardCharsets.UTF_8);
         } catch (Exception e) {
-            throw new RuntimeException("Error decrypting chat message", e);
+            throw new RuntimeException("채팅 메시지를 복호화하지 못했습니다.", e);
         }
     }
 }

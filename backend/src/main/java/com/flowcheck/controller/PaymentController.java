@@ -63,9 +63,12 @@ public class PaymentController {
             // 토스페이먼츠 공식 confirm API를 타사 인증정보와 함께 호출하고 결과 반환
             JsonNode result = paymentService.confirmPayment(confirmDto, email);
             return ResponseEntity.ok(result);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            log.warn("결제 승인 요청을 처리할 수 없음. orderId={}, reason={}", confirmDto.orderId(), e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         } catch (Exception e) {
             log.error("Failed to confirm payment for order: {}", confirmDto.orderId(), e);
-            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+            return ResponseEntity.badRequest().body(Map.of("message", "결제 승인 처리에 실패했습니다. 잠시 후 다시 시도해 주세요."));
         }
     }
 
@@ -116,9 +119,12 @@ public class PaymentController {
                     requestDto != null ? requestDto.reason() : null,
                     email);
             return ResponseEntity.ok(Map.of("message", "환불이 완료되었습니다."));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            log.warn("환불 요청을 처리할 수 없음. paymentId={}, reason={}", paymentId, e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         } catch (Exception e) {
             log.error("Failed to refund payment. paymentId={}", paymentId, e);
-            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+            return ResponseEntity.badRequest().body(Map.of("message", "환불 처리에 실패했습니다. 잠시 후 다시 시도해 주세요."));
         }
     }
 

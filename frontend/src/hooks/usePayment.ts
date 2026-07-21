@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import axios from 'axios';
 import type { TossPaymentsWidgets } from '@tosspayments/tosspayments-sdk';
 import { loadTossPayments } from '@tosspayments/tosspayments-sdk';
 import { buyPaymentCoupons, confirmPayment, fetchPaymentHistory, initiatePayment, refundPayment } from '../api/paymentApi';
@@ -8,6 +7,7 @@ import { supabase } from '../lib/supabaseClient';
 import { useAlertStore } from '../store/alertStore';
 import { useLedgerStore } from '../store/ledgerStore';
 import { useUserStore } from '../store/userStore';
+import { getKoreanErrorMessage, localizeErrorMessage } from '../utils/errorMessage';
 import type {
   CouponType,
   CreditProduct,
@@ -50,10 +50,7 @@ export const CREDIT_PRODUCTS: readonly CreditProduct[] = [
 ];
 
 function getErrorMessage(error: unknown): string {
-  if (axios.isAxiosError<{ message?: string }>(error)) {
-    return error.response?.data?.message || error.message;
-  }
-  return error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.';
+  return getKoreanErrorMessage(error, '결제 처리 중 오류가 발생했습니다.');
 }
 
 function clearWidgetContainers(): void {
@@ -137,7 +134,7 @@ export function usePayment() {
     window.history.replaceState({}, document.title, window.location.pathname);
 
     if (paymentError) {
-      showAlert(errorMessage || '결제가 취소되었거나 실패했습니다.', 'error');
+      showAlert(localizeErrorMessage(errorMessage, '결제가 취소되었거나 실패했습니다.'), 'error');
       return;
     }
 

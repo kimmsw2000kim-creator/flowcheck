@@ -4,6 +4,7 @@ import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, X
 import { fetchAdminStats } from '../../api/adminStatsApi';
 import { Button, Card, EmptyState } from '../../components/common';
 import type { AdminStats } from '../../types/adminStats';
+import { getKoreanErrorMessage } from '../../utils/errorMessage';
 
 const numberFormatter = new Intl.NumberFormat('ko-KR');
 
@@ -18,7 +19,7 @@ export default function StatsManagementTab() {
       setErrorMessage('');
       setStats(await fetchAdminStats());
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : '관리자 통계를 불러오지 못했습니다.');
+      setErrorMessage(getKoreanErrorMessage(error, '관리자 통계를 불러오지 못했습니다.'));
     } finally {
       setLoading(false);
     }

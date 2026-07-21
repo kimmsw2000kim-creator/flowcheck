@@ -3,6 +3,7 @@ import type { Domain } from '../types/domain';
 import { fetchDomains, registerDomain, verifyDomain, deleteDomain } from '../api/domainApi';
 import { useUserStore } from './userStore';
 import { useAlertStore } from './alertStore';
+import { getKoreanErrorMessage } from '../utils/errorMessage';
 
 interface DomainState {
   domains: Domain[];
@@ -51,7 +52,7 @@ export const useDomainStore = create<DomainState>((set, get) => ({
       }));
       showAlert('도메인이 등록되었습니다. 소유권 검증 토큰을 적용한 후 지금 검증하기를 클릭하세요.');
     } catch (err: any) {
-      showAlert(err.message, 'error');
+      showAlert(getKoreanErrorMessage(err, '도메인 등록에 실패했습니다.'), 'error');
     }
   },
   handleVerifyDomain: async (id) => {
@@ -71,7 +72,7 @@ export const useDomainStore = create<DomainState>((set, get) => ({
       showAlert('도메인 소유권 검증이 완료되었습니다!');
     } catch (err: any) {
       set({ verificationLoading: false });
-      showAlert(err.message, 'error');
+      showAlert(getKoreanErrorMessage(err, '도메인 소유권 검증에 실패했습니다.'), 'error');
     }
   },
   handleDeleteDomain: async (id) => {
@@ -89,7 +90,7 @@ export const useDomainStore = create<DomainState>((set, get) => ({
       }));
       showAlert('도메인이 정상적으로 삭제되었습니다.');
     } catch (err: any) {
-      showAlert(err.message, 'error');
+      showAlert(getKoreanErrorMessage(err, '도메인 삭제에 실패했습니다.'), 'error');
     }
   },
 }));

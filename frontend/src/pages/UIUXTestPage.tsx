@@ -16,6 +16,7 @@ import UIUXResultView from '../components/uiux/UIUXResultView';
 import { useUserStore } from '../store/userStore';
 import { useAlertStore } from '../store/alertStore';
 import { useDomains } from '../hooks/useDomains';
+import { getKoreanErrorMessage } from '../utils/errorMessage';
 
 interface UIUXTestPageProps {
   selectedUIUXTestDomain: number;
@@ -433,16 +434,10 @@ export default function UIUXTestPage({
       } catch (err) {
         console.error('Failed to sync user state:', err);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setUIUXTestStatus('error');
       setLiveStreamClientStatus('error');
-      let errorMessage = 'AI 서버를 호출하지 못했습니다.';
-      if (err.response?.data) {
-        errorMessage = typeof err.response.data === 'string' ? err.response.data : err.response.data.message || errorMessage;
-      } else if (err.message) {
-        errorMessage = err.message;
-      }
-      showAlert(errorMessage, 'error');
+      showAlert(getKoreanErrorMessage(err, 'AI 서버를 호출하지 못했습니다.'), 'error');
     } finally {
       isSubmittingRef.current = false;
     }
@@ -468,14 +463,10 @@ export default function UIUXTestPage({
       setLiveStreamClientStatus('ended');
       await syncUserEntitlements();
       showAlert('UI/UX 테스트를 중지했습니다. 결과는 실패 상태로 기록됩니다.', 'success');
-    } catch (err: any) {
+    } catch (err: unknown) {
       setUIUXTestStatus('error');
       setLiveStreamClientStatus('error');
-      const errorMessage =
-        typeof err.response?.data === 'string'
-          ? err.response.data
-          : err.response?.data?.message || err.message || '테스트 중지에 실패했습니다.';
-      showAlert(errorMessage, 'error');
+      showAlert(getKoreanErrorMessage(err, '테스트 중지에 실패했습니다.'), 'error');
     } finally {
       setIsStopping(false);
     }

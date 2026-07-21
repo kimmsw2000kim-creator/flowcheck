@@ -9,6 +9,7 @@ import {
     normalizeEmail,
     normalizeNickname,
 } from '../utils/authValidation';
+import { getKoreanErrorMessage, localizeErrorMessage } from '../utils/errorMessage';
 
 export interface AuthParams {
     email: string;
@@ -28,7 +29,7 @@ function getLoginErrorMessage(error: { code?: string; message?: string }): strin
         case 'over_request_rate_limit':
             return '로그인 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.';
         default:
-            return error.message || '로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.';
+            return localizeErrorMessage(error.message, '로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.');
     }
 }
 
@@ -39,7 +40,7 @@ export async function requestPasswordReset(email: string): Promise<void> {
         redirectTo,
     });
 
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(getKoreanErrorMessage(error, '비밀번호 재설정 메일을 보내지 못했습니다.'));
 }
 
 export async function updatePassword(password: string): Promise<void> {
@@ -47,7 +48,7 @@ export async function updatePassword(password: string): Promise<void> {
     if (validationError) throw new Error(validationError);
 
     const { error } = await supabase.auth.updateUser({ password });
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(getKoreanErrorMessage(error, '비밀번호를 변경하지 못했습니다.'));
 }
 
 export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
@@ -62,7 +63,7 @@ export async function changePassword(currentPassword: string, newPassword: strin
         current_password: currentPassword,
     });
 
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(getKoreanErrorMessage(error, '비밀번호를 변경하지 못했습니다.'));
 }
 
 export async function signup({ email, password, nickname }: AuthParams): Promise<any> {
@@ -89,7 +90,7 @@ export async function signup({ email, password, nickname }: AuthParams): Promise
         },
     });
 
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(getKoreanErrorMessage(error, '회원가입에 실패했습니다. 잠시 후 다시 시도해 주세요.'));
 
     // 이메일 인증이 켜진 Supabase는 기존 확정 계정에 오류 대신
     // identities가 비어 있는 가짜 사용자 객체를 반환합니다.
@@ -145,8 +146,7 @@ export async function validateActiveSession(session: Session): Promise<void> {
 
         await supabase.auth.signOut();
         const message = getAccountAccessMessage(error)
-            ?? (error instanceof Error ? error.message : null)
-            ?? '계정 상태를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.';
+            ?? getKoreanErrorMessage(error, '계정 상태를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.');
         throw new Error(message);
     }
 }
@@ -163,7 +163,7 @@ export async function reactivateAccount(session: Session): Promise<Session> {
     });
 
     if (error || !data.session) {
-        throw new Error(error?.message ?? '재활성화된 로그인 세션을 갱신하지 못했습니다.');
+        throw new Error(getKoreanErrorMessage(error, '재활성화된 로그인 세션을 갱신하지 못했습니다.'));
     }
 
     await validateActiveSession(data.session);

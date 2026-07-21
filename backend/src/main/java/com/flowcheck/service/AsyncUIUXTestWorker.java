@@ -41,7 +41,7 @@ public class AsyncUIUXTestWorker {
         UIUXTestStartRequest request = event.request();
 
         TestRequest testRequest = testRequestRepository.findById(requestId)
-                .orElseThrow(() -> new IllegalArgumentException("UIUX request not found"));
+                .orElseThrow(() -> new IllegalArgumentException("UI/UX 테스트 요청을 찾을 수 없습니다."));
 
         try {
             // FastAPI 전달이 시작됐음을 상태로 남겨 프론트 polling에서 "실행 중"으로 볼 수 있게 합니다.

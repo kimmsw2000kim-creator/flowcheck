@@ -16,6 +16,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
@@ -77,7 +78,8 @@ public class UIUXVncProxyController {
                     targetUri != null ? targetUri.getPort() : null, elapsedMs, e);
             log.warn("VNC asset proxy failed for request {}", requestId, e);
             return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-                    .body(("VNC stream is not ready: " + e.getMessage()).getBytes());
+                    .body("실시간 화면 연결을 준비하고 있습니다. 잠시 후 다시 시도해 주세요."
+                            .getBytes(StandardCharsets.UTF_8));
         }
     }
 
@@ -93,7 +95,7 @@ public class UIUXVncProxyController {
         String rawExpiresAt = servletRequest.getParameter("expires");
         String token = servletRequest.getParameter("token");
         if (rawExpiresAt == null || rawExpiresAt.isBlank()) {
-            throw new IllegalArgumentException("VNC token expiry is required.");
+            throw new IllegalArgumentException("실시간 화면 접근 토큰의 만료 시간이 필요합니다.");
         }
 
         uiuxTestService.validateVncAccessToken(requestId, Long.parseLong(rawExpiresAt), token);
@@ -145,6 +147,6 @@ public class UIUXVncProxyController {
             }
             Thread.sleep(250L * attempt);
         }
-        throw lastError != null ? lastError : new IllegalStateException("VNC proxy request failed.");
+        throw lastError != null ? lastError : new IllegalStateException("실시간 화면 프록시 요청에 실패했습니다.");
     }
 }

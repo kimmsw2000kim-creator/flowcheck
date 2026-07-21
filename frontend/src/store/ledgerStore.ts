@@ -3,6 +3,7 @@ import type { Session } from '@supabase/supabase-js';
 import { fetchCreditsLedger } from '../api/paymentApi';
 import { supabase } from '../lib/supabaseClient';
 import type { LedgerItem } from '../types/payment';
+import { getKoreanErrorMessage } from '../utils/errorMessage';
 
 type LedgerStatus = 'idle' | 'loading' | 'ready' | 'error';
 type OptimisticLedgerInput = Omit<LedgerItem, 'id' | 'createdAt' | 'source'>;
@@ -28,7 +29,7 @@ function withSource(entries: LedgerItem[]): LedgerItem[] {
 }
 
 function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : '원장 정보를 불러오지 못했습니다.';
+  return getKoreanErrorMessage(error, '원장 정보를 불러오지 못했습니다.');
 }
 
 export const useLedgerStore = create<LedgerState>((set, get) => {

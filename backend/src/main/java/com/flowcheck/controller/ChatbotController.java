@@ -32,7 +32,7 @@ public class ChatbotController {
             @RequestBody ChatRequestDto request) {
         
         UUID userId = UUID.fromString(jwt.getSubject());
-        User user = userRepository.findById(userId).orElseThrow(() -> new IllegalArgumentException("User not found"));
+        User user = userRepository.findById(userId).orElseThrow(() -> new IllegalArgumentException("사용자 정보를 찾을 수 없습니다."));
         ChatResponseDto response = chatbotService.sendMessage(user, request);
         return ResponseEntity.ok(response);
     }
@@ -40,7 +40,7 @@ public class ChatbotController {
     @GetMapping("/sessions")
     public ResponseEntity<List<ChatSessionDto>> getSessions(@AuthenticationPrincipal Jwt jwt) {
         UUID userId = UUID.fromString(jwt.getSubject());
-        User user = userRepository.findById(userId).orElseThrow(() -> new IllegalArgumentException("User not found"));
+        User user = userRepository.findById(userId).orElseThrow(() -> new IllegalArgumentException("사용자 정보를 찾을 수 없습니다."));
         List<ChatSessionDto> sessions = chatSessionRepository.findByUserAndIsActiveOrderByCreatedAtDesc(user, true)
                 .stream()
                 .map(s -> ChatSessionDto.builder()
@@ -57,7 +57,7 @@ public class ChatbotController {
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable UUID sessionId) {
         UUID userId = UUID.fromString(jwt.getSubject());
-        User user = userRepository.findById(userId).orElseThrow(() -> new IllegalArgumentException("User not found"));
+        User user = userRepository.findById(userId).orElseThrow(() -> new IllegalArgumentException("사용자 정보를 찾을 수 없습니다."));
         List<ChatResponseDto> messages = chatbotService.getSessionMessages(user, sessionId);
         return ResponseEntity.ok(messages);
     }

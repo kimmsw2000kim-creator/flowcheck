@@ -9,6 +9,7 @@ import {
 import { Badge, Button, Card, EmptyState, Field, PageHeader, TextField } from '../components/common';
 import { useAlertStore } from '../store/alertStore';
 import type { Inquiry, InquiryPage } from '../types/inquiry';
+import { getKoreanErrorMessage } from '../utils/errorMessage';
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleString('ko-KR');
@@ -47,7 +48,7 @@ export default function SupportPage() {
         if (!cancelled) setInquiryPage(data);
       } catch (error) {
         if (!cancelled) {
-          setErrorMessage(error instanceof Error ? error.message : '문의 내역을 불러오지 못했습니다.');
+          setErrorMessage(getKoreanErrorMessage(error, '문의 내역을 불러오지 못했습니다.'));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -73,7 +74,7 @@ export default function SupportPage() {
       setRefreshKey((current) => current + 1);
       showAlert('고객 문의가 등록되었습니다.', 'success');
     } catch (error) {
-      showAlert(error instanceof Error ? error.message : '문의 등록에 실패했습니다.', 'error');
+      showAlert(getKoreanErrorMessage(error, '문의 등록에 실패했습니다.'), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -102,7 +103,7 @@ export default function SupportPage() {
       setEditingId(null);
       showAlert('문의가 수정되었습니다.', 'success');
     } catch (error) {
-      showAlert(error instanceof Error ? error.message : '문의 수정에 실패했습니다.', 'error');
+      showAlert(getKoreanErrorMessage(error, '문의 수정에 실패했습니다.'), 'error');
     } finally {
       setSavingId(null);
     }
@@ -121,7 +122,7 @@ export default function SupportPage() {
       }
       showAlert('문의가 삭제되었습니다.', 'success');
     } catch (error) {
-      showAlert(error instanceof Error ? error.message : '문의 삭제에 실패했습니다.', 'error');
+      showAlert(getKoreanErrorMessage(error, '문의 삭제에 실패했습니다.'), 'error');
     } finally {
       setDeletingId(null);
     }

@@ -77,7 +77,7 @@ public class PaymentService {
         validateCreditPaymentAmount(requestDto.amount());
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new IllegalArgumentException("사용자 정보를 찾을 수 없습니다."));
 
         // 토스 권장 규격에 맞춰 고유한 주문 번호 발급 (ord- + 18자리 임의문자열)
         String orderId = "ord-" + UUID.randomUUID().toString().substring(0, 18);
@@ -113,14 +113,14 @@ public class PaymentService {
         validateCreditPaymentAmount(confirmDto.amount());
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new IllegalArgumentException("사용자 정보를 찾을 수 없습니다."));
 
         TossPayment tossPayment = tossPaymentRepository.findByOrderIdForUpdate(confirmDto.orderId())
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Payment record not found for orderId: " + confirmDto.orderId()));
+                        "결제 주문 정보를 찾을 수 없습니다."));
 
         if (!tossPayment.getUser().getUserId().equals(user.getUserId())) {
-            throw new IllegalArgumentException("Payment order does not belong to the current user.");
+            throw new IllegalArgumentException("본인의 결제 주문만 승인할 수 있습니다.");
         }
 
         // 데이터 무결성 검증 (요청금액과 DB 기록금액 일치 여부)
@@ -134,7 +134,7 @@ public class PaymentService {
         }
 
         if (!tossPayment.getAmount().equals(confirmDto.amount())) {
-            throw new IllegalArgumentException("Amount mismatch between request and record.");
+            throw new IllegalArgumentException("요청한 결제 금액이 주문 금액과 일치하지 않습니다.");
         }
 
         log.info("Sending payment confirm to Toss Payments for order: {}", confirmDto.orderId());
@@ -154,12 +154,12 @@ public class PaymentService {
                     .onStatus(status -> status.is4xxClientError() || status.is5xxServerError(), (req, res) -> {
                         String errorText = new String(res.getBody().readAllBytes(), StandardCharsets.UTF_8);
                         log.error("Toss Payments confirm error response: {}", errorText);
-                        throw new RuntimeException("Toss API error: " + errorText);
+                        throw new RuntimeException("결제 승인 요청이 거절되었습니다.");
                     })
                     .body(String.class);
         } catch (Exception e) {
             log.error("Failed to communicate with Toss Payments API", e);
-            throw new RuntimeException("Toss Payments confirmation request failed: " + e.getMessage());
+            throw new RuntimeException("결제 승인 요청에 실패했습니다. 잠시 후 다시 시도해 주세요.", e);
         }
 
         try {
@@ -193,7 +193,7 @@ public class PaymentService {
             return responseJson;
         } catch (Exception e) {
             log.error("Failed to parse Toss Payments confirm response", e);
-            throw new RuntimeException("Failed to confirm payment details: " + e.getMessage());
+            throw new RuntimeException("결제 승인 결과를 처리하지 못했습니다.", e);
         }
     }
 
@@ -213,7 +213,7 @@ public class PaymentService {
 
         TossPayment tossPayment = tossPaymentRepository.findByOrderIdForUpdate(orderId)
                 .orElseThrow(
-                        () -> new IllegalArgumentException("Payment record not found for webhook orderId: " + orderId));
+                        () -> new IllegalArgumentException("웹훅에 해당하는 결제 주문 정보를 찾을 수 없습니다."));
 
         // 이미 결제가 완료된 주문이면 스킵
         if ("DONE".equalsIgnoreCase(tossPayment.getPaymentStatus())) {
@@ -224,7 +224,7 @@ public class PaymentService {
         String paymentKey = webhookDto.data() != null ? webhookDto.data().paymentKey() : null;
         if (paymentKey == null || paymentKey.isBlank()) {
             log.warn("Rejected Toss webhook without paymentKey for order: {}", orderId);
-            throw new IllegalArgumentException("Toss webhook paymentKey is required.");
+            throw new IllegalArgumentException("결제 웹훅의 결제 키가 필요합니다.");
         }
 
         JsonNode verifiedPayment = fetchTossPayment(paymentKey);
@@ -234,13 +234,13 @@ public class PaymentService {
 
         if (!orderId.equals(verifiedOrderId)) {
             log.warn("Rejected Toss webhook order mismatch. incoming={}, verified={}", orderId, verifiedOrderId);
-            throw new IllegalArgumentException("Toss webhook orderId mismatch.");
+            throw new IllegalArgumentException("결제 웹훅의 주문 번호가 일치하지 않습니다.");
         }
 
         if (!tossPayment.getAmount().equals(verifiedAmount)) {
             log.warn("Rejected Toss webhook amount mismatch for order {}. expected={}, verified={}",
                     orderId, tossPayment.getAmount(), verifiedAmount);
-            throw new IllegalArgumentException("Toss webhook amount mismatch.");
+            throw new IllegalArgumentException("결제 웹훅의 결제 금액이 일치하지 않습니다.");
         }
 
         if ("DONE".equalsIgnoreCase(verifiedStatus)) {
@@ -263,7 +263,7 @@ public class PaymentService {
     @Transactional(readOnly = true)
     public List<PaymentHistoryResponseDto> getPaymentHistory(String email) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new IllegalArgumentException("사용자 정보를 찾을 수 없습니다."));
 
         List<TossPayment> payments = tossPaymentRepository.findByUser_UserIdOrderByCreatedAtDesc(user.getUserId());
 
@@ -287,25 +287,25 @@ public class PaymentService {
     @Transactional
     public void refundPayment(Long paymentId, String reason, String email) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new IllegalArgumentException("사용자 정보를 찾을 수 없습니다."));
 
         TossPayment payment = tossPaymentRepository.findByIdForUpdate(paymentId)
-                .orElseThrow(() -> new IllegalArgumentException("Payment record not found."));
+                .orElseThrow(() -> new IllegalArgumentException("결제 내역을 찾을 수 없습니다."));
 
         if (!payment.getUser().getUserId().equals(user.getUserId())) {
-            throw new IllegalArgumentException("Refund is not allowed for this payment.");
+            throw new IllegalArgumentException("본인의 결제 내역만 환불할 수 있습니다.");
         }
 
         if (!isRefundable(payment)) {
-            throw new IllegalStateException("Only completed Toss payments can be refunded.");
+            throw new IllegalStateException("결제가 완료된 내역만 환불할 수 있습니다.");
         }
 
         User lockedUser = userRepository.findByIdForUpdate(user.getUserId())
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new IllegalArgumentException("사용자 정보를 찾을 수 없습니다."));
 
         int creditedAmount = calculateCreditAmount(payment.getAmount());
         if (lockedUser.getBalance() < creditedAmount) {
-            throw new IllegalStateException("Refund is unavailable because the charged credits were already used.");
+            throw new IllegalStateException("충전한 크레딧을 이미 사용하여 환불할 수 없습니다.");
         }
 
         requestTossCancel(payment, reason);
@@ -329,7 +329,7 @@ public class PaymentService {
      */
     private void creditUserBalance(TossPayment payment) {
         User user = userRepository.findByIdForUpdate(payment.getUser().getUserId())
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new IllegalArgumentException("사용자 정보를 찾을 수 없습니다."));
 
         // 결제 금액(KRW)에 따른 실제 지급 크레딧(C) 계산
         int creditAmount = calculateCreditAmount(payment.getAmount());
@@ -378,7 +378,7 @@ public class PaymentService {
 
     private void validateCreditPaymentAmount(Integer amount) {
         if (amount == null || !ALLOWED_CREDIT_PAYMENT_AMOUNTS.contains(amount)) {
-            throw new IllegalArgumentException("Unsupported credit payment amount.");
+            throw new IllegalArgumentException("지원하지 않는 크레딧 결제 금액입니다.");
         }
     }
 
@@ -403,13 +403,13 @@ public class PaymentService {
                     .onStatus(status -> status.is4xxClientError() || status.is5xxServerError(), (req, res) -> {
                         String errorText = new String(res.getBody().readAllBytes(), StandardCharsets.UTF_8);
                         log.error("Toss Payments cancel error response: {}", errorText);
-                        throw new RuntimeException("Toss cancel API error: " + errorText);
+                        throw new RuntimeException("결제 취소 요청이 거절되었습니다.");
                     })
                     .toBodilessEntity();
         } catch (Exception e) {
             log.error("Failed to cancel Toss payment. paymentId={}, orderId={}",
                     payment.getPaymentId(), payment.getOrderId(), e);
-            throw new RuntimeException("Toss Payments refund request failed: " + e.getMessage());
+            throw new RuntimeException("환불 요청에 실패했습니다. 잠시 후 다시 시도해 주세요.", e);
         }
     }
 
@@ -422,14 +422,14 @@ public class PaymentService {
                     .onStatus(status -> status.is4xxClientError() || status.is5xxServerError(), (req, res) -> {
                         String errorText = new String(res.getBody().readAllBytes(), StandardCharsets.UTF_8);
                         log.error("Toss Payments lookup error response: {}", errorText);
-                        throw new RuntimeException("Toss API lookup error: " + errorText);
+                        throw new RuntimeException("결제 정보를 확인하지 못했습니다.");
                     })
                     .body(String.class);
 
             return objectMapper.readTree(tossResponseString);
         } catch (Exception e) {
             log.error("Failed to verify Toss webhook paymentKey with Toss API", e);
-            throw new RuntimeException("Toss webhook verification failed: " + e.getMessage());
+            throw new RuntimeException("결제 웹훅을 검증하지 못했습니다.", e);
         }
     }
 
@@ -439,7 +439,7 @@ public class PaymentService {
     @Transactional(readOnly = true)
     public List<CreditsLedgerResponseDto> getCreditsLedger(String email) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new IllegalArgumentException("사용자 정보를 찾을 수 없습니다."));
 
         List<CreditsLedger> ledgers = creditsLedgerRepository.findByUser_UserIdOrderByCreatedAtDesc(user.getUserId());
         java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
@@ -467,14 +467,14 @@ public class PaymentService {
         }
         CouponType targetType = couponType != null ? couponType : CouponType.LOAD_TEST;
         User user = userRepository.findByEmailForUpdate(email)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new IllegalArgumentException("사용자 정보를 찾을 수 없습니다."));
 
         int unitPrice = targetType == CouponType.UIUX_TEST ? 1000 : 10000;
         int cost;
         try {
             cost = Math.multiplyExact(count, unitPrice);
         } catch (ArithmeticException exception) {
-            throw new IllegalArgumentException("Coupon purchase amount is too large.", exception);
+            throw new IllegalArgumentException("쿠폰 구매 금액이 허용 범위를 초과했습니다.", exception);
         }
         if (user.getBalance() < cost) {
             throw new IllegalStateException("크레딧 잔액이 부족합니다.");

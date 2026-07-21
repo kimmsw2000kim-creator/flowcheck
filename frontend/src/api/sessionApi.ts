@@ -1,10 +1,11 @@
 import { supabase } from '../lib/supabaseClient';
+import { getKoreanErrorMessage } from '../utils/errorMessage';
 
 export async function getSupabaseSession() {
   const { data, error } = await supabase.auth.getSession();
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(getKoreanErrorMessage(error, '로그인 세션을 확인하지 못했습니다.'));
   }
 
   return data.session;

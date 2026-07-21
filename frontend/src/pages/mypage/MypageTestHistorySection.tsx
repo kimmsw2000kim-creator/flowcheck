@@ -7,6 +7,7 @@ import { Badge, Button, Card, EmptyState, PageHeader } from '../../components/co
 import type { BadgeTone } from '../../components/common';
 import { supabase } from '../../lib/supabaseClient';
 import styles from '../../styles/mypage.module.css';
+import { getKoreanErrorMessage } from '../../utils/errorMessage';
 
 const TESTS_PER_PAGE = 5;
 const statusLabels: Record<string, string> = { PENDING: '대기 중', RUNNING: '실행 중', COMPLETED: '완료', FAILED: '실패' };
@@ -48,7 +49,7 @@ function MypageTestHistorySection({ onShare }: MypageTestHistorySectionProps) {
         setTests(await fetchMypageTestHistory());
         setCurrentPage(1);
       } catch (error) {
-        setErrorMessage(error instanceof Error ? error.message : '테스트 이력을 불러오지 못했습니다.');
+        setErrorMessage(getKoreanErrorMessage(error, '테스트 이력을 불러오지 못했습니다.'));
       } finally { setLoading(false); }
     };
     fetchHistory();
