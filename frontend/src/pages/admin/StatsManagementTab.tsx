@@ -34,7 +34,7 @@ export default function StatsManagementTab() {
     { label: '인증 도메인', value: `${numberFormatter.format(stats.verifiedDomains)}개` },
     { label: '전체 테스트', value: `${numberFormatter.format(stats.totalTests)}회` },
     { label: '완료 테스트', value: `${numberFormatter.format(stats.completedTests)}회` },
-    { label: '사용 크레딧', value: `${numberFormatter.format(stats.creditsConsumed)}P` },
+    { label: '사용 크레딧', value: `${numberFormatter.format(stats.creditsConsumed)}C` },
   ] : [];
 
   return (
