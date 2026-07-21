@@ -5,8 +5,9 @@ import { Link } from 'react-router-dom';
 import { fetchCommunityPosts } from '../../api/communityPostApi';
 import { COMMUNITY_LIMITS } from '../../constants/communityLimits';
 import type { Post } from '../../types/post';
-import { Button, Card, EmptyState } from '../common';
+import { Card, EmptyState } from '../common';
 import { CommunityAuthor } from './CommunityPostList';
+import CommunityPostPagination from './CommunityPostPagination';
 
 // 작성자에게만 수정·삭제 기능을 제공합니다.
 import CommunityPostActions from './CommunityPostActions';
@@ -257,47 +258,12 @@ export default function SitePromotionPostList({
                 ))}
             </div>
 
-            {/* 전체 페이지가 2개 이상일 때만 페이지 버튼을 표시합니다. */}
-            {totalPages > 1 && (
-                <nav
-                    aria-label="사이트 홍보 게시글 페이지"
-                    className="community-pagination community-post-pagination"
-                >
-                    <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        disabled={currentPage === 0}
-                        onClick={() => {
-                            // 이전 페이지로 이동하되 0보다 작아지지 않게 합니다.
-                            setCurrentPage((page) =>
-                                Math.max(0, page - 1)
-                            );
-                        }}
-                    >
-                        이전
-                    </Button>
-
-                    <span className="community-post-pagination__status" aria-current="page">
-                        {currentPage + 1} / {totalPages}
-                    </span>
-
-                    <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        disabled={currentPage >= totalPages - 1}
-                        onClick={() => {
-                            // 다음 페이지로 이동하되 마지막 페이지를 넘지 않게 합니다.
-                            setCurrentPage((page) =>
-                                Math.min(totalPages - 1, page + 1)
-                            );
-                        }}
-                    >
-                        다음
-                    </Button>
-                </nav>
-            )}
+            <CommunityPostPagination
+                ariaLabel="사이트 홍보 게시글 페이지"
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+            />
         </section>
     );
 }
