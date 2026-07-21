@@ -29,12 +29,15 @@ import java.time.OffsetDateTime;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class PaymentService {
+    private static final Set<Integer> ALLOWED_CREDIT_PAYMENT_AMOUNTS = Set.of(10_000, 45_000, 70_000);
+    private static final int MAX_COUPON_PURCHASE_COUNT = 100;
 
     private final UserRepository userRepository;
     private final TossPaymentRepository tossPaymentRepository;
@@ -71,6 +74,8 @@ public class PaymentService {
      */
     @Transactional
     public PaymentInitiateResponseDto initiatePayment(PaymentInitiateRequestDto requestDto, String email) {
+        validateCreditPaymentAmount(requestDto.amount());
+
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
@@ -105,12 +110,18 @@ public class PaymentService {
      */
     @Transactional
     public JsonNode confirmPayment(PaymentConfirmRequestDto confirmDto, String email) {
+        validateCreditPaymentAmount(confirmDto.amount());
+
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-        TossPayment tossPayment = tossPaymentRepository.findByOrderId(confirmDto.orderId())
+        TossPayment tossPayment = tossPaymentRepository.findByOrderIdForUpdate(confirmDto.orderId())
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Payment record not found for orderId: " + confirmDto.orderId()));
+
+        if (!tossPayment.getUser().getUserId().equals(user.getUserId())) {
+            throw new IllegalArgumentException("Payment order does not belong to the current user.");
+        }
 
         // 데이터 무결성 검증 (요청금액과 DB 기록금액 일치 여부)
         if ("DONE".equalsIgnoreCase(tossPayment.getPaymentStatus())) {
@@ -176,7 +187,7 @@ public class PaymentService {
 
             // 만약 카드 결제와 같이 승인 즉시 결제가 최종 완료(DONE)된 경우 잔액 충전 진행
             if ("DONE".equalsIgnoreCase(status)) {
-                creditUserBalance(user, tossPayment);
+                creditUserBalance(tossPayment);
             }
 
             return responseJson;
@@ -200,7 +211,7 @@ public class PaymentService {
 
         log.info("Toss Webhook received for order: {}, event: {}", orderId, webhookDto.eventType());
 
-        TossPayment tossPayment = tossPaymentRepository.findByOrderId(orderId)
+        TossPayment tossPayment = tossPaymentRepository.findByOrderIdForUpdate(orderId)
                 .orElseThrow(
                         () -> new IllegalArgumentException("Payment record not found for webhook orderId: " + orderId));
 
@@ -238,8 +249,7 @@ public class PaymentService {
             tossPaymentRepository.save(tossPayment);
 
             // 유저 크레딧 증가 및 원장 추가
-            User user = tossPayment.getUser();
-            creditUserBalance(user, tossPayment);
+            creditUserBalance(tossPayment);
 
             log.info("Toss payment deposit completed successfully via webhook for orderId: {}", orderId);
         } else {
@@ -279,7 +289,7 @@ public class PaymentService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-        TossPayment payment = tossPaymentRepository.findById(paymentId)
+        TossPayment payment = tossPaymentRepository.findByIdForUpdate(paymentId)
                 .orElseThrow(() -> new IllegalArgumentException("Payment record not found."));
 
         if (!payment.getUser().getUserId().equals(user.getUserId())) {
@@ -290,21 +300,24 @@ public class PaymentService {
             throw new IllegalStateException("Only completed Toss payments can be refunded.");
         }
 
+        User lockedUser = userRepository.findByIdForUpdate(user.getUserId())
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
         int creditedAmount = calculateCreditAmount(payment.getAmount());
-        if (user.getBalance() < creditedAmount) {
+        if (lockedUser.getBalance() < creditedAmount) {
             throw new IllegalStateException("Refund is unavailable because the charged credits were already used.");
         }
 
         requestTossCancel(payment, reason);
 
-        user.deductBalance(creditedAmount);
-        userRepository.save(user);
+        lockedUser.deductBalance(creditedAmount);
+        userRepository.save(lockedUser);
 
         payment.setPaymentStatus("CANCELED");
         tossPaymentRepository.save(payment);
 
         creditsLedgerRepository.save(CreditsLedger.builder()
-                .user(user)
+                .user(lockedUser)
                 .amount(-creditedAmount)
                 .transactionType(CreditTransactionType.PAYMENT_REFUND)
                 .description("Toss Payments 크레딧 환불 - 주문번호: " + payment.getOrderId())
@@ -314,7 +327,10 @@ public class PaymentService {
     /**
      * 실제 사용자 잔액(Balance)을 충전하고, credits_ledger 테이블에 충전 이력을 남기는 유틸 메소드
      */
-    private void creditUserBalance(User user, TossPayment payment) {
+    private void creditUserBalance(TossPayment payment) {
+        User user = userRepository.findByIdForUpdate(payment.getUser().getUserId())
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
         // 결제 금액(KRW)에 따른 실제 지급 크레딧(C) 계산
         int creditAmount = calculateCreditAmount(payment.getAmount());
 
@@ -358,6 +374,12 @@ public class PaymentService {
             return 100000;
         }
         return paymentAmount;
+    }
+
+    private void validateCreditPaymentAmount(Integer amount) {
+        if (amount == null || !ALLOWED_CREDIT_PAYMENT_AMOUNTS.contains(amount)) {
+            throw new IllegalArgumentException("Unsupported credit payment amount.");
+        }
     }
 
     private void requestTossCancel(TossPayment payment, String reason) {
@@ -440,12 +462,20 @@ public class PaymentService {
         if (count <= 0) {
             throw new IllegalArgumentException("쿠폰 구매 수량은 1개 이상이어야 합니다.");
         }
+        if (count > MAX_COUPON_PURCHASE_COUNT) {
+            throw new IllegalArgumentException("쿠폰은 한 번에 최대 100개까지 구매할 수 있습니다.");
+        }
         CouponType targetType = couponType != null ? couponType : CouponType.LOAD_TEST;
-        User user = userRepository.findByEmail(email)
+        User user = userRepository.findByEmailForUpdate(email)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
         int unitPrice = targetType == CouponType.UIUX_TEST ? 1000 : 10000;
-        int cost = count * unitPrice;
+        int cost;
+        try {
+            cost = Math.multiplyExact(count, unitPrice);
+        } catch (ArithmeticException exception) {
+            throw new IllegalArgumentException("Coupon purchase amount is too large.", exception);
+        }
         if (user.getBalance() < cost) {
             throw new IllegalStateException("크레딧 잔액이 부족합니다.");
         }
