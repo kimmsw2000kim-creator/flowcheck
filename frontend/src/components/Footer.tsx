@@ -1,4 +1,4 @@
-import { Activity, Globe, Mail } from 'lucide-react';
+import { Globe, Mail } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export interface AppFooterProps {
@@ -13,7 +13,7 @@ export default function AppFooter({ variant = 'compact' }: AppFooterProps) {
       {variant === 'full' && (
         <div className="app-footer__content">
           <div className="app-footer__brand">
-            <Link to="/" className="app-footer__logo"><Activity size={22} aria-hidden="true" /> FlowCheck</Link>
+            <Link to="/" className="app-footer__logo"><img src="/favicon.ico" alt="로고" /> FlowCheck</Link>
             <p>성능과 UI/UX를 한 흐름에서 검증하고 결과를 관리하는 AI 테스트 플랫폼입니다.</p>
           </div>
           <nav className="app-footer__links" aria-label="서비스 안내">
