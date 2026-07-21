@@ -35,7 +35,7 @@ public class PaymentController {
     @Operation(summary = "결제 정보 생성 (주문서 생성)", description = "결제를 시작하기 위해 주문 정보를 생성합니다.")
     @PostMapping("/initiate")
     public ResponseEntity<PaymentInitiateResponseDto> initiatePayment(
-            @RequestBody PaymentInitiateRequestDto requestDto,
+            @Valid @RequestBody PaymentInitiateRequestDto requestDto,
             @AuthenticationPrincipal Jwt jwt) {
 
         log.info("[API] /api/payment/initiate - 요청 수신");
@@ -54,7 +54,7 @@ public class PaymentController {
     @Operation(summary = "결제 승인", description = "생성된 주문에 대해 결제를 승인합니다.")
     @PostMapping("/confirm")
     public ResponseEntity<?> confirmPayment(
-            @RequestBody PaymentConfirmRequestDto confirmDto,
+            @Valid @RequestBody PaymentConfirmRequestDto confirmDto,
             @AuthenticationPrincipal Jwt jwt) {
 
         log.info("[API] /api/payment/confirm - 결제 승인 요청 수신. OrderId: {}", confirmDto.orderId());
