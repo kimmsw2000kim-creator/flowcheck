@@ -1,4 +1,3 @@
-import { CreditCard, PlusCircle } from 'lucide-react';
 import { Badge, Button, Card, EmptyState, PageHeader, Table, TableContainer } from '../components/common';
 import { useDomains } from '../hooks/useDomains';
 import { useUserStore } from '../store/userStore';
@@ -41,13 +40,13 @@ export default function DashboardPage({
 
       <section className="dashboard-page__stats" aria-label="계정 및 테스트 현황">
         <Card padding="md" className="dashboard-page__stat-card">
-          <div className="dashboard-page__stat-label"><CreditCard size={18} aria-hidden="true" /> 보유 크레딧 잔액</div>
+          <div className="dashboard-page__stat-label">보유 크레딧 잔액</div>
           <div className="dashboard-page__stat-value dashboard-page__stat-value--accent">
             {currentUser.balance.toLocaleString()} <span>크레딧</span>
           </div>
         </Card>
         <Card padding="md" className="dashboard-page__stat-card">
-          <div className="dashboard-page__stat-label"><PlusCircle size={18} aria-hidden="true" /> 선결제 테스트 쿠폰</div>
+          <div className="dashboard-page__stat-label">선결제 테스트 쿠폰</div>
           <div className="dashboard-page__coupon-values">
             <span>부하 <strong>{currentUser.loadTestCoupons || '-'}회</strong></span>
             <span>UI/UX <strong>{currentUser.UIUXTestCoupons || '-'}회</strong></span>

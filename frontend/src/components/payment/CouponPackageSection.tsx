@@ -1,4 +1,3 @@
-import { Gift } from 'lucide-react';
 import type { CouponType } from '../../types/payment';
 import { Button, Card } from '../common';
 
@@ -28,7 +27,6 @@ export default function CouponPackageSection({ onBuyCoupons }: CouponPackageSect
   return (
     <Card as="section" padding="md" className="payment-coupons">
       <div className="payment-section-heading">
-        <Gift size={20} aria-hidden="true" />
         <div>
           <span>Prepaid Coupons</span>
           <h3>선결제 테스트 쿠폰 패키지</h3>

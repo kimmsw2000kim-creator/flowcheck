@@ -1,4 +1,3 @@
-import { ReceiptText } from 'lucide-react';
 import { useMemo } from 'react';
 import { useLedgerStore } from '../../store/ledgerStore';
 import type { LedgerItem, PaymentHistoryItem } from '../../types/payment';
@@ -129,7 +128,6 @@ export default function PaymentActivityPanel({
   return (
     <Card as="section" padding="md" className="payment-activity">
       <div className="payment-section-heading">
-        <ReceiptText size={20} aria-hidden="true" />
         <div>
           <span>History</span>
           <h3>결제 및 크레딧 내역</h3>

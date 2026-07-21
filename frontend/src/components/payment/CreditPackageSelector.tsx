@@ -1,4 +1,4 @@
-import { ShoppingBag, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import type { CreditProduct } from '../../types/payment';
 import { Badge, Card } from '../common';
 
@@ -16,7 +16,6 @@ export default function CreditPackageSelector({
   return (
     <section className="payment-products" aria-labelledby="payment-products-title">
       <div className="payment-section-heading">
-        <ShoppingBag size={22} aria-hidden="true" />
         <div>
           <span>Credit Packages</span>
           <h3 id="payment-products-title">크레딧 패키지 충전</h3>
