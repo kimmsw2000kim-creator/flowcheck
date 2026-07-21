@@ -10,19 +10,8 @@ interface CommunityTestPickerProps {
   refreshKey: number;
 }
 
-// 테스트 이력을 한 페이지에 5개씩 표시합니다.
-const TESTS_PER_PAGE = 5;
-
-// 백엔드의 테스트 진행 단계를 사용자에게 표시할 이름으로 변환합니다.
-const phaseLabels: Record<string, string> = {
-  QUEUED: '대기',
-  PREPARING_REQUEST: '요청 준비',
-  CALLING_FASTAPI: 'AI 서버 호출',
-  PROCESSING_RESULTS: '결과 처리',
-  SAVING_REPORT: '저장 중',
-  COMPLETED: '완료',
-  FAILED: '실패',
-};
+// 카드가 3개씩 두 줄을 채우도록 한 페이지에 6개를 표시합니다.
+const TESTS_PER_PAGE = 6;
 
 const statusTone = (status: string) => status === 'COMPLETED' ? 'success' : status === 'FAILED' ? 'danger' : 'info';
 
@@ -46,7 +35,7 @@ export default function CommunityTestPicker({
     tests.length / TESTS_PER_PAGE
   );
 
-  // 현재 페이지에서 보여줄 테스트 5개만 가져옵니다.
+  // 현재 페이지에서 보여줄 테스트 6개만 가져옵니다.
   const visibleTests = tests.slice(
     (currentPage - 1) * TESTS_PER_PAGE,
     currentPage * TESTS_PER_PAGE
@@ -87,19 +76,9 @@ export default function CommunityTestPicker({
           test.testType === 'UI' ||
           test.testType === 'UIUX';
 
-        // 진행률이 0~100 범위를 벗어나지 않게 처리합니다.
-        const progress = Math.min(
-          Math.max(test.progress ?? 0, 0),
-          100
-        );
-
         // 마이페이지 테스트 상세 주소입니다.
         const detailPath =
           `/mypage/tests/${test.testType}/${test.requestId}`;
-
-        const phaseLabel = test.phase
-          ? phaseLabels[test.phase] || test.phase
-          : null;
 
         // 현재 테스트 카드를 화면에 반환합니다.
         return (
@@ -120,19 +99,6 @@ export default function CommunityTestPicker({
               <small>
                 {new Date(test.createdAt).toLocaleString('ko-KR')}
               </small>
-              {/* 현재 진행 단계와 진행률을 표시합니다. */}
-              <small>
-                {phaseLabel && `${phaseLabel} · `}
-                진행률 {progress}%
-              </small>
-              <progress
-                max="100"
-                value={progress}
-                aria-label={`${test.testName} 진행률`}
-              >
-                {progress}%
-              </progress>
-
               {/* 테스트 실행 시 저장된 설명이 있으면 표시합니다. */}
               {test.description && (
                 <p>{test.description}</p>
@@ -168,7 +134,7 @@ export default function CommunityTestPicker({
           </Card>
         );
       })}
-      {/* 테스트가 6개 이상일 때 페이지 버튼을 표시합니다. */}
+      {/* 테스트가 7개 이상일 때 페이지 버튼을 표시합니다. */}
       {totalPages > 1 && (
         <nav
           className="community-pagination"

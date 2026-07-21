@@ -305,14 +305,27 @@
 
 .community-test-picker {
   display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
   gap: var(--space-3);
 }
 
 .community-test-picker__item {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: 1fr auto;
+  align-items: start;
   gap: var(--space-4);
+}
+
+/* 페이지 이동과 결과 공유 버튼은 각각 사용 가능한 전체 행을 차지합니다. */
+.community-test-picker > .community-pagination,
+.community-test-picker__item > .fc-button {
+  grid-column: 1 / -1;
+}
+
+.community-test-picker__item > .fc-button {
+  width: 100%;
 }
 
 .community-test-picker__icon {
@@ -558,14 +571,6 @@
   margin-top: var(--space-2);
 }
 
-.community-post-pagination__status {
-  min-width: 4rem;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  text-align: center;
-}
-
 .community-post-actions {
   display: flex;
   flex-wrap: wrap;
@@ -658,16 +663,16 @@
 }
 
 @media (max-width: 900px) {
-  .community-test-picker__item {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-
-  .community-test-picker__item > .fc-button {
-    grid-column: 1 / -1;
+  .community-test-picker {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 720px) {
+  .community-test-picker {
+    grid-template-columns: 1fr;
+  }
+
   .community-search {
     grid-template-columns: 1fr;
   }
