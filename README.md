@@ -279,6 +279,6 @@ python -m unittest discover -s tests -v
 ### 팀장
 김태균: https://github.com/kimmsw2000kim-creator
 ### 팀원
-김진환: https://github.com/wlsksekf
-박성현: https://github.com/ParkSeonghyeon2003
-임병진: https://github.com/jini0316
+김진환: https://github.com/wlsksekf <br>
+박성현: https://github.com/ParkSeonghyeon2003 <br>
+임병진: https://github.com/jini0316 <br>
