@@ -275,3 +275,10 @@ python -m unittest discover -s tests -v
 5. 재가입 허용 시점, 탈퇴 철회 기간, 동일 이메일 재사용 정책을 정하고 자동 테스트를 추가합니다.
 
 > 일반적인 전자상거래 기준은 계약·결제 기록 5년, 소비자 불만·분쟁 기록 3년이지만 실제 적용 전 개인정보처리방침과 관련 법령을 다시 확인해야 합니다.
+
+### 팀장
+김태균: https://github.com/kimmsw2000kim-creator
+### 팀원
+김진환: https://github.com/wlsksekf
+박성현: https://github.com/ParkSeonghyeon2003
+임병진: https://github.com/jini0316
